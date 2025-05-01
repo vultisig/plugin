@@ -20,10 +20,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/internal/tasks"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/relay"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/relay"
 )
 
 func (s *WorkerService) Reshare(vault *vaultType.Vault,

@@ -6,7 +6,7 @@ import (
 
 	"github.com/vultisig/mobile-tss-lib/tss"
 
-	"github.com/vultisig/vultiserver-plugin/internal/types"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 type Plugin interface {

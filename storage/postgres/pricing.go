@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 const PRICINGS_TABLE = "pricings"

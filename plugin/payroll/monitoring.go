@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	gcommon "github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 func (p *PayrollPlugin) handleBroadcastError(err error, sender gcommon.Address) error {
@@ -19,7 +19,7 @@ func (p *PayrollPlugin) handleBroadcastError(err error, sender gcommon.Address) 
 	switch {
 	case strings.Contains(errMsg, "insufficient funds"):
 		// this is for ETH balance for gas - immediate failure, what to do?
-		//goal : retry only when we dectect user send funds
+		// goal : retry only when we dectect user send funds
 		// for now : we can skip this trigger and wait for next one
 		return &types.TransactionError{
 			Code:    types.ErrInsufficientFunds,
@@ -32,7 +32,7 @@ func (p *PayrollPlugin) handleBroadcastError(err error, sender gcommon.Address) 
 	case strings.Contains(errMsg, "gas price too low"):
 	case strings.Contains(errMsg, "gas limit reached"):
 		// these are retriable errors - the caller should retry with updated parameters
-		//we should not skip this trigger and retry immediately
+		// we should not skip this trigger and retry immediately
 		return &types.TransactionError{
 			Code:    types.ErrRetriable,
 			Message: err.Error(),
@@ -50,7 +50,7 @@ func (p *PayrollPlugin) handleBroadcastError(err error, sender gcommon.Address) 
 }
 
 func (p *PayrollPlugin) monitorTransaction(tx *gtypes.Transaction) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) //how much time should we monitor the tx?
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // how much time should we monitor the tx?
 	defer cancel()
 
 	ticker := time.NewTicker(15 * time.Second)

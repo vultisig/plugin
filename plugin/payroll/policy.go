@@ -12,7 +12,7 @@ import (
 	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 func (p *PayrollPlugin) ValidateProposedTransactions(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
@@ -48,7 +48,7 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy types.PluginPolicy, 
 			return fmt.Errorf("transaction destination is nil")
 		}
 
-		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) { //todo : why we compare to tokenId and not recipient address?
+		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) { // todo : why we compare to tokenId and not recipient address?
 			return fmt.Errorf("transaction destination does not match token ID")
 		}
 

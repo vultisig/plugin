@@ -1,4 +1,4 @@
-module github.com/vultisig/vultiserver-plugin
+module github.com/vultisig/plugin
 
 go 1.23.0
 

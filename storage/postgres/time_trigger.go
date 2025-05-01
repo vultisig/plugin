@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/vultisig/vultiserver-plugin/internal/types"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, trigger types.TimeTrigger) error {

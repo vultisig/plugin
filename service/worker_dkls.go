@@ -9,8 +9,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/relay"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/relay"
 	"github.com/vultisig/vultiserver/contexthelper"
 )
 

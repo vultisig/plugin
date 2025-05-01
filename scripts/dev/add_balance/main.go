@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/config"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/config"
 )
 
 const (

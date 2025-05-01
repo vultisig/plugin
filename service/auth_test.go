@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vultisig/vultiserver-plugin/service"
+	"github.com/vultisig/plugin/service"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/assert"

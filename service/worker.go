@@ -19,17 +19,17 @@ import (
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/config"
-	"github.com/vultisig/vultiserver-plugin/internal/syncer"
-	"github.com/vultisig/vultiserver-plugin/internal/tasks"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/plugin"
-	"github.com/vultisig/vultiserver-plugin/plugin/dca"
-	"github.com/vultisig/vultiserver-plugin/plugin/payroll"
-	"github.com/vultisig/vultiserver-plugin/relay"
-	"github.com/vultisig/vultiserver-plugin/storage"
-	"github.com/vultisig/vultiserver-plugin/storage/postgres"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/config"
+	"github.com/vultisig/plugin/internal/syncer"
+	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/plugin"
+	"github.com/vultisig/plugin/plugin/dca"
+	"github.com/vultisig/plugin/plugin/payroll"
+	"github.com/vultisig/plugin/relay"
+	"github.com/vultisig/plugin/storage"
+	"github.com/vultisig/plugin/storage/postgres"
 	"github.com/vultisig/vultiserver/contexthelper"
 )
 
@@ -463,7 +463,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 		// wait for result with timeout
 		result, err := s.waitForTaskResult(ti.ID, 120*time.Second) // adjust timeout as needed (each policy provider should be able to set it, but there should be an incentive to not retry too much)
-		if err != nil {                                            //do we consider that the signature is always valid if err = nil?
+		if err != nil {                                            // do we consider that the signature is always valid if err = nil?
 			metadata["error"] = err.Error()
 			metadata["task_id"] = ti.ID
 			newTx.Status = types.StatusSigningFailed

@@ -14,11 +14,11 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/internal/sigutil"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/pkg/uniswap"
-	"github.com/vultisig/vultiserver-plugin/storage"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/sigutil"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/pkg/uniswap"
+	"github.com/vultisig/plugin/storage"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

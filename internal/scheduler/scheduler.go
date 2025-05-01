@@ -12,9 +12,9 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/vultiserver-plugin/internal/tasks"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/storage"
+	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/storage"
 )
 
 const (

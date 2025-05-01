@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/config"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/relay"
-	"github.com/vultisig/vultiserver-plugin/service"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/config"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/relay"
+	"github.com/vultisig/plugin/service"
 )
 
 var vaultName string

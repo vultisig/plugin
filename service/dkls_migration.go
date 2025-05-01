@@ -14,7 +14,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/vultisig/vultiserver-plugin/relay"
+	"github.com/vultisig/plugin/relay"
 )
 
 func rightPadWithZeros(input string, length int) string {

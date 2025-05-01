@@ -18,8 +18,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/relay"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/relay"
 	vcommon "github.com/vultisig/vultiserver/common"
 )
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"github.com/vultisig/vultiserver-plugin/internal/jwt"
+	"github.com/vultisig/plugin/internal/jwt"
 )
 
 func (s *Server) statsdMiddleware(next echo.HandlerFunc) echo.HandlerFunc {

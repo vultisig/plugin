@@ -7,8 +7,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/sirupsen/logrus"
 
-	"github.com/vultisig/vultiserver-plugin/plugin"
-	"github.com/vultisig/vultiserver-plugin/storage"
+	"github.com/vultisig/plugin/plugin"
+	"github.com/vultisig/plugin/storage"
 )
 
 //go:embed frontend

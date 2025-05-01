@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/vultisig/vultiserver-plugin/common"
+	"github.com/vultisig/plugin/common"
 	"math/big"
 	"strconv"
 	"strings"
@@ -20,7 +20,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 // TODO: remove once the plugin installation is implemented
@@ -82,7 +82,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.
 		p.logger.Errorf("Failed to decode transaction hex: %v", err)
 		return []types.PluginKeysignRequest{}, fmt.Errorf("failed to decode transaction hex: %w", err)
 	}
-	//unmarshal tx from sign req.transaction
+	// unmarshal tx from sign req.transaction
 	tx := &gtypes.Transaction{}
 	err = tx.UnmarshalBinary(txBytes)
 	if err != nil {
@@ -112,7 +112,7 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 
 	// create call message to estimate gas
 	callMsg := ethereum.CallMsg{
-		From:  recipient, //todo : this works, but maybe better to put the correct sender address once we have it
+		From:  recipient, // todo : this works, but maybe better to put the correct sender address once we have it
 		To:    &recipient,
 		Data:  inputData,
 		Value: big.NewInt(0),
@@ -194,7 +194,7 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 		p.logger.Errorf("Failed to decode transaction hex: %v", err)
 		return []types.PluginKeysignRequest{}, fmt.Errorf("failed to decode transaction hex: %w", err)
 	}*/
-	//unmarshal tx from sign req.transaction
+	// unmarshal tx from sign req.transaction
 	txCheck := &gtypes.Transaction{}
 	err = rlp.DecodeBytes(rawTx, txCheck)
 	if err != nil {

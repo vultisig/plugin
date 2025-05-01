@@ -6,8 +6,8 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-const QUEUE_NAME = "vultisigner"
-const EMAIL_QUEUE_NAME = "vultisigner:email"
+const QUEUE_NAME = "plugin"
+const EMAIL_QUEUE_NAME = "plugin:email"
 const (
 	TypeKeyGeneration     = "key:generation"
 	TypeKeySign           = "key:sign"

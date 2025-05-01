@@ -17,15 +17,15 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/internal/jwt"
-	"github.com/vultisig/vultiserver-plugin/internal/password"
-	"github.com/vultisig/vultiserver-plugin/internal/sigutil"
-	"github.com/vultisig/vultiserver-plugin/internal/tasks"
-	"github.com/vultisig/vultiserver-plugin/internal/types"
-	"github.com/vultisig/vultiserver-plugin/plugin"
-	"github.com/vultisig/vultiserver-plugin/plugin/dca"
-	"github.com/vultisig/vultiserver-plugin/plugin/payroll"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/jwt"
+	"github.com/vultisig/plugin/internal/password"
+	"github.com/vultisig/plugin/internal/sigutil"
+	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/internal/types"
+	"github.com/vultisig/plugin/plugin"
+	"github.com/vultisig/plugin/plugin/dca"
+	"github.com/vultisig/plugin/plugin/payroll"
 )
 
 func (s *Server) SignPluginMessages(c echo.Context) error {

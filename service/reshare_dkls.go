@@ -13,8 +13,8 @@ import (
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/relay"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/relay"
 )
 
 func (t *DKLSTssService) ProcessReshare(vault *vaultType.Vault,

@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/sirupsen/logrus"
 
-	"github.com/vultisig/vultiserver-plugin/config"
+	"github.com/vultisig/plugin/config"
 )
 
 type BlockStorage struct {

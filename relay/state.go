@@ -6,8 +6,8 @@ import (
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 
-	"github.com/vultisig/vultiserver-plugin/common"
-	"github.com/vultisig/vultiserver-plugin/storage"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/storage"
 )
 
 type LocalStateAccessorImp struct {

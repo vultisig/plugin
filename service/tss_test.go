@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/vultisig/vultiserver-plugin/common"
+	"github.com/vultisig/plugin/common"
 )
 
 func TestEncryptionGCM(t *testing.T) {

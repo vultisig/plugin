@@ -1,7 +1,7 @@
 server:
   port: "8080"
   host: "localhost"
-  vaults_file_path: "/tmp/vultisigner/server/vaults"
+  vaults_file_path: "/tmp/plugin/server/vaults"
 
 redis:
   host: "localhost"
