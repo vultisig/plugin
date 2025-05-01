@@ -1,0 +1,47 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Install Clang
+        run: sudo apt-get install -y clang
+
+      - name: Install dkls libraries
+        run: |
+          wget https://github.com/vultisig/go-wrappers/archive/refs/heads/master.tar.gz
+          tar -xzf master.tar.gz
+          cd go-wrappers-master
+          sudo mkdir -p /usr/local/lib/dkls
+          sudo cp --recursive includes /usr/local/lib/dkls
+
+      - name: Build
+        run: go build -v ./...
+        env:
+          CGO_ENABLED: 1
+          CC: clang
+
+      - name: Test
+        run: |
+          export LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux/:$LD_LIBRARY_PATH
+          go test -v ./...
+        env:
+          CGO_ENABLED: 1
+          CC: clang
