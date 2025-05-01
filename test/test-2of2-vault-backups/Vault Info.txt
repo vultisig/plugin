@@ -1,0 +1,5 @@
+vault
+  public-key: 020cdce195caec8f13caa4e807c6c65d1f87d23e65ed4d47f24b137939f9000985
+  password: 888717
+  hex-encryption-key: 539440138236b389cb0355aa1e81d11e51e9ad7c94b09bb45704635913604a73
+  participants: "Rado’s MacBook Pro-FD0", "Server-58253"

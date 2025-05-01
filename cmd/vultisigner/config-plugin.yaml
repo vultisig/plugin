@@ -1,0 +1,53 @@
+# plugin
+
+server:
+  host: localhost
+  port: 8081
+  jwt_secret: myjwtsecretphrase
+  database:
+    dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
+  vaults_file_path: /tmp/plugin/vaults
+  mode: server
+  plugin:
+    type: dca
+    eth:
+      rpc: https://ethereum-rpc.publicnode.com
+      uniswap:
+        v2_router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        deadline: 5 # minutes
+plugin:
+  plugin_configs:
+    - name: vultisig-plugin
+      type: dca
+      config:
+        server:
+          host: localhost
+          port: 8081
+          jwt_secret: myjwtsecret
+
+relay:
+  server: https://api.vultisig.com/router
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 1
+
+block_storage:
+  type: s3
+  endpoint: http://localhost:9000
+  bucket: vultisig-plugin
+  access_key: minioadmin
+  secret: minioadmin
+  region: us-east-1
+  host: http://localhost:9000
+  force_path_style: true
+  disable_ssl: true
+
+email_server:
+  api_key: key-1234567890
+
+datadog:
+  host: localhost
+  port: 8125
