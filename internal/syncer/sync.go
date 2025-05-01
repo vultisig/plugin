@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/vultiserver-plugin/internal/types"
 )
 
@@ -24,7 +25,6 @@ const (
 
 type Action int
 
-const 
 const (
 	CreateAction Action = iota
 	UpdateAction
