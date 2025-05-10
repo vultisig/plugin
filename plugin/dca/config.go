@@ -2,6 +2,7 @@
 package dca
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -28,6 +29,17 @@ func loadPluginConfig() (*PluginConfig, error) {
 	var config PluginConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
+	}
+
+	// Validate configuration
+	if config.RpcURL == "" {
+		return nil, errors.New("rpc_url is required")
+	}
+	if config.Uniswap.V2Router == "" {
+		return nil, errors.New("uniswap.v2_router is required")
+	}
+	if config.Uniswap.Deadline <= 0 {
+		return nil, errors.New("uniswap.deadline must be positive")
 	}
 
 	return &config, nil
