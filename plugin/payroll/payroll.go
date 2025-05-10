@@ -1,8 +1,9 @@
 package payroll
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/mitchellh/mapstructure"
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/plugin/storage"
@@ -13,16 +14,17 @@ type PayrollPlugin struct {
 	nonceManager *NonceManager
 	rpcClient    *ethclient.Client
 	logger       logrus.FieldLogger
+	config       *PluginConfig
 }
 
 type PayrollPluginConfig struct {
 	RpcURL string `mapstructure:"rpc_url" json:"rpc_url"`
 }
 
-func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, rawConfig map[string]interface{}) (*PayrollPlugin, error) {
-	var cfg PayrollPluginConfig
-	if err := mapstructure.Decode(rawConfig, &cfg); err != nil {
-		return nil, err
+func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger) (*PayrollPlugin, error) {
+	cfg, err := loadPluginConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load plugin config: %w", err)
 	}
 
 	rpcClient, err := ethclient.Dial(cfg.RpcURL)
@@ -35,6 +37,7 @@ func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, raw
 		rpcClient:    rpcClient,
 		nonceManager: NewNonceManager(rpcClient),
 		logger:       logger,
+		config:       cfg,
 	}, nil
 }
 

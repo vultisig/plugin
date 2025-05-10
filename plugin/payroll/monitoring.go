@@ -51,10 +51,10 @@ func (p *PayrollPlugin) handleBroadcastError(err error, sender gcommon.Address) 
 }
 
 func (p *PayrollPlugin) monitorTransaction(tx *gtypes.Transaction) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // how much time should we monitor the tx?
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Monitoring.TimeoutMinutes)*time.Minute)
 	defer cancel()
 
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(time.Duration(p.config.Monitoring.CheckIntervalSeconds) * time.Second)
 	defer ticker.Stop()
 
 	txHash := tx.Hash()

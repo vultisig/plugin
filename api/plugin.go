@@ -462,7 +462,7 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 	case "payroll":
 		return payroll.NewPayrollPlugin(s.db, s.logger, s.pluginConfigs["payroll"])
 	case "dca":
-		return dca.NewDCAPlugin(s.db, s.logger, s.pluginConfigs["dca"])
+		return dca.NewDCAPlugin(s.db, s.logger)
 	default:
 		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
 	}
