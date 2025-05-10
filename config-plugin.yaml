@@ -10,14 +10,6 @@ server:
   plugin:
     type: dca
 
-plugin:
-  plugin_configs:
-    dca:
-      rpc_url: https://eth.llamarpc.com
-      uniswap:
-        v2_router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-        deadline: 5 # minutes
-
 relay:
   server: https://api.vultisig.com/router
 

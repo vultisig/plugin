@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	gcommon "github.com/ethereum/go-ethereum/common"
@@ -63,10 +61,10 @@ type DCAPluginConfig struct {
 	} `mapstructure:"uniswap" json:"uniswap"`
 }
 
-func NewDCAPlugin(db storage.DatabaseStorage, logger *logrus.Logger, rawConfig map[string]interface{}) (*DCAPlugin, error) {
-	var cfg DCAPluginConfig
-	if err := mapstructure.Decode(rawConfig, &cfg); err != nil {
-		return nil, err
+func NewDCAPlugin(db storage.DatabaseStorage, logger *logrus.Logger) (*DCAPlugin, error) {
+	cfg, err := loadPluginConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fail to load plugin config: %w", err)
 	}
 
 	rpcClient, err := ethclient.Dial(cfg.RpcURL)
