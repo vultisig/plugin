@@ -17,10 +17,6 @@ type PayrollPlugin struct {
 	config       *PluginConfig
 }
 
-type PayrollPluginConfig struct {
-	RpcURL string `mapstructure:"rpc_url" json:"rpc_url"`
-}
-
 func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger) (*PayrollPlugin, error) {
 	cfg, err := loadPluginConfig()
 	if err != nil {

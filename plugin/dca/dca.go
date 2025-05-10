@@ -53,14 +53,6 @@ type DCAPlugin struct {
 	logger        *logrus.Logger
 }
 
-type DCAPluginConfig struct {
-	RpcURL  string `mapstructure:"rpc_url" json:"rpc_url"`
-	Uniswap struct {
-		V2Router string `mapstructure:"v2_router" json:"v2_router"`
-		Deadline int64  `mapstructure:"deadline" json:"deadline"`
-	} `mapstructure:"uniswap" json:"uniswap"`
-}
-
 func NewDCAPlugin(db storage.DatabaseStorage, logger *logrus.Logger) (*DCAPlugin, error) {
 	cfg, err := loadPluginConfig()
 	if err != nil {
