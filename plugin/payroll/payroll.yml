@@ -1,0 +1,11 @@
+type: payroll
+version: 0.0.1
+rpc_url: https://eth.llamarpc.com
+
+gas:
+  limit_multiplier: 300  # 300% of estimated gas
+  price_multiplier: 3    # 300% of suggested gas price
+
+monitoring:
+  timeout_minutes: 5
+  check_interval_seconds: 15

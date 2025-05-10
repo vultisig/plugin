@@ -124,14 +124,15 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to estimate gas: %v", err)
 	}
-	// add 20% to gas limit for safety
-	gasLimit = gasLimit * 300 / 100
+
+	// Use config values for gas calculations
+	gasLimit = gasLimit * uint64(p.config.Gas.LimitMultiplier) / 100
 	// get suggested gas price
 	gasPrice, err := p.rpcClient.SuggestGasPrice(context.Background())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get gas price: %v", err)
 	}
-	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(3))
+	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(int64(p.config.Gas.PriceMultiplier)))
 	// Parse chain ID
 	chainIDInt := new(big.Int)
 	chainIDInt.SetString(chainID, 10)
