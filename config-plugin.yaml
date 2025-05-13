@@ -3,6 +3,7 @@
 server:
   host: localhost
   port: 8081
+  base_config_path: /etc/vultisig
   database:
     dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
   vaults_file_path: /tmp/plugin/vaults

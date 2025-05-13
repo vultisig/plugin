@@ -17,8 +17,8 @@ type PayrollPlugin struct {
 	config       *PluginConfig
 }
 
-func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger) (*PayrollPlugin, error) {
-	cfg, err := loadPluginConfig()
+func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string) (*PayrollPlugin, error) {
+	cfg, err := loadPluginConfig(baseConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugin config: %w", err)
 	}
