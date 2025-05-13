@@ -27,8 +27,8 @@ type Config struct {
 				} `mapstructure:"uniswap" json:"uniswap,omitempty"`
 			} `mapstructure:"eth" json:"eth,omitempty"`
 		} `mapstructure:"plugin" json:"plugin,omitempty"`
+		BaseConfigPath string `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
 	} `mapstructure:"server" json:"server"`
-
 	Plugin struct {
 		PluginConfigs map[string]map[string]interface{} `mapstructure:"plugin_configs" json:"plugin_configs,omitempty"`
 	} `mapstructure:"plugin" json:"plugin,omitempty"`

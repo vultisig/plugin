@@ -3,6 +3,7 @@ package dca
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -19,13 +20,25 @@ type PluginConfig struct {
 	} `yaml:"uniswap"`
 }
 
-func loadPluginConfig() (*PluginConfig, error) {
-	configPath := filepath.Join("plugin", "dca", "dca.yml")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
+func loadPluginConfig(basePath string) (*PluginConfig, error) {
+	// First try the base path from config
+	if basePath != "" {
+		configPath := filepath.Join(basePath, "dca.yml")
+		if data, err := os.ReadFile(configPath); err == nil {
+			return parseConfig(data)
+		}
 	}
 
+	// Fallback to default system path
+	configPath := filepath.Join("/etc/vultisig", "dca.yml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	return parseConfig(data)
+}
+
+func parseConfig(data []byte) (*PluginConfig, error) {
 	var config PluginConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err

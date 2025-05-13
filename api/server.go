@@ -75,12 +75,12 @@ func NewServer(
 	if mode == "plugin" {
 		switch pluginType {
 		case "payroll":
-			p, err = payroll.NewPayrollPlugin(db, logrus.WithField("service", "plugin").Logger)
+			p, err = payroll.NewPayrollPlugin(db, logrus.WithField("service", "plugin").Logger, cfg.Server.BaseConfigPath)
 			if err != nil {
 				logger.Fatal("failed to initialize payroll plugin", err)
 			}
 		case "dca":
-			p, err = dca.NewDCAPlugin(db, logger)
+			p, err = dca.NewDCAPlugin(db, logger, cfg.Server.BaseConfigPath)
 			if err != nil {
 				logger.Fatal("fail to initialize DCA plugin: ", err)
 			}

@@ -53,8 +53,8 @@ type DCAPlugin struct {
 	logger        *logrus.Logger
 }
 
-func NewDCAPlugin(db storage.DatabaseStorage, logger *logrus.Logger) (*DCAPlugin, error) {
-	cfg, err := loadPluginConfig()
+func NewDCAPlugin(db storage.DatabaseStorage, logger *logrus.Logger, baseConfigPath string) (*DCAPlugin, error) {
+	cfg, err := loadPluginConfig(baseConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("fail to load plugin config: %w", err)
 	}
