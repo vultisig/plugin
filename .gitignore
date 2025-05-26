@@ -11,7 +11,7 @@ config.yaml
 plugins-ui/node_modules/
 _tmp_
 localconfig*
-worker
+worker/worker
 vultisigner
 cmd/payroll/server/server
 cmd/dca/server/server
