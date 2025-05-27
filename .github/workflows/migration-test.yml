@@ -72,6 +72,13 @@ jobs:
             "datadog": {
               "host": "localhost",
               "port": "8125"
+            },
+            "type": "dca",
+            "version": "0.1.0",
+            "rpc_url": "https://example.com",
+            "uniswap": {
+              "v2_router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+              "deadline": 1000
             }
           }
           EOF
