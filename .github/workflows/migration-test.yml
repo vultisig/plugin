@@ -47,7 +47,7 @@ jobs:
       
       - name: Create test config
         run: |
-          cat > config.json <<EOF
+          cat > dca.json <<EOF
           {
             "server": {
               "host": "localhost",
