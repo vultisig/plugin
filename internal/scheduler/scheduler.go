@@ -191,7 +191,7 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*ty
 		} `json:"schedule"`
 	}
 
-	if err := json.Unmarshal(policy.Policy, &policySchedule); err != nil {
+	if err := json.Unmarshal([]byte(policy.Recipe), &policySchedule); err != nil {
 		return nil, fmt.Errorf("failed to parse policy schedule: %w", err)
 	}
 

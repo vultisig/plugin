@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -15,12 +14,9 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id string) (vtype
 	if p.pool == nil {
 		return vtypes.PluginPolicy{}, fmt.Errorf("database pool is nil")
 	}
-
 	var policy vtypes.PluginPolicy
-	var policyJSON []byte
-
 	query := `
-        SELECT id, public_key, plugin_id, plugin_version, policy_version, signature, active, policy, recipe
+        SELECT id, public_key, plugin_id, plugin_version, policy_version, signature, active,  recipe
         FROM plugin_policies 
         WHERE id = $1`
 
@@ -32,15 +28,12 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id string) (vtype
 		&policy.PolicyVersion,
 		&policy.Signature,
 		&policy.Active,
-		&policyJSON,
 		&policy.Recipe,
 	)
 
 	if err != nil {
 		return vtypes.PluginPolicy{}, fmt.Errorf("failed to get policy: %w", err)
 	}
-	policy.Policy = json.RawMessage(policyJSON)
-
 	return policy, nil
 }
 
@@ -50,7 +43,7 @@ func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey st
 	}
 
 	query := `
-  	SELECT id, public_key,  plugin_id, plugin_version, policy_version, signature, active, policy, recipe
+  	SELECT id, public_key,  plugin_id, plugin_version, policy_version, signature, active, recipe
 		FROM plugin_policies
 		WHERE public_key = $1
 		AND plugin_id = $2`
@@ -71,7 +64,6 @@ func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey st
 			&policy.PolicyVersion,
 			&policy.Signature,
 			&policy.Active,
-			&policy.Policy,
 			&policy.Recipe,
 		)
 		if err != nil {
@@ -84,20 +76,15 @@ func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey st
 }
 
 func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error) {
-	policyJSON, err := json.Marshal(policy.Policy)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal policy: %w", err)
-	}
-
 	query := `
   	INSERT INTO plugin_policies (
-      id, public_key, plugin_id, plugin_version, policy_version, signature, active, policy, recipe
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING id, public_key,  plugin_id, plugin_version, policy_version, signature, active, policy, recipe
+      id, public_key, plugin_id, plugin_version, policy_version, signature, active, recipe
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING id, public_key,  plugin_id, plugin_version, policy_version, signature, active, recipe
 	`
 
 	var insertedPolicy vtypes.PluginPolicy
-	err = dbTx.QueryRow(ctx, query,
+	err := dbTx.QueryRow(ctx, query,
 		policy.ID,
 		policy.PublicKey,
 		policy.PluginID,
@@ -105,7 +92,6 @@ func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		policy.PolicyVersion,
 		policy.Signature,
 		policy.Active,
-		policyJSON,
 		policy.Recipe,
 	).Scan(
 		&insertedPolicy.ID,
@@ -115,7 +101,6 @@ func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		&insertedPolicy.PolicyVersion,
 		&insertedPolicy.Signature,
 		&insertedPolicy.Active,
-		&insertedPolicy.Policy,
 		&insertedPolicy.Recipe,
 	)
 	if err != nil {
@@ -126,31 +111,24 @@ func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 }
 
 func (p *PostgresBackend) UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error) {
-	policyJSON, err := json.Marshal(policy.Policy)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal policy: %w", err)
-	}
-
 	query := `
 		UPDATE plugin_policies 
 		SET plugin_version = $2,
 		    policy_version = $3,
 			signature = $4,
 			active = $5,
-			policy = $6,
-			recipe = $7
+			recipe = $6
 		WHERE id = $1
-		RETURNING id, public_key, plugin_id, plugin_version, policy_version, signature, active, policy, recipe
+		RETURNING id, public_key, plugin_id, plugin_version, policy_version, signature, active, recipe
 	`
 
 	var updatedPolicy vtypes.PluginPolicy
-	err = dbTx.QueryRow(ctx, query,
+	err := dbTx.QueryRow(ctx, query,
 		policy.ID,
 		policy.PluginVersion,
 		policy.PolicyVersion,
 		policy.Signature,
 		policy.Active,
-		policyJSON,
 		policy.Recipe,
 	).Scan(
 		&updatedPolicy.ID,
@@ -160,7 +138,6 @@ func (p *PostgresBackend) UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		&updatedPolicy.PolicyVersion,
 		&updatedPolicy.Signature,
 		&updatedPolicy.Active,
-		&updatedPolicy.Policy,
 		&updatedPolicy.Recipe,
 	)
 

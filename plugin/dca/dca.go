@@ -3,7 +3,6 @@ package dca
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -92,9 +91,7 @@ func (p *DCAPlugin) SigningComplete(
 	policy vtypes.PluginPolicy,
 ) error {
 	var dcaPolicy DCAPolicy
-	if err := json.Unmarshal(policy.Policy, &dcaPolicy); err != nil {
-		return fmt.Errorf("fail to unmarshal DCA policy: %w", err)
-	}
+	// TODO: convert recipe to DCAPolicy
 
 	chainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)
 	if !ok {
@@ -102,7 +99,7 @@ func (p *DCAPlugin) SigningComplete(
 	}
 
 	// currently we are only signing one transaction
-	txHash := signRequest.Messages[0]
+	txHash := signRequest.Messages[0].Hash
 	if len(txHash) == 0 {
 		return errors.New("transaction hash is missing")
 	}
@@ -161,9 +158,7 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	}
 
 	var dcaPolicy DCAPolicy
-	if err := json.Unmarshal(policyDoc.Policy, &dcaPolicy); err != nil {
-		return fmt.Errorf("fail to unmarshal DCA policy: %w", err)
-	}
+	// TODO: convert recipe to DCAPolicy
 
 	mixedCaseTokenIn, err := gcommon.NewMixedcaseAddressFromString(dcaPolicy.SourceTokenID)
 	if err != nil {
@@ -292,10 +287,7 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 	}
 
 	var dcaPolicy DCAPolicy
-	if err := json.Unmarshal(policy.Policy, &dcaPolicy); err != nil {
-		return txs, fmt.Errorf("fail to unmarshal dca policy, err: %w", err)
-	}
-
+	// TODO: convert recipe to DCAPolicy
 	// Parse TotalAmount and TotalOrders
 	totalAmount, ok := new(big.Int).SetString(dcaPolicy.TotalAmount, 10)
 	if !ok {
@@ -346,12 +338,15 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 	for _, data := range rawTxsData {
 		signRequest := vtypes.PluginKeysignRequest{
 			KeysignRequest: vtypes.KeysignRequest{
-				PublicKey:        policy.PublicKey,
-				Messages:         []string{hex.EncodeToString(data.TxHash)},
+				PublicKey: policy.PublicKey,
+				Messages: []vtypes.KeysignMessage{
+					{
+						Message: hex.EncodeToString(data.RlpTxBytes),
+						Hash:    hex.EncodeToString(data.TxHash),
+					},
+				},
 				SessionID:        uuid.New().String(),
 				HexEncryptionKey: hexEncryptionKey,
-				DerivePath:       chain.GetDerivePath(),
-				IsECDSA:          true,
 				Parties: []string{
 					common.PluginPartyID,
 					common.VerifierPartyID},
@@ -379,9 +374,7 @@ func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs
 	}
 
 	var dcaPolicy DCAPolicy
-	if err := json.Unmarshal(policy.Policy, &dcaPolicy); err != nil {
-		return fmt.Errorf("failed to unmarshal DCA policy: %w", err)
-	}
+	// TODO: convert recipe to DCAPolicy
 
 	// Validate policy params.
 	policyChainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)

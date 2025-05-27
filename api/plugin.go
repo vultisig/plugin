@@ -69,7 +69,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to calculate transaction hash: %w", err)
 	}
-	if txHash != req.Messages[0] {
+	if txHash != req.Messages[0].Hash {
 		return fmt.Errorf("message hash does not match transaction hash. expected %s, got %s", txHash, req.Messages[0])
 	}
 
@@ -321,15 +321,9 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 }
 
 func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy, update bool) bool {
-	msgHex, err := policyToMessageHex(policy, update)
+	msgBytes, err := policyToMessageHex(policy)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to convert policy to message hex")
-		return false
-	}
-
-	msgBytes, err := hex.DecodeString(strings.TrimPrefix(msgHex, "0x"))
-	if err != nil {
-		s.logger.WithError(err).Error("Failed to decode message bytes")
 		return false
 	}
 
@@ -375,16 +369,20 @@ func (s *Server) getVault(publicKeyECDSA, pluginId string) (*v1.Vault, error) {
 	return v, nil
 }
 
-func policyToMessageHex(policy vtypes.PluginPolicy, isUpdate bool) (string, error) {
-
-	// signature is not part of the message that is signed
-	policy.Signature = ""
-
-	serializedPolicy, err := json.Marshal(policy)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize policy,err: %w", err)
+func policyToMessageHex(policy vtypes.PluginPolicy) ([]byte, error) {
+	delimiter := "*#*"
+	fields := []string{
+		policy.Recipe,
+		policy.PublicKey,
+		policy.PolicyVersion,
+		policy.PluginVersion}
+	for _, item := range fields {
+		if strings.Contains(item, delimiter) {
+			return nil, fmt.Errorf("invalid policy signature")
+		}
 	}
-	return hex.EncodeToString(serializedPolicy), nil
+	result := strings.Join(fields, delimiter)
+	return []byte(result), nil
 }
 
 func calculateTransactionHash(txData string) (string, error) {

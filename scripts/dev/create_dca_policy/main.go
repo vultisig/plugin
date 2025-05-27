@@ -99,7 +99,6 @@ func main() {
 	}
 
 	fmt.Println("DCA policy", string(policyBytes))
-	policy.Policy = policyBytes
 
 	pluginHost := fmt.Sprintf("http://%s:%d", "localhost", 8080)
 

@@ -2,7 +2,6 @@ package payroll
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
@@ -48,10 +47,7 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 	}
 
 	var payrollPolicy PayrollPolicy
-	if err := json.Unmarshal(policy.Policy, &payrollPolicy); err != nil {
-		return fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
-	}
-
+	// TODO: convert the recipes to PayrollPolicy
 	for i, tx := range txs {
 		var parsedTx *gtypes.Transaction
 		txBytes, err := hex.DecodeString(tx.Transaction)
@@ -69,7 +65,7 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 			return fmt.Errorf("transaction destination is nil")
 		}
 
-		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) { //todo : why we compare to tokenId and not recipient address?
+		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) { // todo : why we compare to tokenId and not recipient address?
 			return fmt.Errorf("transaction destination does not match token ID")
 		}
 
@@ -113,10 +109,7 @@ func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) erro
 	}
 
 	var payrollPolicy PayrollPolicy
-	if err := json.Unmarshal(policyDoc.Policy, &payrollPolicy); err != nil {
-		return fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
-	}
-
+	// TODO: validate the policy recipe and convert it to PayrollPolicy
 	if len(payrollPolicy.Recipients) == 0 {
 		return fmt.Errorf("no recipients found in payroll policy")
 	}
