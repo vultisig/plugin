@@ -127,7 +127,7 @@ func main() {
 	}
 
 	fmt.Println("Payroll policy", string(policyBytes))
-	policy.Policy = policyBytes
+	// policy.Policy = policyBytes
 
 	serverHost := fmt.Sprintf("http://%s:%d", "localhost", 8080)
 	pluginHost := fmt.Sprintf("http://%s:%d", "localhost", 8081)

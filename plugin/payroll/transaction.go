@@ -3,7 +3,6 @@ package payroll
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -38,9 +37,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	}
 
 	var payrollPolicy PayrollPolicy
-	if err := json.Unmarshal(policy.Policy, &payrollPolicy); err != nil {
-		return txs, fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
-	}
+	// TODO: convert the recipes to PayrollPolicy
 
 	chain := vcommon.Ethereum
 
@@ -62,12 +59,17 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		// Create signing request
 		signRequest := vtypes.PluginKeysignRequest{
 			KeysignRequest: vtypes.KeysignRequest{
-				PublicKey:        policy.PublicKey,
-				Messages:         []string{hex.EncodeToString(txHash)},
+				PublicKey: policy.PublicKey,
+				Messages: []vtypes.KeysignMessage{
+					{
+						Message: hex.EncodeToString(rawTx),
+						Hash:    hex.EncodeToString(txHash),
+						Chain:   vcommon.Ethereum,
+					},
+				},
 				SessionID:        uuid.New().String(),
 				HexEncryptionKey: hexEncryptionKey,
-				DerivePath:       chain.GetDerivePath(),
-				IsECDSA:          !chain.IsEdDSA(),
+				PolicyID:         policy.ID,
 				PluginID:         policy.PluginID.String(),
 			},
 			Transaction: hex.EncodeToString(rawTx),
@@ -277,13 +279,8 @@ func (p *PayrollPlugin) convertData(signature tss.KeysignResponse, signRequest v
 		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to unmarshal transaction: %w", err)
 	}
 
-	policybytes := policy.Policy
 	payrollPolicy := PayrollPolicy{}
-	err = json.Unmarshal(policybytes, &payrollPolicy)
-	if err != nil {
-		p.logger.Errorf("Failed to unmarshal policy: %v", err)
-		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to unmarshal policy: %w", err)
-	}
+	// TODO: convert the recipes to PayrollPolicy
 	chainID = new(big.Int)
 	chainID.SetString(payrollPolicy.ChainID[0], 10)
 
