@@ -84,7 +84,7 @@ jobs:
       - name: Run dca and check migrations
         run: |
           export LD_LIBRARY_PATH=../go-wrappers/includes/linux/:$LD_LIBRARY_PATH
-          export VS_CONFIG_NAME=config
+          export VS_CONFIG_NAME=dca
           
           # Start dca in background
           ./dca &
