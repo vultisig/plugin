@@ -21,6 +21,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
+  "github.com/vultisig/verifier/address"
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
@@ -144,17 +145,6 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 
 	if policyDoc.PublicKey == "" {
 		return fmt.Errorf("policy does not contain public_key")
-	}
-
-	pubKeyBytes, err := hex.DecodeString(policyDoc.PublicKey)
-	if err != nil {
-		return fmt.Errorf("invalid hex encoding: %w", err)
-	}
-	// The public key used in plugin policy will always be the ECDSA public key
-	isValidPublicKey := common.CheckIfPublicKeyIsValid(pubKeyBytes, true)
-
-	if !isValidPublicKey {
-		return fmt.Errorf("invalid public_key")
 	}
 
 	var dcaPolicy DCAPolicy
@@ -319,18 +309,19 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 	chain := vcommon.Ethereum
 
 	// build transactions
-	// TODO: hex chain code can be retrieved from vault
-	signerAddress, err := common.DeriveAddress(policy.PublicKey, "", chain.GetDerivePath())
+	derivedAddress, _, _, err := address.GetAddress(policy.PublicKey, "", chain)
 	if err != nil {
 		return txs, fmt.Errorf("fail to derive address: %w", err)
 	}
+
+	signerAddress := gcommon.HexToAddress(derivedAddress)
 
 	chainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)
 	if !ok {
 		return txs, fmt.Errorf("fail to parse chain ID: %s", dcaPolicy.ChainID)
 	}
 
-	rawTxsData, err := p.generateSwapTransactions(chainID, signerAddress, dcaPolicy.SourceTokenID, dcaPolicy.DestinationTokenID, swapAmount)
+	rawTxsData, err := p.generateSwapTransactions(chainID, &signerAddress, dcaPolicy.SourceTokenID, dcaPolicy.DestinationTokenID, swapAmount)
 	if err != nil {
 		return txs, fmt.Errorf("fail to generate transaction hash: %w", err)
 	}
@@ -397,10 +388,12 @@ func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs
 
 	chain := vcommon.Ethereum
 	// TODO: hexChainCode is stored with vault , so we need to get it from vault
-	signerAddress, err := common.DeriveAddress(policy.PublicKey, "", chain.GetDerivePath())
+	derivedAddress, _, _, err := address.GetAddress(policy.PublicKey, "", chain)
 	if err != nil {
 		return fmt.Errorf("failed to derive address: %w", err)
 	}
+
+	signerAddress := gcommon.HexToAddress(derivedAddress)
 	p.logger.Warn("Signer address used for swaps: ", signerAddress.String())
 
 	completedSwaps, err := p.getCompletedSwapTransactionsCount(context.Background(), policy.ID)
@@ -418,7 +411,7 @@ func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs
 
 	// Validate each transaction
 	for _, tx := range txs {
-		if err := p.validateTransaction(tx, completedSwaps, totalAmount, totalOrders, policyChainID, &sourceAddrPolicy, &destAddrPolicy, signerAddress); err != nil {
+		if err := p.validateTransaction(tx, completedSwaps, totalAmount, totalOrders, policyChainID, &sourceAddrPolicy, &destAddrPolicy, &signerAddress); err != nil {
 			return fmt.Errorf("failed to validate transaction: %w", err)
 		}
 	}

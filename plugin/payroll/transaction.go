@@ -10,8 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/vultisig/plugin/common"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	gcommon "github.com/ethereum/go-ethereum/common"
@@ -21,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/address"
 	vtypes "github.com/vultisig/verifier/types"
 )
 
@@ -138,10 +137,12 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 	chainIDInt.SetString(chainID, 10)
 	fmt.Printf("Chain ID TEST 3: %s\n", chainIDInt.String())
 
-	derivedAddress, err := common.DeriveAddress(publicKey, chainCodeHex, derivePath)
+	addressStr, _, _, err := address.GetAddress(publicKey, chainCodeHex, vcommon.Ethereum)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to derive address: %v", err)
 	}
+
+	derivedAddress := gcommon.HexToAddress(addressStr)
 
 	nextNonce, err := p.GetNextNonce(derivedAddress.Hex())
 	if err != nil {
