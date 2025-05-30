@@ -2,23 +2,17 @@ package postgres
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/storage"
 )
-
-//go:embed migrations/*
-var embeddedMigrations embed.FS
 
 var _ storage.DatabaseStorage = (*PostgresBackend)(nil)
 
@@ -26,7 +20,12 @@ type PostgresBackend struct {
 	pool *pgxpool.Pool
 }
 
-func NewPostgresBackend(dsn string) (*PostgresBackend, error) {
+type MigrationOptions struct {
+	RunSystemMigrations   bool
+	RunPluginMigrations bool
+}
+
+func NewPostgresBackend(dsn string, opts *MigrationOptions) (*PostgresBackend, error) {
 	logrus.Info("Connecting to database with DSN: ", dsn)
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
@@ -37,7 +36,15 @@ func NewPostgresBackend(dsn string) (*PostgresBackend, error) {
 		pool: pool,
 	}
 
-	if err := backend.Migrate(); err != nil {
+	// Apply default options if not provided
+	if opts == nil {
+		opts = &MigrationOptions{
+			RunSystemMigrations:   true,
+			RunPluginMigrations: true,
+		}
+	}
+
+	if err := backend.Migrate(opts); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
@@ -50,17 +57,25 @@ func (d *PostgresBackend) Close() error {
 	return nil
 }
 
-func (d *PostgresBackend) Migrate() error {
+func (d *PostgresBackend) Migrate(opts *MigrationOptions) error {
 	logrus.Info("Starting database migration...")
-	goose.SetBaseFS(embeddedMigrations)
-	if err := goose.SetDialect("postgres"); err != nil {
-		return fmt.Errorf("failed to set goose dialect: %w", err)
+	
+	// Run system migrations first (plugin_policies table)
+	if opts.RunSystemMigrations {
+		systemMgr := NewSystemMigrationManager(d.pool)
+		if err := systemMgr.Migrate(); err != nil {
+			return fmt.Errorf("failed to run system migrations: %w", err)
+		}
 	}
 
-	db := stdlib.OpenDBFromPool(d.pool)
-	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
-		return fmt.Errorf("failed to run goose up: %w", err)
+	// Run plugin migrations (all other tables)
+	if opts.RunPluginMigrations {
+		pluginMgr := NewPluginMigrationManager(d.pool)
+		if err := pluginMgr.Migrate(); err != nil {
+			return fmt.Errorf("failed to run plugin migrations: %w", err)
+		}
 	}
+
 	logrus.Info("Database migration completed successfully")
 	return nil
 }
