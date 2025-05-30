@@ -16,7 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/verifier/address"
+	vcommon "github.com/vultisig/verifier/common"
 )
 
 const (
@@ -58,10 +59,11 @@ func main() {
 	}
 	compressedPubKeyHex := string(rawKeyBytes)
 
-	vaultAddress, err := common.DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath)
+	derivedAddress, _, _, err := address.GetAddress(compressedPubKeyHex, hexChainCode, vcommon.Ethereum)
 	if err != nil {
 		panic(err)
 	}
+	vaultAddress := gcommon.HexToAddress(derivedAddress)
 	fmt.Println("To vault address:", vaultAddress.Hex())
 	//  set the ETH node url
 	rpcClient, err := ethclient.Dial(ethRpcUrl)
@@ -90,7 +92,7 @@ func main() {
 	}
 	tx := types.NewTx(&types.LegacyTx{
 		Nonce:    nonce,
-		To:       vaultAddress,
+		To:       &vaultAddress,
 		Value:    amount,
 		Gas:      gasLimit,
 		GasPrice: gasPrice,
