@@ -137,12 +137,12 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 	chainIDInt.SetString(chainID, 10)
 	fmt.Printf("Chain ID TEST 3: %s\n", chainIDInt.String())
 
-	address, _, _, err := address.GetAddress(publicKey, chainCodeHex, vcommon.Ethereum)
+	addressStr, _, _, err := address.GetAddress(publicKey, chainCodeHex, vcommon.Ethereum)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to derive address: %v", err)
 	}
 
-	derivedAddress := gcommon.HexToAddress(address)
+	derivedAddress := gcommon.HexToAddress(addressStr)
 
 	nextNonce, err := p.GetNextNonce(derivedAddress.Hex())
 	if err != nil {
