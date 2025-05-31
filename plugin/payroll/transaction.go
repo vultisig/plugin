@@ -345,6 +345,15 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 				Required: true,
 			},
 		},
+		Scheduling: &rtypes.SchedulingCapability{
+			SupportsScheduling: true,
+			SupportedFrequencies: []rtypes.ScheduleFrequency{
+				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY,
+				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
+				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
+			},
+			MaxScheduledExecutions: 100, // Reasonable limit for payroll runs
+		},
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: "1.0.0",
 			SupportedChains:    []string{"ethereum"},
