@@ -19,15 +19,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
-  "github.com/vultisig/verifier/address"
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/pkg/uniswap"
 	"github.com/vultisig/plugin/storage"
+	rtypes "github.com/vultisig/recipes/types"
 )
 
 const (
@@ -771,4 +772,54 @@ func (p *DCAPlugin) completePolicy(ctx context.Context, policy vtypes.PluginPoli
 	}
 
 	return nil
+}
+
+func (p *DCAPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
+	return rtypes.RecipeSchema{
+		PluginId:      "dca",
+		PluginName:    "Dollar-Cost Averaging",
+		PluginVersion: pluginVersion,
+		SupportedResources: []*rtypes.ResourcePattern{
+			{
+				ResourcePath: &rtypes.ResourcePath{
+					ChainId:    "ethereum",
+					ProtocolId: "uniswap",
+					FunctionId: "swap",
+					Full:       "ethereum.uniswap.swap",
+				},
+				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+					{
+						ParameterName: "source_token",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
+						},
+						Required: true,
+					},
+					{
+						ParameterName: "destination_token",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
+						},
+						Required: true,
+					},
+					{
+						ParameterName: "amount",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_RANGE,
+						},
+						Required: true,
+					},
+				},
+				Required: true,
+			},
+		},
+		Requirements: &rtypes.PluginRequirements{
+			MinVultisigVersion: "1.0.0",
+			SupportedChains:    []string{"ethereum"},
+		},
+	}
 }
