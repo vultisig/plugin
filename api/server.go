@@ -117,6 +117,7 @@ func (s *Server) StartServer() error {
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 	pluginGroup.PUT("/policy", s.UpdatePluginPolicyById)
 	pluginGroup.GET("/policy/schema", s.GetPolicySchema)
+	pluginGroup.GET("/recipe-specification", s.GetRecipeSpecification)
 	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
 
 	return e.Start(fmt.Sprintf(":%d", s.cfg.Port))

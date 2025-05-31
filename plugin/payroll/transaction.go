@@ -18,8 +18,9 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	vcommon "github.com/vultisig/verifier/common"
+	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
+	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
 )
 
@@ -299,4 +300,54 @@ func (p *PayrollPlugin) convertData(signature tss.KeysignResponse, signRequest v
 	V.Add(V, big.NewInt(35+recoveryID))
 
 	return R, S, V, originalTx, chainID, recoveryID, nil
+}
+
+func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
+	return rtypes.RecipeSchema{
+		PluginId:      "payroll",
+		PluginName:    "Payroll Management",
+		PluginVersion: "0.1.0",
+		SupportedResources: []*rtypes.ResourcePattern{
+			{
+				ResourcePath: &rtypes.ResourcePath{
+					ChainId:    "ethereum",
+					ProtocolId: "erc20",
+					FunctionId: "transfer",
+					Full:       "ethereum.erc20.transfer",
+				},
+				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+					{
+						ParameterName: "recipient",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
+						},
+						Required: true,
+					},
+					{
+						ParameterName: "amount",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX_PER_PERIOD,
+						},
+						Required: true,
+					},
+					{
+						ParameterName: "token",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
+						},
+						Required: true,
+					},
+				},
+				Required: true,
+			},
+		},
+		Requirements: &rtypes.PluginRequirements{
+			MinVultisigVersion: "1.0.0",
+			SupportedChains:    []string{"ethereum"},
+		},
+	}
 }

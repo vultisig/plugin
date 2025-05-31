@@ -302,6 +302,11 @@ func (s *Server) GetPolicySchema(c echo.Context) error {
 	return c.JSON(http.StatusOK, data)
 }
 
+func (s *Server) GetRecipeSpecification(c echo.Context) error {
+	recipeSpec := s.plugin.GetRecipeSpecification()
+	return c.JSON(http.StatusOK, recipeSpec)
+}
+
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	policyID := c.Param("policyId")
 
