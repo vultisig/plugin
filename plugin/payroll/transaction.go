@@ -304,9 +304,11 @@ func (p *PayrollPlugin) convertData(signature tss.KeysignResponse, signRequest v
 
 func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	return rtypes.RecipeSchema{
-		PluginId:      "payroll",
-		PluginName:    "Payroll Management",
-		PluginVersion: "0.1.0",
+		Version:         1, // Schema version
+		ScheduleVersion: 1, // Schedule specification version
+		PluginId:        "payroll",
+		PluginName:      "Payroll Management",
+		PluginVersion:   1, // Convert from "0.1.0" to int32
 		SupportedResources: []*rtypes.ResourcePattern{
 			{
 				ResourcePath: &rtypes.ResourcePath{
@@ -355,7 +357,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 			MaxScheduledExecutions: 100, // Reasonable limit for payroll runs
 		},
 		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: "1.0.0",
+			MinVultisigVersion: 100, // Convert from "1.0.0" to int32 (100 = 1.0.0)
 			SupportedChains:    []string{"ethereum"},
 		},
 	}

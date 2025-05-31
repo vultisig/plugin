@@ -776,9 +776,11 @@ func (p *DCAPlugin) completePolicy(ctx context.Context, policy vtypes.PluginPoli
 
 func (p *DCAPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	return rtypes.RecipeSchema{
-		PluginId:      "dca",
-		PluginName:    "Dollar-Cost Averaging",
-		PluginVersion: pluginVersion,
+		Version:         1, // Schema version
+		ScheduleVersion: 1, // Schedule specification version
+		PluginId:        "dca",
+		PluginName:      "Dollar-Cost Averaging",
+		PluginVersion:   1, // Convert from "0.0.1" to int32
 		SupportedResources: []*rtypes.ResourcePattern{
 			{
 				ResourcePath: &rtypes.ResourcePath{
@@ -827,7 +829,7 @@ func (p *DCAPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 			MaxScheduledExecutions: 1000, // DCA can have many small orders
 		},
 		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: "1.0.0",
+			MinVultisigVersion: 100, // Convert from "1.0.0" to int32 (100 = 1.0.0)
 			SupportedChains:    []string{"ethereum"},
 		},
 	}
