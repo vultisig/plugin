@@ -778,7 +778,7 @@ func (p *DCAPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	return rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
-		PluginId:        "dca",
+		PluginId:        string(vtypes.PluginVultisigDCA_0000),
 		PluginName:      "Dollar-Cost Averaging",
 		PluginVersion:   1, // Convert from "0.0.1" to int32
 		SupportedResources: []*rtypes.ResourcePattern{
@@ -829,7 +829,7 @@ func (p *DCAPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 			MaxScheduledExecutions: 1000, // DCA can have many small orders
 		},
 		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: 100, // Convert from "1.0.0" to int32 (100 = 1.0.0)
+			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
 	}

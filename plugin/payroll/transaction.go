@@ -306,7 +306,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	return rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
-		PluginId:        "payroll",
+		PluginId:        string(vtypes.PluginVultisigPayroll_0000),
 		PluginName:      "Payroll Management",
 		PluginVersion:   1, // Convert from "0.1.0" to int32
 		SupportedResources: []*rtypes.ResourcePattern{
@@ -357,7 +357,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 			MaxScheduledExecutions: 100, // Reasonable limit for payroll runs
 		},
 		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: 100, // Convert from "1.0.0" to int32 (100 = 1.0.0)
+			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
 	}
