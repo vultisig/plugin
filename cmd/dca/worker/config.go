@@ -12,8 +12,8 @@ import (
 
 type DCAWorkerConfig struct {
 	Redis              storage.RedisConfig      `mapstructure:"redis" json:"redis,omitempty"`
-	BlockStorage       vault.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`
-	VaultServiceConfig vault.Config             `mapstructure:"vault_service" json:"vault_service,omitempty"`
+	BlockStorage       vault.BlockStorageConfig `mapstructure:"block_storage_config" json:"block_storage,omitempty"`
+	VaultServiceConfig vault.Config             `mapstructure:"vault_service_config" json:"vault_service,omitempty"`
 	Datadog            struct {
 		Host string `mapstructure:"host" json:"host,omitempty"`
 		Port string `mapstructure:"port" json:"port,omitempty"`
