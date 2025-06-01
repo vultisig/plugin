@@ -304,9 +304,11 @@ func (p *PayrollPlugin) convertData(signature tss.KeysignResponse, signRequest v
 
 func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	return rtypes.RecipeSchema{
-		PluginId:      "payroll",
-		PluginName:    "Payroll Management",
-		PluginVersion: "0.1.0",
+		Version:         1, // Schema version
+		ScheduleVersion: 1, // Schedule specification version
+		PluginId:        string(vtypes.PluginVultisigPayroll_0000),
+		PluginName:      "Payroll Management",
+		PluginVersion:   1, // Convert from "0.1.0" to int32
 		SupportedResources: []*rtypes.ResourcePattern{
 			{
 				ResourcePath: &rtypes.ResourcePath{
@@ -345,8 +347,17 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 				Required: true,
 			},
 		},
+		Scheduling: &rtypes.SchedulingCapability{
+			SupportsScheduling: true,
+			SupportedFrequencies: []rtypes.ScheduleFrequency{
+				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY,
+				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
+				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
+			},
+			MaxScheduledExecutions: 100, // Reasonable limit for payroll runs
+		},
 		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: "1.0.0",
+			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
 	}
