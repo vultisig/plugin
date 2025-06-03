@@ -86,7 +86,7 @@ jobs:
       - name: Build dca binary
         run: |
           export LD_LIBRARY_PATH=../go-wrappers/includes/linux/:$LD_LIBRARY_PATH
-          go build -o dca cmd/dca/*.go
+          go build -o dca cmd/dca/server/*.go
       
       - name: Run dca and check migrations
         run: |
