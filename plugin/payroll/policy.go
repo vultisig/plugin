@@ -144,9 +144,10 @@ func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
 		return fmt.Errorf("amount constraint must be fixed, got: %s", pc.Constraint.Type)
 	}
 	if _, ok := new(big.Int).SetString(pc.Constraint.GetFixedValue(), 10); !ok {
-		return fmt.Errorf("invalid amount: %s", pc.Constraint.Value)
+		return fmt.Errorf("invalid amount: %s", pc.Constraint.GetFixedValue())
 	}
-	if pc.Constraint.DenominatedIn != "wei" {
+
+	if !strings.EqualFold(pc.Constraint.DenominatedIn, "wei") {
 		return fmt.Errorf("amount constraint must be denominated in wei, got: %s", pc.Constraint.DenominatedIn)
 	}
 	return nil
