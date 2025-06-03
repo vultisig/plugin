@@ -17,7 +17,10 @@ type PayrollPlugin struct {
 	config       *PluginConfig
 }
 
-func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string) (*PayrollPlugin, error) {
+func NewPayrollPlugin(db storage.DatabaseStorage, baseConfigPath string) (*PayrollPlugin, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database storage cannot be nil")
+	}
 	cfg, err := loadPluginConfig(baseConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugin config: %w", err)
@@ -32,7 +35,7 @@ func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, bas
 		db:           db,
 		rpcClient:    rpcClient,
 		nonceManager: NewNonceManager(rpcClient),
-		logger:       logger,
+		logger:       logrus.WithField("plugin", "payroll"),
 		config:       cfg,
 	}, nil
 }

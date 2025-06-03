@@ -1,6 +1,7 @@
 package payroll
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -10,7 +11,8 @@ import (
 	gcommon "github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/sirupsen/logrus"
+	"github.com/golang/protobuf/proto"
+	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 )
 
@@ -103,49 +105,104 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 	return nil
 }
 
+func (p *PayrollPlugin) validateRecipient(pc *rtypes.ParameterConstraint) error {
+	if pc == nil {
+		return fmt.Errorf("recipient parameter constraint is nil")
+	}
+	if pc.Constraint == nil {
+		return fmt.Errorf("recipient constraint is nil")
+	}
+	if pc.ParameterName != "recipient" {
+		return fmt.Errorf("expected recipient parameter, got: %s", pc.ParameterName)
+	}
+	if !pc.Constraint.Required {
+		return fmt.Errorf("recipient constraint is required, but not set")
+	}
+	if pc.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+		return fmt.Errorf("recipient constraint must be fixed, got: %s", pc.Constraint.Type)
+	}
+	if _, err := gcommon.NewMixedcaseAddressFromString(pc.Constraint.GetFixedValue()); err != nil {
+		return fmt.Errorf("invalid recipient address: %s, error: %w", pc.Constraint.GetFixedValue(), err)
+	}
+	return nil
+}
+
+func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
+	if pc == nil {
+		return fmt.Errorf("amount parameter constraint is nil")
+	}
+	if pc.ParameterName != "amount" {
+		return fmt.Errorf("expected amount parameter, got: %s", pc.ParameterName)
+	}
+	if pc.Constraint == nil {
+		return fmt.Errorf("amount constraint is nil")
+	}
+	if !pc.Constraint.Required {
+		return fmt.Errorf("amount constraint is required, but not set")
+	}
+	if pc.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+		return fmt.Errorf("amount constraint must be fixed, got: %s", pc.Constraint.Type)
+	}
+	if _, ok := new(big.Int).SetString(pc.Constraint.GetFixedValue(), 10); !ok {
+		return fmt.Errorf("invalid amount: %s", pc.Constraint.GetFixedValue())
+	}
+
+	if !strings.EqualFold(pc.Constraint.DenominatedIn, "wei") {
+		return fmt.Errorf("amount constraint must be denominated in wei, got: %s", pc.Constraint.DenominatedIn)
+	}
+	return nil
+}
+func (p *PayrollPlugin) CheckRule(rule *rtypes.Rule) error {
+	if rule.Effect != rtypes.Effect_EFFECT_ALLOW {
+		return fmt.Errorf("rule effect must be ALLOW, got: %s", rule.Effect)
+	}
+	var seenRecipient, seenAmount bool
+	for _, pc := range rule.ParameterConstraints {
+		switch pc.ParameterName {
+		case "recipient":
+			if err := p.validateRecipient(pc); err != nil {
+				return fmt.Errorf("recipient validation failed: %w", err)
+			}
+			seenRecipient = true
+		case "amount":
+			if err := p.validateAmount(pc); err != nil {
+				return fmt.Errorf("amount validation failed: %w", err)
+			}
+			seenAmount = true
+		default:
+			return fmt.Errorf("unknown parameter: %s", pc.ParameterName)
+		}
+	}
+	if !seenRecipient && !seenAmount {
+		return fmt.Errorf("rule must contain at least one recipient or amount parameter")
+	}
+	return nil
+}
 func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	if policyDoc.PluginID != vtypes.PluginVultisigPayroll_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", vtypes.PluginVultisigPayroll_0000, policyDoc.PluginID)
 	}
 
-	var payrollPolicy PayrollPolicy
-	// TODO: validate the policy recipe and convert it to PayrollPolicy
-	if len(payrollPolicy.Recipients) == 0 {
-		return fmt.Errorf("no recipients found in payroll policy")
+	var rPolicy rtypes.Policy
+	policyBytes, err := base64.RawStdEncoding.DecodeString(policyDoc.Recipe)
+	if err != nil {
+		return fmt.Errorf("failed to decode policy recipe: %w", err)
 	}
 
-	if len(payrollPolicy.ChainID) != len(payrollPolicy.Recipients) {
-		p.logger.WithFields(logrus.Fields{
-			"chain_id_length":   payrollPolicy.ChainID,
-			"recipients_length": payrollPolicy.Recipients,
-		}).Error("chain_id array length does not match number of recipients")
-		return fmt.Errorf("chain_id array length must match number of recipients")
+	if err := proto.Unmarshal(policyBytes, &rPolicy); err != nil {
+		return fmt.Errorf("failed to unmarshal policy: %w", err)
+	}
+	if rPolicy.Schedule == nil {
+		return fmt.Errorf("policy schedule is nil")
 	}
 
-	if len(payrollPolicy.TokenID) != len(payrollPolicy.Recipients) {
-		return fmt.Errorf("token_id array length must match number of recipients")
+	if len(rPolicy.Rules) == 0 {
+		return fmt.Errorf("no rules")
 	}
 
-	for _, recipient := range payrollPolicy.Recipients {
-		mixedCaseAddress, err := gcommon.NewMixedcaseAddressFromString(recipient.Address)
-		if err != nil {
-			return fmt.Errorf("invalid recipient address: %s", recipient.Address)
-		}
-
-		// if the address is not all lowercase, check the checksum
-		if strings.ToLower(recipient.Address) != recipient.Address {
-			if !mixedCaseAddress.ValidChecksum() {
-				return fmt.Errorf("invalid recipient address checksum: %s", recipient.Address)
-			}
-		}
-
-		if recipient.Amount == "" {
-			return fmt.Errorf("amount is required for recipient %s", recipient.Address)
-		}
-
-		_, ok := new(big.Int).SetString(recipient.Amount, 10)
-		if !ok {
-			return fmt.Errorf("invalid amount for recipient %s: %s", recipient.Address, recipient.Amount)
+	for _, rule := range rPolicy.Rules {
+		if err := p.CheckRule(rule); err != nil {
+			return fmt.Errorf("rule validation failed: %w", err)
 		}
 	}
 
