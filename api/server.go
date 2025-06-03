@@ -57,14 +57,16 @@ func NewServer(
 	p plugin.Plugin,
 ) *Server {
 	logger := logrus.WithField("service", "plugin").Logger
-	schedulerService := scheduler.NewSchedulerService(
+	schedulerService, err := scheduler.NewSchedulerService(
 		db,
-		logger.WithField("service", "scheduler").Logger,
 		client,
 		redisOpts,
 	)
-	schedulerService.Start()
-	logger.Info("Scheduler service started")
+	if err != nil {
+		logger.Fatalf("Failed to initialize scheduler service: %v", err)
+		return nil
+	}
+
 	policyService, err := service.NewPolicyService(db, schedulerService, logger.WithField("service", "policy").Logger)
 	if err != nil {
 		logger.Fatalf("Failed to initialize policy service: %v", err)
