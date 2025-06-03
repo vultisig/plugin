@@ -1,4 +1,3 @@
-// plugin/payroll/config.go
 package payroll
 
 import (
