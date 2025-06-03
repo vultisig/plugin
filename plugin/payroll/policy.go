@@ -109,6 +109,9 @@ func (p *PayrollPlugin) validateRecipient(pc *rtypes.ParameterConstraint) error 
 	if pc == nil {
 		return fmt.Errorf("recipient parameter constraint is nil")
 	}
+	if pc.Constraint == nil {
+		return fmt.Errorf("recipient constraint is nil")
+	}
 	if pc.ParameterName != "recipient" {
 		return fmt.Errorf("expected recipient parameter, got: %s", pc.ParameterName)
 	}
@@ -130,6 +133,9 @@ func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
 	}
 	if pc.ParameterName != "amount" {
 		return fmt.Errorf("expected amount parameter, got: %s", pc.ParameterName)
+	}
+	if pc.Constraint == nil {
+		return fmt.Errorf("amount constraint is nil")
 	}
 	if !pc.Constraint.Required {
 		return fmt.Errorf("amount constraint is required, but not set")
