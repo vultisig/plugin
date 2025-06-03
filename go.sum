@@ -129,6 +129,8 @@ github.com/cockroachdb/redact v1.1.5 h1:u1PMllDkdFfPWaNGMyLD1+so+aq3uUItthCFqzwP
 github.com/cockroachdb/redact v1.1.5/go.mod h1:BVNblN9mBWFyMyqK1k3AAiSxhvhfK2oOZZ2lK+dpvRg=
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 h1:zuQyyAKVxetITBuuhv3BI9cMrmStnpT18zmgmTxunpo=
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06/go.mod h1:7nc4anLGjupUW/PeY5qiNYsdNXj7zopG+eqsS7To5IQ=
+github.com/coder/websocket v1.8.6 h1:OmNKdwUvLj7VvHnl5o8skaVghSPLjWdHGCnFbkWqs9w=
+github.com/coder/websocket v1.8.6/go.mod h1:B70DZP8IakI65RVQ51MsWP/8jndNma26DVA/nFSCgW0=
 github.com/cometbft/cometbft v0.38.5 h1:4lOcK5VTPrfbLOhNHmPYe6c7eDXHtBdMCQuKbAfFJdU=
 github.com/cometbft/cometbft v0.38.5/go.mod h1:0tqKin+KQs8zDwzYD8rPHzSBIDNPuB4NrwwGDNb/hUg=
 github.com/cometbft/cometbft-db v0.9.1 h1:MIhVX5ja5bXNHF8EYrThkG9F7r9kSfv8BX4LWaxWJ4M=
@@ -736,8 +738,6 @@ github.com/vultisig/go-wrappers v0.0.0-20250403041248-86911e8aa33f h1:124Xlloih1
 github.com/vultisig/go-wrappers v0.0.0-20250403041248-86911e8aa33f/go.mod h1:UfGCxUQW08kiwxyNBiHwXe+ePPuBmHVVS+BS51aU/Jg=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4nQ/NEVIb3OPP9SUx7/u9ZfsUIcd5fIN/e4DVU=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
-github.com/vultisig/recipes v0.0.0-20250531074825-c4872dec4ab9 h1:SSGqON8i7paf3/F7Vmc3RvsmrEETkb93k8+oH9VCLfM=
-github.com/vultisig/recipes v0.0.0-20250531074825-c4872dec4ab9/go.mod h1:tGlNiMDC33gPdX3C1DSESfQeCsaiOx+SNzInnF/Oi68=
 github.com/vultisig/recipes v0.0.0-20250531132511-82a0eb621885 h1:hXju0II1G1CydXchhjTla1JxK8WceDUGJhQhJHJSUIE=
 github.com/vultisig/recipes v0.0.0-20250531132511-82a0eb621885/go.mod h1:BXXJ25U75xaexJLoiiaLEZ6TQrcy8+8UGJGd4c+hNSE=
 github.com/vultisig/verifier v0.0.0-20250531103513-c1f5cb38b103 h1:1Qgt3uwzG11UqKoizd5Ft65Ij/8c2Kxpg3VB6N3/Fb0=
@@ -1022,8 +1022,6 @@ modernc.org/memory v1.9.1 h1:V/Z1solwAVmMW1yttq3nDdZPJqV1rM05Ccq6KMSZ34g=
 modernc.org/memory v1.9.1/go.mod h1:/JP4VbVC+K5sU2wZi9bHoq2MAkCnrt2r98UGeSK7Mjw=
 modernc.org/sqlite v1.36.2 h1:vjcSazuoFve9Wm0IVNHgmJECoOXLZM1KfMXbcX2axHA=
 modernc.org/sqlite v1.36.2/go.mod h1:ADySlx7K4FdY5MaJcEv86hTJ0PjedAloTUuif0YS3ws=
-nhooyr.io/websocket v1.8.6 h1:s+C3xAMLwGmlI31Nyn/eAehUlZPwfYZu2JXM621Q5/k=
-nhooyr.io/websocket v1.8.6/go.mod h1:B70DZP8IakI65RVQ51MsWP/8jndNma26DVA/nFSCgW0=
 pgregory.net/rapid v1.1.0 h1:CMa0sjHSru3puNx+J0MIAuiiEV4N0qj8/cMWGBBCsjw=
 pgregory.net/rapid v1.1.0/go.mod h1:PY5XlDGj0+V1FCq0o192FdRhpKHGTRIWBgqjDBTrq04=
 rsc.io/tmplfunc v0.0.3 h1:53XFQh69AfOa8Tw0Jm7t+GV7KZhOi6jzsCzTtKbMvzU=
