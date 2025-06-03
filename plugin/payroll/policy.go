@@ -201,9 +201,7 @@ func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) erro
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", vtypes.PluginVultisigPayroll_0000, policyDoc.PluginID)
 	}
 	var rPolicy rtypes.Policy
-	if rPolicy.Schedule == nil {
-		return fmt.Errorf("policy schedule is nil")
-	}
+
 	policyBytes, err := base64.RawStdEncoding.DecodeString(policyDoc.Recipe)
 	if err != nil {
 		return fmt.Errorf("failed to decode policy recipe: %w", err)
