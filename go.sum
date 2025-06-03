@@ -742,6 +742,8 @@ github.com/vultisig/recipes v0.0.0-20250531132511-82a0eb621885 h1:hXju0II1G1CydX
 github.com/vultisig/recipes v0.0.0-20250531132511-82a0eb621885/go.mod h1:BXXJ25U75xaexJLoiiaLEZ6TQrcy8+8UGJGd4c+hNSE=
 github.com/vultisig/verifier v0.0.0-20250531103513-c1f5cb38b103 h1:1Qgt3uwzG11UqKoizd5Ft65Ij/8c2Kxpg3VB6N3/Fb0=
 github.com/vultisig/verifier v0.0.0-20250531103513-c1f5cb38b103/go.mod h1:8b9k8CJtF1KwjMoZuWFYmz0Q+zdikrx3q0ExbZqsLgk=
+github.com/vultisig/verifier v0.0.0-20250601204503-09adc8fc7c02 h1:OnI3qBmBbjXTB9+44AvWFkS4E3ewKdNWYpvby2kFgTs=
+github.com/vultisig/verifier v0.0.0-20250601204503-09adc8fc7c02/go.mod h1:8b9k8CJtF1KwjMoZuWFYmz0Q+zdikrx3q0ExbZqsLgk=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9 h1:pZhGN8q8+gPB1JJjVDC1hDg8qn6Tbj0XBJymgTQ8qQg=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
