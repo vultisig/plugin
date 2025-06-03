@@ -105,7 +105,10 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 	return nil
 }
 
-func (p *PayrollPlugin) ValidateRecipient(pc *rtypes.ParameterConstraint) error {
+func (p *PayrollPlugin) validateRecipient(pc *rtypes.ParameterConstraint) error {
+	if pc == nil {
+		return fmt.Errorf("recipient parameter constraint is nil")
+	}
 	if pc.ParameterName != "recipient" {
 		return fmt.Errorf("expected recipient parameter, got: %s", pc.ParameterName)
 	}
@@ -121,7 +124,10 @@ func (p *PayrollPlugin) ValidateRecipient(pc *rtypes.ParameterConstraint) error 
 	return nil
 }
 
-func (PayrollPlugin) ValidateAmount(pc *rtypes.ParameterConstraint) error {
+func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
+	if pc == nil {
+		return fmt.Errorf("amount parameter constraint is nil")
+	}
 	if pc.ParameterName != "amount" {
 		return fmt.Errorf("expected amount parameter, got: %s", pc.ParameterName)
 	}
@@ -143,19 +149,25 @@ func (p *PayrollPlugin) CheckRule(rule *rtypes.Rule) error {
 	if rule.Effect != rtypes.Effect_EFFECT_ALLOW {
 		return fmt.Errorf("rule effect must be ALLOW, got: %s", rule.Effect)
 	}
+	var seenRecipient, seenAmount bool
 	for _, pc := range rule.ParameterConstraints {
 		switch pc.ParameterName {
 		case "recipient":
-			if err := p.ValidateRecipient(pc); err != nil {
+			if err := p.validateRecipient(pc); err != nil {
 				return fmt.Errorf("recipient validation failed: %w", err)
 			}
+			seenRecipient = true
 		case "amount":
-			if err := p.ValidateAmount(pc); err != nil {
+			if err := p.validateAmount(pc); err != nil {
 				return fmt.Errorf("amount validation failed: %w", err)
 			}
+			seenAmount = true
 		default:
 			return fmt.Errorf("unknown parameter: %s", pc.ParameterName)
 		}
+	}
+	if !seenRecipient && !seenAmount {
+		return fmt.Errorf("rule must contain at least one recipient or amount parameter")
 	}
 	return nil
 }
