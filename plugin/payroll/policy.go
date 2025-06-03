@@ -116,7 +116,7 @@ func (p *PayrollPlugin) ValidateRecipient(pc *rtypes.ParameterConstraint) error 
 		return fmt.Errorf("recipient constraint must be fixed, got: %s", pc.Constraint.Type)
 	}
 	if _, err := gcommon.NewMixedcaseAddressFromString(pc.Constraint.GetFixedValue()); err != nil {
-		return fmt.Errorf("invalid recipient address: %s, error: %w", pc.Constraint.Value, err)
+		return fmt.Errorf("invalid recipient address: %s, error: %w", pc.Constraint.GetFixedValue(), err)
 	}
 	return nil
 }
