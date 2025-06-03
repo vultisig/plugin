@@ -183,14 +183,6 @@ func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy vtypes.
 }
 
 func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*types.TimeTrigger, error) {
-	var policySchedule struct {
-		Schedule struct {
-			Frequency string     `json:"frequency"`
-			StartTime time.Time  `json:"start_time"`
-			Interval  string     `json:"interval"`
-			EndTime   *time.Time `json:"end_time,omitempty"`
-		} `json:"schedule"`
-	}
 	var p rtypes.Policy
 	if err := json.Unmarshal([]byte(policy.Recipe), &p); err != nil {
 		return nil, fmt.Errorf("failed to parse policy schedule: %w", err)
@@ -211,7 +203,7 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*ty
 		tmpTime := p.Schedule.GetEndTime().AsTime()
 		endTime = &tmpTime
 	}
-	cronExpr := frequencyToCron(p.Schedule.GetFrequency(), policySchedule.Schedule.StartTime, interval)
+	cronExpr := frequencyToCron(p.Schedule.GetFrequency(), startTime, interval)
 	trigger := types.TimeTrigger{
 		PolicyID:       policy.ID,
 		CronExpression: cronExpr,

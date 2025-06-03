@@ -219,7 +219,9 @@ func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) erro
 	if len(rPolicy.Rules) == 0 {
 		return fmt.Errorf("no rules")
 	}
-
+	if err := p.validateSchedule(rPolicy.Schedule); err != nil {
+		return fmt.Errorf("schedule validation failed: %w", err)
+	}
 	for _, rule := range rPolicy.Rules {
 		if err := p.checkRule(rule); err != nil {
 			return fmt.Errorf("rule validation failed: %w", err)
