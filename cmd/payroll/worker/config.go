@@ -18,6 +18,9 @@ type PayrollWorkerConfig struct {
 		Host string `mapstructure:"host" json:"host,omitempty"`
 		Port string `mapstructure:"port" json:"port,omitempty"`
 	} `mapstructure:"datadog" json:"datadog"`
+	Database struct {
+		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
+	} `mapstructure:"database" json:"database,omitempty"`
 }
 
 func GetConfigure() (*PayrollWorkerConfig, error) {
