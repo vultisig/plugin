@@ -8,7 +8,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/verifier/vault"
 
+	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/storage/postgres"
 )
 
 func main() {
@@ -50,6 +52,16 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create vault service: %w", err))
 	}
+	postgressDB, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
+	if err != nil {
+		panic(fmt.Errorf("failed to create postgres backend: %w", err))
+	}
+	schedulerSvc, err := scheduler.NewSchedulerService(postgressDB, client, redisOptions)
+	if err != nil {
+		panic(fmt.Errorf("failed to create scheduler service: %w", err))
+	}
+	schedulerSvc.Start()
+	defer schedulerSvc.Stop()
 	mux := asynq.NewServeMux()
 	//	mux.HandleFunc(tasks.TypePluginTransaction, vaultService.HandlePluginTransaction)
 	mux.HandleFunc(tasks.TypeKeySignDKLS, vaultService.HandleKeySignDKLS)
