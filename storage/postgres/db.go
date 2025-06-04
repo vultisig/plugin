@@ -21,7 +21,7 @@ type PostgresBackend struct {
 }
 
 type MigrationOptions struct {
-	RunSystemMigrations   bool
+	RunSystemMigrations bool
 	RunPluginMigrations bool
 }
 
@@ -39,7 +39,7 @@ func NewPostgresBackend(dsn string, opts *MigrationOptions) (*PostgresBackend, e
 	// Apply default options if not provided
 	if opts == nil {
 		opts = &MigrationOptions{
-			RunSystemMigrations:   true,
+			RunSystemMigrations: true,
 			RunPluginMigrations: true,
 		}
 	}
@@ -51,18 +51,18 @@ func NewPostgresBackend(dsn string, opts *MigrationOptions) (*PostgresBackend, e
 	return backend, nil
 }
 
-func (d *PostgresBackend) Close() error {
-	d.pool.Close()
+func (p *PostgresBackend) Close() error {
+	p.pool.Close()
 
 	return nil
 }
 
-func (d *PostgresBackend) Migrate(opts *MigrationOptions) error {
+func (p *PostgresBackend) Migrate(opts *MigrationOptions) error {
 	logrus.Info("Starting database migration...")
-	
+
 	// Run system migrations first (plugin_policies table)
 	if opts.RunSystemMigrations {
-		systemMgr := NewSystemMigrationManager(d.pool)
+		systemMgr := NewSystemMigrationManager(p.pool)
 		if err := systemMgr.Migrate(); err != nil {
 			return fmt.Errorf("failed to run system migrations: %w", err)
 		}
@@ -70,7 +70,7 @@ func (d *PostgresBackend) Migrate(opts *MigrationOptions) error {
 
 	// Run plugin migrations (all other tables)
 	if opts.RunPluginMigrations {
-		pluginMgr := NewPluginMigrationManager(d.pool)
+		pluginMgr := NewPluginMigrationManager(p.pool)
 		if err := pluginMgr.Migrate(); err != nil {
 			return fmt.Errorf("failed to run plugin migrations: %w", err)
 		}

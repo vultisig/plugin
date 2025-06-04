@@ -12,9 +12,17 @@ import (
 	"github.com/vultisig/plugin/internal/types"
 )
 
+// checkContext returns ctx.Err() if the context is done (timeout or canceled), otherwise nil.
+func checkContext(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("context is nil")
+	}
+	return ctx.Err()
+}
+
 func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, trigger types.TimeTrigger) error {
-	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	query := `
@@ -37,8 +45,8 @@ func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, tr
 }
 
 func (p *PostgresBackend) DeleteTimeTrigger(ctx context.Context, policyID uuid.UUID) error {
-	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	query := `DELETE FROM time_triggers WHERE policy_id = $1`
@@ -48,14 +56,14 @@ func (p *PostgresBackend) DeleteTimeTrigger(ctx context.Context, policyID uuid.U
 }
 
 func (p *PostgresBackend) GetPendingTimeTriggers(ctx context.Context) ([]types.TimeTrigger, error) {
-	if p.pool == nil {
-		return nil, fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return nil, err
 	}
 
 	// TODO: add limit and proper index
 	query := `
   	WITH active_triggers AS (
-    		SELECT t.policy_id, t.cron_expression, t.start_time, t.end_time, t.frequency, t.interval, t.last_execution, t.status
+   		SELECT t.policy_id, t.cron_expression, t.start_time, t.end_time, t.frequency, t.interval, t.last_execution, t.status
 				FROM time_triggers t
 				INNER JOIN plugin_policies p ON t.policy_id = p.id
 				WHERE t.start_time <= $1
@@ -96,8 +104,8 @@ func (p *PostgresBackend) GetPendingTimeTriggers(ctx context.Context) ([]types.T
 }
 
 func (p *PostgresBackend) UpdateTimeTriggerLastExecution(ctx context.Context, policyID uuid.UUID) error {
-	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	query := `
@@ -111,8 +119,8 @@ func (p *PostgresBackend) UpdateTimeTriggerLastExecution(ctx context.Context, po
 }
 
 func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID uuid.UUID, trigger types.TimeTrigger, tx pgx.Tx) error {
-	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	query := `
@@ -134,8 +142,8 @@ func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID uuid
 }
 
 func (p *PostgresBackend) GetTriggerStatus(ctx context.Context, policyID uuid.UUID) (types.TimeTriggerStatus, error) {
-	if p.pool == nil {
-		return "", fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return "", err
 	}
 
 	query := `
@@ -157,8 +165,8 @@ func (p *PostgresBackend) GetTriggerStatus(ctx context.Context, policyID uuid.UU
 }
 
 func (p *PostgresBackend) UpdateTriggerStatus(ctx context.Context, policyID uuid.UUID, status types.TimeTriggerStatus) error {
-	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	query := `

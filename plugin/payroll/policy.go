@@ -152,7 +152,25 @@ func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
 	}
 	return nil
 }
-func (p *PayrollPlugin) CheckRule(rule *rtypes.Rule) error {
+func (p *PayrollPlugin) validateSchedule(schedule *rtypes.Schedule) error {
+	if schedule == nil {
+		return fmt.Errorf("schedule is nil")
+	}
+	if schedule.GetFrequency() == rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_UNSPECIFIED {
+		return fmt.Errorf("schedule frequency is required")
+	}
+
+	if schedule.GetStartTime() == nil {
+		return fmt.Errorf("start time is required")
+	}
+
+	if schedule.GetEndTime() != nil && schedule.GetEndTime().AsTime().Before(schedule.GetStartTime().AsTime()) {
+		return fmt.Errorf("end time cannot be before start time")
+	}
+
+	return nil
+}
+func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 	if rule.Effect != rtypes.Effect_EFFECT_ALLOW {
 		return fmt.Errorf("rule effect must be ALLOW, got: %s", rule.Effect)
 	}
@@ -182,8 +200,8 @@ func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) erro
 	if policyDoc.PluginID != vtypes.PluginVultisigPayroll_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", vtypes.PluginVultisigPayroll_0000, policyDoc.PluginID)
 	}
-
 	var rPolicy rtypes.Policy
+
 	policyBytes, err := base64.RawStdEncoding.DecodeString(policyDoc.Recipe)
 	if err != nil {
 		return fmt.Errorf("failed to decode policy recipe: %w", err)
@@ -199,9 +217,11 @@ func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) erro
 	if len(rPolicy.Rules) == 0 {
 		return fmt.Errorf("no rules")
 	}
-
+	if err := p.validateSchedule(rPolicy.Schedule); err != nil {
+		return fmt.Errorf("schedule validation failed: %w", err)
+	}
 	for _, rule := range rPolicy.Rules {
-		if err := p.CheckRule(rule); err != nil {
+		if err := p.checkRule(rule); err != nil {
 			return fmt.Errorf("rule validation failed: %w", err)
 		}
 	}

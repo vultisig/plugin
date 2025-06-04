@@ -32,6 +32,7 @@ func main() {
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	}
+
 	logger := logrus.StandardLogger()
 	client := asynq.NewClient(redisOptions)
 	srv := asynq.NewServer(

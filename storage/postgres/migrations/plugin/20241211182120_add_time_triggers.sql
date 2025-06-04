@@ -11,7 +11,7 @@ CREATE TABLE time_triggers (
     cron_expression TEXT NOT NULL,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP,
-    frequency TEXT NOT NULL,
+    frequency INT NOT NULL,
     interval INTEGER NOT NULL,
     last_execution TIMESTAMP,
     status trigger_status NOT NULL,

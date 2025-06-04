@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
+	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 
 	"github.com/vultisig/plugin/internal/tasks"
@@ -31,21 +31,22 @@ type SchedulerService struct {
 	done      chan struct{}
 }
 
-func NewSchedulerService(db storage.DatabaseStorage, logger *logrus.Logger, client *asynq.Client, redisOpts asynq.RedisClientOpt) *SchedulerService {
+func NewSchedulerService(db storage.DatabaseStorage,
+	client *asynq.Client,
+	redisOpts asynq.RedisClientOpt) (*SchedulerService, error) {
 	if db == nil {
-		logger.Fatal("database connection is nil")
+		return nil, fmt.Errorf("db is nil")
 	}
 
 	// create inspector using the same Redis configuration as the client
 	inspector := asynq.NewInspector(redisOpts)
-
 	return &SchedulerService{
 		db:        db,
-		logger:    logger,
+		logger:    logrus.WithField("component", "scheduler").Logger,
 		client:    client,
 		inspector: inspector,
 		done:      make(chan struct{}),
-	}
+	}, nil
 }
 
 func (s *SchedulerService) Start() {
@@ -182,31 +183,33 @@ func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy vtypes.
 }
 
 func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*types.TimeTrigger, error) {
-	var policySchedule struct {
-		Schedule struct {
-			Frequency string     `json:"frequency"`
-			StartTime time.Time  `json:"start_time"`
-			Interval  string     `json:"interval"`
-			EndTime   *time.Time `json:"end_time,omitempty"`
-		} `json:"schedule"`
-	}
-
-	if err := json.Unmarshal([]byte(policy.Recipe), &policySchedule); err != nil {
+	var p rtypes.Policy
+	if err := json.Unmarshal([]byte(policy.Recipe), &p); err != nil {
 		return nil, fmt.Errorf("failed to parse policy schedule: %w", err)
 	}
-
-	interval, err := strconv.Atoi(policySchedule.Schedule.Interval)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse interval: %w", err)
+	if p.Schedule == nil {
+		return nil, fmt.Errorf("policy schedule is nil")
 	}
-
-	cronExpr := frequencyToCron(policySchedule.Schedule.Frequency, policySchedule.Schedule.StartTime, interval)
+	interval := 1
+	if p.Schedule.Interval > 0 {
+		interval = int(p.Schedule.Interval)
+	}
+	startTime := time.Now().UTC()
+	if p.Schedule.GetStartTime() != nil {
+		startTime = p.Schedule.GetStartTime().AsTime()
+	}
+	var endTime *time.Time
+	if p.Schedule.GetEndTime() != nil {
+		tmpTime := p.Schedule.GetEndTime().AsTime()
+		endTime = &tmpTime
+	}
+	cronExpr := frequencyToCron(p.Schedule.GetFrequency(), startTime, interval)
 	trigger := types.TimeTrigger{
 		PolicyID:       policy.ID,
 		CronExpression: cronExpr,
-		StartTime:      time.Now().UTC(),
-		EndTime:        policySchedule.Schedule.EndTime,
-		Frequency:      policySchedule.Schedule.Frequency,
+		StartTime:      startTime,
+		EndTime:        endTime,
+		Frequency:      p.Schedule.Frequency,
 		Interval:       interval,
 		Status:         types.StatusTimeTriggerPending,
 	}
@@ -214,9 +217,12 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*ty
 	return &trigger, nil
 }
 
-func createSchedule(cronExpr, frequency string, startTime time.Time, interval int) (cron.Schedule, error) {
+func createSchedule(cronExpr string, frequency rtypes.ScheduleFrequency, startTime time.Time, interval int) (cron.Schedule, error) {
 	// Use our custom schedule implementation for intervals > 1 and when frequency is daily, weekly, monthly
-	if interval > 1 && (frequency == "daily" || frequency == "weekly" || frequency == "monthly") {
+	if interval > 1 &&
+		(frequency == rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_DAILY ||
+			frequency == rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY ||
+			frequency == rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY) {
 		return NewIntervalSchedule(frequency, startTime, interval)
 	}
 
@@ -229,28 +235,30 @@ func createSchedule(cronExpr, frequency string, startTime time.Time, interval in
 	return schedule, nil
 }
 
-func frequencyToCron(frequency string, startTime time.Time, interval int) string {
+func frequencyToCron(frequency rtypes.ScheduleFrequency, startTime time.Time, interval int) string {
 	switch frequency {
-	case "minutely":
-		return fmt.Sprintf("*/%d * * * *", interval)
-	case "hourly":
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_UNSPECIFIED:
+		return ""
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_DAILY:
+		return fmt.Sprintf("%d %d * * *", startTime.Minute(), startTime.Hour())
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_HOURLY:
 		if interval == 1 {
 			return fmt.Sprintf("%d * * * *", startTime.Minute())
 		}
 		return fmt.Sprintf("%d */%d * * *", startTime.Minute(), interval)
-	case "daily":
-		return fmt.Sprintf("%d %d * * *", startTime.Minute(), startTime.Hour())
-	case "weekly":
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY:
 		return fmt.Sprintf("%d %d * * %d", startTime.Minute(), startTime.Hour(), startTime.Weekday())
-	case "monthly":
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY:
 		return fmt.Sprintf("%d %d %d * *", startTime.Minute(), startTime.Hour(), startTime.Day())
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY:
+		return fmt.Sprintf("%d %d */14 * %d", startTime.Minute(), startTime.Hour(), startTime.Weekday())
 	default:
 		return ""
 	}
 }
 
 type IntervalSchedule struct {
-	Frequency string
+	Frequency rtypes.ScheduleFrequency
 	Interval  int
 	StartTime time.Time
 	Minute    int
@@ -260,7 +268,7 @@ type IntervalSchedule struct {
 	Location  *time.Location
 }
 
-func NewIntervalSchedule(frequency string, startTime time.Time, interval int) (*IntervalSchedule, error) {
+func NewIntervalSchedule(frequency rtypes.ScheduleFrequency, startTime time.Time, interval int) (*IntervalSchedule, error) {
 	if interval < 1 {
 		return nil, fmt.Errorf("interval must be at least 1")
 	}
@@ -281,11 +289,11 @@ func (s *IntervalSchedule) Next(t time.Time) time.Time {
 	t = t.In(s.Location)
 
 	switch s.Frequency {
-	case "daily":
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_DAILY:
 		return s.nextDaily(t)
-	case "weekly":
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY:
 		return s.nextWeekly(t)
-	case "monthly":
+	case rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY:
 		return s.nextMonthly(t)
 	default:
 		return time.Time{}
