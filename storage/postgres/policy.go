@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	vtypes "github.com/vultisig/verifier/types"
 )
 
-func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id string) (vtypes.PluginPolicy, error) {
+func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id uuid.UUID) (vtypes.PluginPolicy, error) {
 	if p.pool == nil {
 		return vtypes.PluginPolicy{}, fmt.Errorf("database pool is nil")
 	}
@@ -151,7 +152,7 @@ func (p *PostgresBackend) UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 	return &updatedPolicy, nil
 }
 
-func (p *PostgresBackend) DeletePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, id string) error {
+func (p *PostgresBackend) DeletePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, id uuid.UUID) error {
 	_, err := dbTx.Exec(ctx, `
 	DELETE FROM transaction_history
 	WHERE policy_id = $1

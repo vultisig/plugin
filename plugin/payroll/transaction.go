@@ -3,12 +3,14 @@ package payroll
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/vultisig/vultiserver/contexthelper"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -22,6 +24,8 @@ import (
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
+
+	"github.com/vultisig/plugin/internal/types"
 )
 
 // TODO: remove once the plugin installation is implemented
@@ -29,7 +33,26 @@ const (
 	hexEncryptionKey = "hexencryptionkey"
 )
 
-func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		p.logger.WithError(err).Warn("Context cancelled, skipping scheduler trigger")
+		return err
+	}
+	var trigger types.TimeTrigger
+	if err := json.Unmarshal(t.Payload(), &trigger); err != nil {
+		p.logger.WithError(err).Error("Failed to unmarshal trigger payload")
+		return fmt.Errorf("failed to unmarshal trigger payload: %s, %w", err, asynq.SkipRetry)
+	}
+	pluginPolicy, err := p.db.GetPluginPolicy(ctx, trigger.PolicyID)
+	if err != nil {
+		p.logger.WithError(err).Error("Failed to get plugin policy from database")
+		return fmt.Errorf("failed to get plugin policy: %s, %w", err, asynq.SkipRetry)
+	}
+	// propose transaction and get it signed
+	_ = pluginPolicy
+	return nil
+}
+func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) ([]vtypes.PluginKeysignRequest, error) {
 	var txs []vtypes.PluginKeysignRequest
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
@@ -73,8 +96,6 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 				PluginID:         policy.PluginID.String(),
 			},
 			Transaction: hex.EncodeToString(rawTx),
-
-			PolicyID: policy.ID.String(),
 		}
 		txs = append(txs, signRequest)
 	}
@@ -211,8 +232,8 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 	return txHash, rawTx, nil
 }
 
-func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
-	R, S, V, originalTx, chainID, _, err := p.convertData(signature, signRequest, policy)
+func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicyCreateUpdate) error {
+	R, S, V, originalTx, chainID, _, err := p.convertData(signature, signRequest, policy.ToPluginPolicy())
 	if err != nil {
 		return fmt.Errorf("failed to convert R and S: %v", err)
 	}

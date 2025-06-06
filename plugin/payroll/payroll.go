@@ -5,9 +5,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/verifier/plugin"
 
 	"github.com/vultisig/plugin/storage"
 )
+
+var _ plugin.Plugin = (*PayrollPlugin)(nil)
 
 type PayrollPlugin struct {
 	db           storage.DatabaseStorage

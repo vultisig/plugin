@@ -14,9 +14,9 @@ import (
 type DatabaseStorage interface {
 	Close() error
 
-	GetPluginPolicy(ctx context.Context, id string) (vtypes.PluginPolicy, error)
+	GetPluginPolicy(ctx context.Context, id uuid.UUID) (vtypes.PluginPolicy, error)
 	GetAllPluginPolicies(ctx context.Context, publicKey string, pluginID vtypes.PluginID) ([]vtypes.PluginPolicy, error)
-	DeletePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, id string) error
+	DeletePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, id uuid.UUID) error
 	InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 

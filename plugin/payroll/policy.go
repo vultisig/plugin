@@ -37,7 +37,7 @@ type Schedule struct {
 	EndTime   string `json:"end_time,omitempty"`
 }
 
-func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
+func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicyCreateUpdate, txs []vtypes.PluginKeysignRequest) error {
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
 		return fmt.Errorf("failed to validate plugin policy: %v", err)
@@ -196,7 +196,7 @@ func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 	}
 	return nil
 }
-func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicyCreateUpdate) error {
 	if policyDoc.PluginID != vtypes.PluginVultisigPayroll_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", vtypes.PluginVultisigPayroll_0000, policyDoc.PluginID)
 	}
