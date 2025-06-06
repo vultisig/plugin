@@ -21,14 +21,16 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
+
+	rtypes "github.com/vultisig/recipes/types"
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/pkg/uniswap"
 	"github.com/vultisig/plugin/storage"
-	rtypes "github.com/vultisig/recipes/types"
 )
 
 const (
@@ -45,6 +47,8 @@ const (
 var (
 	ErrCompletedPolicy = errors.New("policy completed all swaps")
 )
+
+var _ plugin.Plugin = (*DCAPlugin)(nil)
 
 type DCAPlugin struct {
 	uniswapClient *uniswap.Client
@@ -90,7 +94,7 @@ func (p *DCAPlugin) SigningComplete(
 	ctx context.Context,
 	signature tss.KeysignResponse,
 	signRequest vtypes.PluginKeysignRequest,
-	policy vtypes.PluginPolicy,
+	policy vtypes.PluginPolicyCreateUpdate,
 ) error {
 	var dcaPolicy DCAPolicy
 	// TODO: convert recipe to DCAPolicy
@@ -131,7 +135,7 @@ func (p *DCAPlugin) SigningComplete(
 	return nil
 }
 
-func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicyCreateUpdate) error {
 	if policyDoc.PluginID != vtypes.PluginVultisigDCA_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", pluginType, policyDoc.PluginID)
 	}
@@ -266,7 +270,7 @@ func validateInterval(intervalStr string, frequency string) error {
 	return nil
 }
 
-func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) ([]vtypes.PluginKeysignRequest, error) {
 	p.logger.Info("DCA: PROPOSE TRANSACTIONS")
 
 	var txs []vtypes.PluginKeysignRequest
@@ -297,7 +301,7 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 	}
 
 	if completedSwaps >= totalOrders.Int64() {
-		if err := p.completePolicy(context.Background(), policy); err != nil {
+		if err := p.completePolicy(context.Background(), policy.ToPluginPolicy()); err != nil {
 			return txs, fmt.Errorf("fail to complete policy: %w", err)
 		}
 		return txs, ErrCompletedPolicy
@@ -343,9 +347,9 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 					common.PluginPartyID,
 					common.VerifierPartyID},
 				PluginID: policy.PluginID.String(),
+				PolicyID: policy.ID,
 			},
 			Transaction:     hex.EncodeToString(data.RlpTxBytes),
-			PolicyID:        policy.ID.String(),
 			TransactionType: data.Type,
 		}
 		txs = append(txs, signRequest)
@@ -354,7 +358,7 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 	return txs, nil
 }
 
-func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
+func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicyCreateUpdate, txs []vtypes.PluginKeysignRequest) error {
 	p.logger.Info("DCA: VALIDATE TRANSACTION PROPOSAL")
 
 	if len(txs) == 0 {
@@ -403,7 +407,7 @@ func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs
 	}
 	// TODO: Change this to make the policy to status COMPLETED if: completed swaps == total orders.
 	if completedSwaps >= totalOrders.Int64() {
-		if err := p.completePolicy(context.Background(), policy); err != nil {
+		if err := p.completePolicy(context.Background(), policy.ToPluginPolicy()); err != nil {
 			return fmt.Errorf("fail to complete policy: %w", err)
 		}
 		p.logger.Info("DCA: COMPLETED SWAPS: ", totalOrders.Int64())

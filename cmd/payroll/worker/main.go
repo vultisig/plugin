@@ -10,6 +10,7 @@ import (
 
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/plugin/payroll"
 	"github.com/vultisig/plugin/storage/postgres"
 )
 
@@ -62,14 +63,20 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create postgres backend: %w", err))
 	}
+	p, err := payroll.NewPayrollPlugin(postgressDB, cfg.BaseConfigPath)
+	if err != nil {
+		panic(fmt.Errorf("failed to create payroll plugin: %w", err))
+	}
 	schedulerSvc, err := scheduler.NewSchedulerService(postgressDB, client, redisOptions)
 	if err != nil {
 		panic(fmt.Errorf("failed to create scheduler service: %w", err))
 	}
+
 	schedulerSvc.Start()
 	defer schedulerSvc.Stop()
+
 	mux := asynq.NewServeMux()
-	//	mux.HandleFunc(tasks.TypePluginTransaction, vaultService.HandlePluginTransaction)
+	mux.HandleFunc(tasks.TypePluginTransaction, p.HandleSchedulerTrigger)
 	mux.HandleFunc(tasks.TypeKeySignDKLS, vaultService.HandleKeySignDKLS)
 	mux.HandleFunc(tasks.TypeReshareDKLS, vaultService.HandleReshareDKLS)
 	if err := srv.Run(mux); err != nil {

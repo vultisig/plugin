@@ -17,9 +17,9 @@ import (
 type Policy interface {
 	CreatePolicy(ctx context.Context, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	UpdatePolicy(ctx context.Context, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
-	DeletePolicy(ctx context.Context, policyID, signature string) error
+	DeletePolicy(ctx context.Context, policyID uuid.UUID, signature string) error
 	GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string) ([]vtypes.PluginPolicy, error)
-	GetPluginPolicy(ctx context.Context, policyID string) (vtypes.PluginPolicy, error)
+	GetPluginPolicy(ctx context.Context, policyID uuid.UUID) (vtypes.PluginPolicy, error)
 	GetPluginPolicyTransactionHistory(ctx context.Context, policyID string) ([]types.TransactionHistory, error)
 }
 
@@ -107,7 +107,7 @@ func (s *PolicyService) UpdatePolicy(ctx context.Context, policy vtypes.PluginPo
 	return updatedPolicy, nil
 }
 
-func (s *PolicyService) DeletePolicy(ctx context.Context, policyID, signature string) error {
+func (s *PolicyService) DeletePolicy(ctx context.Context, policyID uuid.UUID, signature string) error {
 
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *PolicyService) GetPluginPolicies(ctx context.Context, pluginID vtypes.P
 	return policies, nil
 }
 
-func (s *PolicyService) GetPluginPolicy(ctx context.Context, policyID string) (vtypes.PluginPolicy, error) {
+func (s *PolicyService) GetPluginPolicy(ctx context.Context, policyID uuid.UUID) (vtypes.PluginPolicy, error) {
 	policy, err := s.db.GetPluginPolicy(ctx, policyID)
 	if err != nil {
 		return vtypes.PluginPolicy{}, fmt.Errorf("failed to get policy: %w", err)
