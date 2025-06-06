@@ -205,7 +205,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		policy.ID = uuid.New()
 	}
 
-	if !s.verifyPolicySignature(policy.ToPluginPolicy(), false) {
+	if !s.verifyPolicySignature(policy.ToPluginPolicy()) {
 		s.logger.Error("invalid policy signature")
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
@@ -233,7 +233,7 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("failed to validate policy"))
 	}
 
-	if !s.verifyPolicySignature(policy.ToPluginPolicy(), true) {
+	if !s.verifyPolicySignature(policy.ToPluginPolicy()) {
 		s.logger.Error("invalid policy signature")
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
@@ -278,7 +278,7 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	// This is because we have different signature stored in the database.
 	policy.Signature = reqBody.Signature
 
-	if !s.verifyPolicySignature(policy, true) {
+	if !s.verifyPolicySignature(policy) {
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
 
@@ -337,7 +337,7 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	return c.JSON(http.StatusOK, policyHistory)
 }
 
-func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy, update bool) bool {
+func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy) bool {
 	msgBytes, err := policyToMessageHex(policy)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to convert policy to message hex")
