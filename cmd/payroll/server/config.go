@@ -5,17 +5,17 @@ import (
 	"os"
 
 	"github.com/spf13/viper"
-	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/verifier/vault_config"
 
 	"github.com/vultisig/plugin/api"
 	"github.com/vultisig/plugin/storage"
 )
 
 type PayrollServerConfig struct {
-	Server         api.ServerConfig         `mapstructure:"server" json:"server"`
-	BaseConfigPath string                   `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
-	Redis          storage.RedisConfig      `mapstructure:"redis" json:"redis,omitempty"`
-	BlockStorage   vault.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`
+	Server         api.ServerConfig                `mapstructure:"server" json:"server"`
+	BaseConfigPath string                          `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
+	Redis          storage.RedisConfig             `mapstructure:"redis" json:"redis,omitempty"`
+	BlockStorage   vault_config.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`
 	Datadog        struct {
 		Host string `mapstructure:"host" json:"host,omitempty"`
 		Port string `mapstructure:"port" json:"port,omitempty"`

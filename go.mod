@@ -19,8 +19,8 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/vultisig/commondata v0.0.0-20250430024109-a2492623ef05
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250604212709-58772375f814
-	github.com/vultisig/verifier v0.0.0-20250606071917-2f9ec25b5689
+	github.com/vultisig/recipes v0.0.0-20250606100120-0ee16a73412d
+	github.com/vultisig/verifier v0.0.0-20250606113146-bec42406cb9e
 	github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9
 )
 
@@ -80,13 +80,16 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/glog v1.2.4 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-metrics v0.5.1 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
