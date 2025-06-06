@@ -48,7 +48,13 @@ func main() {
 			},
 		},
 	)
-	vaultService, err := vault.NewManagementService(cfg.VaultServiceConfig, client, sdClient, vaultStorage)
+	vaultService, err := vault.NewManagementService(
+		cfg.VaultServiceConfig,
+		client,
+		sdClient,
+		vaultStorage,
+		nil, // not used in plugin
+	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create vault service: %w", err))
 	}
