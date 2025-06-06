@@ -59,18 +59,8 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	if policy.PluginID.String() != req.PluginID {
 		return fmt.Errorf("policy plugin ID mismatch")
 	}
-	policyUpdate := vtypes.PluginPolicyCreateUpdate{
-		ID:            policy.ID,
-		PublicKey:     policy.PublicKey,
-		PluginID:      policy.PluginID,
-		PluginVersion: policy.PluginVersion,
-		PolicyVersion: policy.PolicyVersion,
-		Signature:     policy.Signature,
-		Recipe:        policy.Recipe,
-		BillingRecipe: "",
-		Active:        policy.Active,
-	}
-	if err := s.plugin.ValidateProposedTransactions(policyUpdate, []vtypes.PluginKeysignRequest{req}); err != nil {
+
+	if err := s.plugin.ValidateProposedTransactions(policy.ToPluginPolicyCreateUpdate(), []vtypes.PluginKeysignRequest{req}); err != nil {
 		return fmt.Errorf("failed to validate transaction proposal: %w", err)
 	}
 
