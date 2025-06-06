@@ -60,7 +60,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("policy plugin ID mismatch")
 	}
 
-	if err := s.plugin.ValidateProposedTransactions(policy, []vtypes.PluginKeysignRequest{req}); err != nil {
+	if err := s.plugin.ValidateProposedTransactions(policy.ToPluginPolicyCreateUpdate(), []vtypes.PluginKeysignRequest{req}); err != nil {
 		return fmt.Errorf("failed to validate transaction proposal: %w", err)
 	}
 
@@ -146,8 +146,14 @@ func (s *Server) GetPluginPolicyById(c echo.Context) error {
 	if policyID == "" {
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("invalid policy ID"))
 	}
-
-	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
+	uPolicyID, err := uuid.Parse(policyID)
+	if err != nil {
+		s.logger.WithError(err).
+			WithField("policy_id", policyID).
+			Error("failed to parse policy ID")
+		return c.JSON(http.StatusBadRequest, NewErrorResponse("invalid policy ID"))
+	}
+	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), uPolicyID)
 	if err != nil {
 		s.logger.WithError(err).
 			WithField("policy_id", policyID).
@@ -183,7 +189,7 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 }
 
 func (s *Server) CreatePluginPolicy(c echo.Context) error {
-	var policy vtypes.PluginPolicy
+	var policy vtypes.PluginPolicyCreateUpdate
 	if err := c.Bind(&policy); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
@@ -199,12 +205,12 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		policy.ID = uuid.New()
 	}
 
-	if !s.verifyPolicySignature(policy, false) {
+	if !s.verifyPolicySignature(policy.ToPluginPolicy()) {
 		s.logger.Error("invalid policy signature")
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
 
-	newPolicy, err := s.policyService.CreatePolicy(c.Request().Context(), policy)
+	newPolicy, err := s.policyService.CreatePolicy(c.Request().Context(), policy.ToPluginPolicy())
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to create plugin policy")
 		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to create policy"))
@@ -214,7 +220,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 }
 
 func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
-	var policy vtypes.PluginPolicy
+	var policy vtypes.PluginPolicyCreateUpdate
 	if err := c.Bind(&policy); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
@@ -227,12 +233,12 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("failed to validate policy"))
 	}
 
-	if !s.verifyPolicySignature(policy, true) {
+	if !s.verifyPolicySignature(policy.ToPluginPolicy()) {
 		s.logger.Error("invalid policy signature")
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
 
-	updatedPolicy, err := s.policyService.UpdatePolicy(c.Request().Context(), policy)
+	updatedPolicy, err := s.policyService.UpdatePolicy(c.Request().Context(), policy.ToPluginPolicy())
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to update plugin policy")
 		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to update policy"))
@@ -254,8 +260,14 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	if policyID == "" {
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("invalid policy ID"))
 	}
-
-	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
+	uPolicyID, err := uuid.Parse(policyID)
+	if err != nil {
+		s.logger.WithError(err).
+			WithField("policy_id", policyID).
+			Error("Failed to parse policy ID")
+		return c.JSON(http.StatusBadRequest, NewErrorResponse("invalid policy ID"))
+	}
+	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), uPolicyID)
 	if err != nil {
 		s.logger.WithError(err).
 			WithField("policy_id", policyID).
@@ -266,11 +278,11 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	// This is because we have different signature stored in the database.
 	policy.Signature = reqBody.Signature
 
-	if !s.verifyPolicySignature(policy, true) {
+	if !s.verifyPolicySignature(policy) {
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
 
-	if err := s.policyService.DeletePolicy(c.Request().Context(), policyID, reqBody.Signature); err != nil {
+	if err := s.policyService.DeletePolicy(c.Request().Context(), uPolicyID, reqBody.Signature); err != nil {
 		s.logger.WithError(err).
 			WithField("policy_id", policyID).
 			Error("Failed to delete plugin policy")
@@ -304,7 +316,7 @@ func (s *Server) GetPolicySchema(c echo.Context) error {
 
 func (s *Server) GetRecipeSpecification(c echo.Context) error {
 	recipeSpec := s.plugin.GetRecipeSpecification()
-	return c.JSON(http.StatusOK, recipeSpec)
+	return c.JSON(http.StatusOK, &recipeSpec)
 }
 
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
@@ -325,7 +337,7 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	return c.JSON(http.StatusOK, policyHistory)
 }
 
-func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy, update bool) bool {
+func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy) bool {
 	msgBytes, err := policyToMessageHex(policy)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to convert policy to message hex")
