@@ -746,8 +746,8 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20250606100120-0ee16a73412d h1:BVc4OL0BNY/cCmptU3EeqAoxcX8vS13Pr13gWpd5Xi0=
 github.com/vultisig/recipes v0.0.0-20250606100120-0ee16a73412d/go.mod h1:JT1FTsiJ8tY5W065vSsrxvrCSl1amp5o6SsBc1VVcCQ=
-github.com/vultisig/verifier v0.0.0-20250606113146-bec42406cb9e h1:mFWLP/v+xuHJyPBtN/QUPlLRJvIvGplVCIXNEoo4Liw=
-github.com/vultisig/verifier v0.0.0-20250606113146-bec42406cb9e/go.mod h1:YpvZN2mbn6Z/34FDfnMS/TdE+B5Y8jghu5FvqOfRmB0=
+github.com/vultisig/verifier v0.0.0-20250610101120-51d757bfc8d8 h1:RQ3+t01EYKfNQ9lGYqZctBgTW2NZO0vX3CPpmh/Zrao=
+github.com/vultisig/verifier v0.0.0-20250610101120-51d757bfc8d8/go.mod h1:YpvZN2mbn6Z/34FDfnMS/TdE+B5Y8jghu5FvqOfRmB0=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9 h1:pZhGN8q8+gPB1JJjVDC1hDg8qn6Tbj0XBJymgTQ8qQg=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
