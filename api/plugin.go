@@ -50,7 +50,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	// Get policy from database
-	policy, err := s.db.GetPluginPolicy(c.Request().Context(), req.PolicyID)
+	policy, err := s.db.GetPluginPolicy(c.Request().Context(), req.PolicyID.String())
 	if err != nil {
 		return fmt.Errorf("failed to get policy from database: %w", err)
 	}
@@ -196,7 +196,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 
 	// We re-init plugin as verification server doesn't have plugin defined
 
-	if err := s.plugin.ValidatePluginPolicy(policy); err != nil {
+	if err := s.plugin.ValidatePluginPolicy(policy.ToPluginPolicyCreateUpdate()); err != nil {
 		s.logger.WithError(err).Error("Failed to validate plugin policy")
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("failed to validate policy"))
 	}
@@ -225,7 +225,7 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
 
-	if err := s.plugin.ValidatePluginPolicy(policy); err != nil {
+	if err := s.plugin.ValidatePluginPolicy(policy.ToPluginPolicyCreateUpdate()); err != nil {
 		s.logger.WithError(err).
 			WithField("plugin_id", policy.PluginID).
 			WithField("policy_id", policy.ID).

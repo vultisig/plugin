@@ -96,6 +96,7 @@ func (p *DCAPlugin) SigningComplete(
 	signRequest vtypes.PluginKeysignRequest,
 	policy vtypes.PluginPolicyCreateUpdate,
 ) error {
+
 	var dcaPolicy DCAPolicy
 	// TODO: convert recipe to DCAPolicy
 
@@ -273,10 +274,12 @@ func validateInterval(intervalStr string, frequency string) error {
 func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) ([]vtypes.PluginKeysignRequest, error) {
 	p.logger.Info("DCA: PROPOSE TRANSACTIONS")
 
+	policy := policyCU.ToPluginPolicy()
+
 	var txs []vtypes.PluginKeysignRequest
 
 	// validate policy
-	err := p.ValidatePluginPolicy(policy)
+	err := p.ValidatePluginPolicy(policyCU)
 	if err != nil {
 		return txs, fmt.Errorf("fail to validate plugin policy: %w", err)
 	}
