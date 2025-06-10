@@ -96,7 +96,6 @@ func (p *DCAPlugin) SigningComplete(
 	signRequest vtypes.PluginKeysignRequest,
 	policy vtypes.PluginPolicyCreateUpdate,
 ) error {
-
 	var dcaPolicy DCAPolicy
 	// TODO: convert recipe to DCAPolicy
 
