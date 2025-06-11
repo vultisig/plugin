@@ -3,6 +3,9 @@ server:
   host: "localhost"
   vaults_file_path: "/tmp/vultisigner/server/vaults"
 
+database:
+  dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
+
 redis:
   host: "localhost"
   port: "6379"
@@ -12,7 +15,7 @@ redis:
 block_storage:
   type: "s3"
   endpoint: "http://localhost:9000"
-  bucket: "vultiserver"  
+  bucket: "vultiserver"
   access_key: "minioadmin"
   secret: "minioadmin"
   region: "us-east-1"
@@ -22,4 +25,3 @@ block_storage:
 
 relay:
   server: "https://api.vultisig.com/router"
-  

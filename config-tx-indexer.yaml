@@ -1,0 +1,11 @@
+database:
+  dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
+rpc:
+  bitcoin:
+    url:
+  ethereum:
+    url:
+interval: 10s
+iteration_timeout: 3m
+mark_lost_after: 3h
+concurrency: 50
