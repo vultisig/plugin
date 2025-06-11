@@ -3,12 +3,13 @@
 server:
   host: localhost
   port: 8080
-  database:
-    dsn: postgres://myuser:mypassword@localhost:5432/vultisig-verifier?sslmode=disable
   vaults_file_path: /tmp/verifier/vaults
   mode: verifier
   plugin:
     type: dca
+
+database:
+  dsn: postgres://myuser:mypassword@localhost:5432/vultisig-verifier?sslmode=disable
 
 plugin:
   plugin_configs:

@@ -52,10 +52,10 @@ jobs:
             "server": {
               "host": "localhost",
               "port": 8080,
-              "jwt_secret": "test-secret",
-              "database": {
-                "dsn": "postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable"
-              }
+              "jwt_secret": "test-secret"
+            },
+            "database": {
+              "dsn": "postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable"
             },
             "redis": {
               "host": "localhost",

@@ -51,7 +51,7 @@ func main() {
 		panic(err)
 	}
 
-	db, err := postgres.NewPostgresBackend(cfg.Server.Database.DSN, nil)
+	db, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
 	if err != nil {
 		logger.Fatalf("Failed to connect to database: %v", err)
 	}
