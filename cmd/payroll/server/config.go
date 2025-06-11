@@ -12,7 +12,10 @@ import (
 )
 
 type PayrollServerConfig struct {
-	Server         api.ServerConfig                `mapstructure:"server" json:"server"`
+	Server   api.ServerConfig `mapstructure:"server" json:"server"`
+	Database struct {
+		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
+	} `mapstructure:"database" json:"database,omitempty"`
 	BaseConfigPath string                          `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
 	Redis          storage.RedisConfig             `mapstructure:"redis" json:"redis,omitempty"`
 	BlockStorage   vault_config.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`

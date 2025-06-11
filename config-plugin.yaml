@@ -5,12 +5,13 @@ server:
   port: 8081
   verifier_url: "http://localhost:8081"
   base_config_path: /etc/vultisig
-  database:
-    dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
   vaults_file_path: /tmp/plugin/vaults
   mode: plugin
   plugin:
     type: dca
+
+database:
+  dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
 
 relay:
   server: https://api.vultisig.com/router
