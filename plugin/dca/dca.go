@@ -145,7 +145,7 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	}
 
 	if fmt.Sprintf("%d", policyDoc.PolicyVersion) != policyVersion { //TODO policy version will essentially be a nonce that is incremented by 1, not, like plugin versions that will follow traditional engineering versioning e.g. v2.12.3. For now we can compare string types
-		return fmt.Errorf("policy does not match policy version, expected: %s, got: %s", policyVersion, policyDoc.PolicyVersion)
+		return fmt.Errorf("policy does not match policy version, expected: %s, got: %d", policyVersion, policyDoc.PolicyVersion)
 	}
 
 	if policyDoc.PublicKey == "" {
