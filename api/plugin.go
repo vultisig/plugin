@@ -18,12 +18,12 @@ import (
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
 	"github.com/vultisig/plugin/internal/tasks"
-	"github.com/vultisig/plugin/internal/types"
 )
 
 type ErrorResponse struct {
@@ -99,6 +99,25 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	req.Parties = []string{common.PluginPartyID, common.VerifierPartyID}
 
+	if s.txIndexerService != nil {
+		for i, msg := range req.Messages {
+			txToTrack, e := s.txIndexerService.CreateTx(
+				c.Request().Context(),
+				storage.CreateTxDto{
+					PluginID:      policy.PluginID,
+					ChainID:       msg.Chain,
+					PolicyID:      policy.ID,
+					FromPublicKey: req.PublicKey,
+					ProposedTxHex: req.Transaction,
+				},
+			)
+			if e != nil {
+				return fmt.Errorf("s.txIndexerService.CreateTx: %w", e)
+			}
+			req.Messages[i].TxIndexerID = txToTrack.ID.String()
+		}
+	}
+
 	buf, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
@@ -106,13 +125,9 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	// TODO: check if this is relevant
 	// check that tx is done only once per period
+	// (by @webpiratt: period depends on particular dca/payroll strategy (monthly/daily tx send, etc),
+	// maybe consider to add some additional metadata there to enable tx replay protection correctly)
 	// should we also copy the db to the vultiserver, so that it can be used by the vultiserver (and use scheduler.go)? or query the blockchain?
-
-	txToSign, err := s.db.GetTransactionByHash(c.Request().Context(), txHash)
-	if err != nil {
-		s.logger.Errorf("Failed to get transaction by hash from database: %v", err)
-		return fmt.Errorf("fail to get transaction by hash: %w", err)
-	}
 
 	s.logger.Debug("PLUGIN SERVER: KEYSIGN TASK")
 
@@ -122,21 +137,9 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
-
 	if err != nil {
-		txToSign.Metadata["error"] = err.Error()
-		if updateErr := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigningFailed, txToSign.Metadata); updateErr != nil {
-			s.logger.Errorf("Failed to update transaction status: %v", updateErr)
-		}
 		return fmt.Errorf("fail to enqueue keysign task: %w", err)
 	}
-
-	txToSign.Metadata["task_id"] = ti.ID
-	if err := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigned, txToSign.Metadata); err != nil {
-		s.logger.Errorf("Failed to update transaction with task ID: %v", err)
-	}
-
-	s.logger.Infof("Created transaction history for tx from plugin: %s...", req.Transaction[:min(20, len(req.Transaction))])
 
 	return c.JSON(http.StatusOK, ti.ID)
 }

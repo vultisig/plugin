@@ -1,17 +1,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/verifier/tx_indexer"
+	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/internal/tasks"
 )
 
 func main() {
+	ctx := context.Background()
+
 	cfg, err := GetConfigure()
 	if err != nil {
 		panic(err)
@@ -45,12 +50,24 @@ func main() {
 			},
 		},
 	)
+
+	txIndexerStore, err := storage.NewPostgresTxIndexStore(ctx, cfg.Database.DSN)
+	if err != nil {
+		panic(fmt.Errorf("storage.NewPostgresTxIndexStore: %w", err))
+	}
+
+	txIndexerService := tx_indexer.NewService(
+		logger,
+		txIndexerStore,
+		tx_indexer.Chains(),
+	)
+
 	vaultService, err := vault.NewManagementService(
 		cfg.VaultServiceConfig,
 		client,
 		sdClient,
 		vaultStorage,
-		nil, // not used in plugin
+		txIndexerService,
 	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create vault service: %w", err))

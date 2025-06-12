@@ -11,6 +11,9 @@ import (
 )
 
 type DCAWorkerConfig struct {
+	Database struct {
+		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
+	} `mapstructure:"database" json:"database,omitempty"`
 	Redis              storage.RedisConfig             `mapstructure:"redis" json:"redis,omitempty"`
 	BlockStorage       vault_config.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`
 	VaultServiceConfig vault_config.Config             `mapstructure:"vault_service" json:"vault_service,omitempty"`
