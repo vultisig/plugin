@@ -149,7 +149,7 @@ jobs:
           # Compare with repository schema
           if ! diff -u ./internal/storage/postgres/schema/schema.sql ./current_schema.sql; then
             echo "Schema has changed but schema.sql was not updated!"
-            echo "Please run 'make dump-schema CONFIG=dca.json' to update the schema file."
+            echo "Please run 'make dump-schema CONFIG=config-plugin.yaml' to update the schema file."
             exit 1
           fi
           
