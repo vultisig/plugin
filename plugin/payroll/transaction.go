@@ -52,7 +52,7 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Tas
 	_ = pluginPolicy
 	return nil
 }
-func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) ([]vtypes.PluginKeysignRequest, error) {
+func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	var txs []vtypes.PluginKeysignRequest
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
@@ -232,8 +232,8 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 	return txHash, rawTx, nil
 }
 
-func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicyCreateUpdate) error {
-	R, S, V, originalTx, chainID, _, err := p.convertData(signature, signRequest, policy.ToPluginPolicy())
+func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
+	R, S, V, originalTx, chainID, _, err := p.convertData(signature, signRequest, policy)
 	if err != nil {
 		return fmt.Errorf("failed to convert R and S: %v", err)
 	}

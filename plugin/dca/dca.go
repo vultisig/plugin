@@ -94,7 +94,7 @@ func (p *DCAPlugin) SigningComplete(
 	ctx context.Context,
 	signature tss.KeysignResponse,
 	signRequest vtypes.PluginKeysignRequest,
-	policy vtypes.PluginPolicyCreateUpdate,
+	policy vtypes.PluginPolicy,
 ) error {
 	var dcaPolicy DCAPolicy
 	// TODO: convert recipe to DCAPolicy
@@ -135,7 +135,7 @@ func (p *DCAPlugin) SigningComplete(
 	return nil
 }
 
-func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicyCreateUpdate) error {
+func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	if policyDoc.PluginID != vtypes.PluginVultisigDCA_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", pluginType, policyDoc.PluginID)
 	}
@@ -144,8 +144,8 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicyCreateUpda
 		return fmt.Errorf("policy does not match plugin version, expected: %s, got: %s", pluginVersion, policyDoc.PluginVersion)
 	}
 
-	if policyDoc.PolicyVersion != policyVersion {
-		return fmt.Errorf("policy does not match policy version, expected: %s, got: %s", policyVersion, policyDoc.PolicyVersion)
+	if fmt.Sprintf("%d", policyDoc.PolicyVersion) != policyVersion { //TODO policy version will essentially be a nonce that is incremented by 1, not, like plugin versions that will follow traditional engineering versioning e.g. v2.12.3. For now we can compare string types
+		return fmt.Errorf("policy does not match policy version, expected: %s, got: %d", policyVersion, policyDoc.PolicyVersion)
 	}
 
 	if policyDoc.PublicKey == "" {
@@ -270,7 +270,7 @@ func validateInterval(intervalStr string, frequency string) error {
 	return nil
 }
 
-func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) ([]vtypes.PluginKeysignRequest, error) {
+func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	p.logger.Info("DCA: PROPOSE TRANSACTIONS")
 
 	var txs []vtypes.PluginKeysignRequest
@@ -301,7 +301,7 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) 
 	}
 
 	if completedSwaps >= totalOrders.Int64() {
-		if err := p.completePolicy(context.Background(), policy.ToPluginPolicy()); err != nil {
+		if err := p.completePolicy(context.Background(), policy); err != nil {
 			return txs, fmt.Errorf("fail to complete policy: %w", err)
 		}
 		return txs, ErrCompletedPolicy
@@ -358,7 +358,7 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicyCreateUpdate) 
 	return txs, nil
 }
 
-func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicyCreateUpdate, txs []vtypes.PluginKeysignRequest) error {
+func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
 	p.logger.Info("DCA: VALIDATE TRANSACTION PROPOSAL")
 
 	if len(txs) == 0 {
@@ -407,7 +407,7 @@ func (p *DCAPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicyCreat
 	}
 	// TODO: Change this to make the policy to status COMPLETED if: completed swaps == total orders.
 	if completedSwaps >= totalOrders.Int64() {
-		if err := p.completePolicy(context.Background(), policy.ToPluginPolicy()); err != nil {
+		if err := p.completePolicy(context.Background(), policy); err != nil {
 			return fmt.Errorf("fail to complete policy: %w", err)
 		}
 		p.logger.Info("DCA: COMPLETED SWAPS: ", totalOrders.Int64())

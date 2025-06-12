@@ -745,10 +745,10 @@ github.com/vultisig/go-wrappers v0.0.0-20250403041248-86911e8aa33f h1:124Xlloih1
 github.com/vultisig/go-wrappers v0.0.0-20250403041248-86911e8aa33f/go.mod h1:UfGCxUQW08kiwxyNBiHwXe+ePPuBmHVVS+BS51aU/Jg=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4nQ/NEVIb3OPP9SUx7/u9ZfsUIcd5fIN/e4DVU=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
-github.com/vultisig/recipes v0.0.0-20250606100120-0ee16a73412d h1:BVc4OL0BNY/cCmptU3EeqAoxcX8vS13Pr13gWpd5Xi0=
-github.com/vultisig/recipes v0.0.0-20250606100120-0ee16a73412d/go.mod h1:JT1FTsiJ8tY5W065vSsrxvrCSl1amp5o6SsBc1VVcCQ=
-github.com/vultisig/verifier v0.0.0-20250611063307-6e5e760de529 h1:owEyLmbtlN1yL0xG7EhzXgvXbBZYHSHITh4P8lvPhyQ=
-github.com/vultisig/verifier v0.0.0-20250611063307-6e5e760de529/go.mod h1:YpvZN2mbn6Z/34FDfnMS/TdE+B5Y8jghu5FvqOfRmB0=
+github.com/vultisig/recipes v0.0.0-20250609134859-0655e0445c1b h1:rXhRaf40re1FdUYlYbCTEIO6JqIx8FfLlksksu8LiGE=
+github.com/vultisig/recipes v0.0.0-20250609134859-0655e0445c1b/go.mod h1:JT1FTsiJ8tY5W065vSsrxvrCSl1amp5o6SsBc1VVcCQ=
+github.com/vultisig/verifier v0.0.0-20250612165949-9db8a6828606 h1:DGia8ZQM3izAm+Oo/LM+5yWzENc9MIWtEfFCsCZOgO0=
+github.com/vultisig/verifier v0.0.0-20250612165949-9db8a6828606/go.mod h1:35VQIKhChb6/H+3J/XkbGhPkVF6lyLuxsUG/WXHS4+A=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9 h1:pZhGN8q8+gPB1JJjVDC1hDg8qn6Tbj0XBJymgTQ8qQg=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
