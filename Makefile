@@ -37,4 +37,4 @@ dump-schema:
 		-e '/^SET /d' \
 		-e '/^SELECT pg_catalog./d' \
 		-e 's/"public"\.//' | awk '/./ { e=0 } /^$$/ { e += 1 } e <= 1' \
-		> ./internal/storage/postgres/schema/schema.sql
+		> ./storage/postgres/schema/schema.sql
