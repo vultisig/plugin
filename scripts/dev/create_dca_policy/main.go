@@ -75,7 +75,7 @@ func main() {
 		PublicKey:     key,
 		PluginID:      vtypes.PluginVultisigDCA_0000,
 		PluginVersion: "1.0.0",
-		PolicyVersion: "1.0.0",
+		PolicyVersion: 1,
 		Active:        true,
 		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
 	}

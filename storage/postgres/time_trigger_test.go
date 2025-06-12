@@ -43,7 +43,7 @@ func TestTimeTrigger(t *testing.T) {
 		PublicKey:     "4a7b9c2f8e1d3a5b6c4f9e2d7a1b3c5f8d4e6a2b9c1f7e3d5a6b4c2f8e1d3a5b",
 		PluginID:      "vultisig-payroll-0000",
 		PluginVersion: "1",
-		PolicyVersion: "1",
+		PolicyVersion: 1,
 		Signature:     "whatever",
 		Recipe:        "k3uaL47TpWtsT54tfhO7K6Gbyxf4H71jWma0zC2e3kQ=",
 		Active:        true,
