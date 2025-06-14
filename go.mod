@@ -20,7 +20,7 @@ require (
 	github.com/vultisig/commondata v0.0.0-20250430024109-a2492623ef05
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20250609134859-0655e0445c1b
-	github.com/vultisig/verifier v0.0.0-20250612165949-9db8a6828606
+	github.com/vultisig/verifier v0.0.0-20250614014346-e5348c16754b
 	github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9
 )
 
