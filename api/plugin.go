@@ -321,7 +321,7 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 }
 
 func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy) bool {
-	msgBytes, err := policyToMessageHex(policy)
+	msgBytes, err := common.PolicyToMessageHex(policy)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to convert policy to message hex")
 		return false
@@ -367,22 +367,6 @@ func (s *Server) getVault(publicKeyECDSA, pluginId string) (*v1.Vault, error) {
 		return nil, fmt.Errorf("failed to decrypt vault,err: %w", err)
 	}
 	return v, nil
-}
-
-func policyToMessageHex(policy vtypes.PluginPolicy) ([]byte, error) {
-	delimiter := "*#*"
-	fields := []string{
-		policy.Recipe,
-		policy.PublicKey,
-		fmt.Sprintf("%d", policy.PolicyVersion),
-		policy.PluginVersion}
-	for _, item := range fields {
-		if strings.Contains(item, delimiter) {
-			return nil, fmt.Errorf("invalid policy signature")
-		}
-	}
-	result := strings.Join(fields, delimiter)
-	return []byte(result), nil
 }
 
 func calculateTransactionHash(txData string) (string, error) {
