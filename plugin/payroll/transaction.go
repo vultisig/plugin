@@ -99,10 +99,9 @@ func (p *PayrollPlugin) IsAlreadyProposed(
 	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
 }
 
-func (p *PayrollPlugin) ProposeTransactions(
-	ctx context.Context,
-	policy vtypes.PluginPolicy,
-) ([]vtypes.PluginKeysignRequest, error) {
+func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+	ctx := context.Background()
+
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
