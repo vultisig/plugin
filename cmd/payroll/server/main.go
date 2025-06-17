@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to connect to database: %v", err)
 	}
-	p, err := payroll.NewPayrollPlugin(db, cfg.BaseConfigPath)
+	p, err := payroll.NewPayrollPlugin(db, cfg.BaseConfigPath, txIndexerService)
 	if err != nil {
 		logger.Fatalf("failed to create payroll plugin,err: %s", err)
 	}
@@ -85,7 +85,6 @@ func main() {
 		inspector,
 		sdClient,
 		p,
-		txIndexerService,
 	)
 	if err := server.StartServer(); err != nil {
 		panic(err)

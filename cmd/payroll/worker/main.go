@@ -80,7 +80,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create postgres backend: %w", err))
 	}
-	p, err := payroll.NewPayrollPlugin(postgressDB, cfg.BaseConfigPath)
+	p, err := payroll.NewPayrollPlugin(postgressDB, cfg.BaseConfigPath, txIndexerService)
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))
 	}

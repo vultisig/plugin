@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	gcommon "github.com/ethereum/go-ethereum/common"
@@ -35,6 +37,35 @@ type Schedule struct {
 	Interval  string `json:"interval"`
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time,omitempty"`
+}
+
+type ScheduleTyped struct {
+	Frequency rtypes.ScheduleFrequency
+	Interval  int
+	StartTime time.Time
+}
+
+func (s Schedule) Typed() (ScheduleTyped, error) {
+	frequency, ok := rtypes.ScheduleFrequency_value[s.Frequency]
+	if !ok {
+		return ScheduleTyped{}, fmt.Errorf("unknown schedule frequency: %s", s.Frequency)
+	}
+
+	interval, err := strconv.Atoi(s.Interval)
+	if err != nil {
+		return ScheduleTyped{}, fmt.Errorf("strconv.Atoi(%s): %w", s.Interval, err)
+	}
+
+	startTime, err := time.Parse(time.RFC3339, s.StartTime)
+	if err != nil {
+		return ScheduleTyped{}, fmt.Errorf("time.Parse(%s): %w", s.StartTime, err)
+	}
+
+	return ScheduleTyped{
+		Frequency: rtypes.ScheduleFrequency(frequency),
+		Interval:  interval,
+		StartTime: startTime,
+	}, nil
 }
 
 func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {

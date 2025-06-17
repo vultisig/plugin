@@ -285,6 +285,23 @@ func NewIntervalSchedule(frequency rtypes.ScheduleFrequency, startTime time.Time
 	}, nil
 }
 
+func (s *IntervalSchedule) ToRangeFrom(from time.Time) (time.Time, time.Time) {
+	next := s.Next(from) // Compute the next scheduled execution time after `from`.
+
+	// Backtrack to find the previous execution time
+	// by walking back from `from` until `Next(prev)` == `next`
+	// Start with candidate time far in the past
+	prev := s.StartTime
+	for {
+		n := s.Next(prev)
+		if !n.Before(next) || n.After(from) {
+			break
+		}
+		prev = n
+	}
+	return prev, next
+}
+
 func (s *IntervalSchedule) Next(t time.Time) time.Time {
 	t = t.In(s.Location)
 

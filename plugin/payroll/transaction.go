@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -52,11 +58,53 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Tas
 	_ = pluginPolicy
 	return nil
 }
+
+func (p *PayrollPlugin) IsAlreadyProposed(
+	ctx context.Context,
+	frequency rtypes.ScheduleFrequency,
+	startTime time.Time,
+	interval int,
+	chainID vcommon.Chain,
+	pluginID vtypes.PluginID,
+	policyID uuid.UUID,
+	tokenID, recipientPublicKey string,
+) (bool, error) {
+	sched, err := scheduler.NewIntervalSchedule(
+		frequency,
+		startTime,
+		interval,
+	)
+	if err != nil {
+		return false, fmt.Errorf("scheduler.NewIntervalSchedule: %w", err)
+	}
+
+	fromTime, toTime := sched.ToRangeFrom(time.Now())
+
+	_, err = p.txIndexerService.GetTxInTimeRange(
+		ctx,
+		chainID,
+		pluginID,
+		policyID,
+		tokenID,
+		recipientPublicKey,
+		fromTime,
+		toTime,
+	)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, storage.ErrNoTx) {
+		return false, nil
+	}
+	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
+}
+
 func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
-	var txs []vtypes.PluginKeysignRequest
+	ctx := context.Background()
+
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
-		return txs, fmt.Errorf("failed to validate plugin policy: %v", err)
+		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
 	var payrollPolicy PayrollPolicy
@@ -64,40 +112,103 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 
 	chain := vcommon.Ethereum
 
-	for i, recipient := range payrollPolicy.Recipients {
-		txHash, rawTx, err := p.generatePayrollTransaction(
-			recipient.Amount,
-			recipient.Address,
-			payrollPolicy.ChainID[i],
-			payrollPolicy.TokenID[i],
-			policy.PublicKey,
-			"",
-			chain.GetDerivePath(),
-		)
-		fmt.Printf("Chain ID TEST 1: %s\n", payrollPolicy.ChainID[i])
-		if err != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to generate transaction hash: %v", err)
-		}
+	schedule, err := payrollPolicy.Schedule.Typed()
+	if err != nil {
+		p.logger.WithError(err).Error("payrollPolicy.Schedule.Typed")
+		return nil, fmt.Errorf("payrollPolicy.Schedule.Typed: %w", err)
+	}
 
-		// Create signing request
-		signRequest := vtypes.PluginKeysignRequest{
-			KeysignRequest: vtypes.KeysignRequest{
-				PublicKey: policy.PublicKey,
-				Messages: []vtypes.KeysignMessage{
-					{
-						Message: hex.EncodeToString(rawTx),
-						Hash:    hex.EncodeToString(txHash),
-						Chain:   vcommon.Ethereum,
+	var (
+		mu  = &sync.Mutex{}
+		txs = make([]vtypes.PluginKeysignRequest, 0)
+	)
+	var eg errgroup.Group
+	for _i, _recipient := range payrollPolicy.Recipients {
+		i := _i
+		recipient := _recipient
+
+		eg.Go(func() error {
+			isAlreadyProposed, e := p.IsAlreadyProposed(
+				ctx,
+				schedule.Frequency,
+				schedule.StartTime,
+				schedule.Interval,
+				chain,
+				policy.PluginID,
+				policy.ID,
+				payrollPolicy.TokenID[i],
+				recipient.Address,
+			)
+			if e != nil {
+				return fmt.Errorf("p.IsAlreadyProposed: %w", e)
+			}
+			if isAlreadyProposed {
+				p.logger.WithFields(logrus.Fields{
+					"recipient": recipient.Address,
+					"amount":    recipient.Amount,
+					"chain_id":  payrollPolicy.ChainID[i],
+					"token_id":  payrollPolicy.TokenID[i],
+				}).Info("transaction already proposed, skipping")
+				return nil
+			}
+
+			txHash, rawTx, e := p.generatePayrollTransaction(
+				recipient.Amount,
+				recipient.Address,
+				payrollPolicy.ChainID[i],
+				payrollPolicy.TokenID[i],
+				policy.PublicKey,
+				"",
+				chain.GetDerivePath(),
+			)
+			if e != nil {
+				return fmt.Errorf("p.generatePayrollTransaction: %w", e)
+			}
+
+			// Create signing request
+			signRequest := vtypes.PluginKeysignRequest{
+				KeysignRequest: vtypes.KeysignRequest{
+					PublicKey: policy.PublicKey,
+					Messages: []vtypes.KeysignMessage{
+						{
+							Message: hex.EncodeToString(rawTx),
+							Hash:    hex.EncodeToString(txHash),
+							Chain:   vcommon.Ethereum,
+						},
 					},
+					SessionID:        uuid.New().String(),
+					HexEncryptionKey: hexEncryptionKey,
+					PolicyID:         policy.ID,
+					PluginID:         policy.PluginID.String(),
 				},
-				SessionID:        uuid.New().String(),
-				HexEncryptionKey: hexEncryptionKey,
-				PolicyID:         policy.ID,
-				PluginID:         policy.PluginID.String(),
-			},
-			Transaction: hex.EncodeToString(rawTx),
-		}
-		txs = append(txs, signRequest)
+				Transaction: hex.EncodeToString(rawTx),
+			}
+
+			_, e = p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+				PluginID:      policy.PluginID,
+				PolicyID:      policy.ID,
+				ChainID:       chain,
+				TokenID:       payrollPolicy.TokenID[i],
+				FromPublicKey: policy.PublicKey,
+				ToPublicKey:   recipient.Address,
+				ProposedTxHex: signRequest.Transaction,
+			})
+			if e != nil {
+				p.logger.WithError(e).Error("p.txIndexerService.CreateTx")
+				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+			}
+
+			mu.Lock()
+			txs = append(txs, signRequest)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	err = eg.Wait()
+	if err != nil {
+		p.logger.Errorf("eg.Wait: %v", err)
+		return []vtypes.PluginKeysignRequest{}, fmt.Errorf("eg.Wait: %w", err)
 	}
 
 	signRequest := txs[0]
@@ -113,13 +224,11 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		p.logger.Errorf("Failed to unmarshal transaction: %v", err)
 		return []vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to unmarshal transaction: %w:", err)
 	}
-	fmt.Printf("Chain ID TEST 2: %s\n", tx.ChainId().String())
-	fmt.Printf("len TEST 2: %d\n", len(txs))
 
 	return txs, nil
 }
 
-func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString, chainID, tokenID, publicKey, chainCodeHex, derivePath string) ([]byte, []byte, error) {
+func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString, evmChainID, tokenID, publicKey, chainCodeHex, derivePath string) ([]byte, []byte, error) {
 	amount := new(big.Int)
 	amount.SetString(amountString, 10)
 	recipient := gcommon.HexToAddress(recipientString)
@@ -156,7 +265,7 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString
 	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(int64(p.config.Gas.PriceMultiplier)))
 	// Parse chain ID
 	chainIDInt := new(big.Int)
-	chainIDInt.SetString(chainID, 10)
+	chainIDInt.SetString(evmChainID, 10)
 	fmt.Printf("Chain ID TEST 3: %s\n", chainIDInt.String())
 
 	addressStr, _, _, err := address.GetAddress(publicKey, chainCodeHex, vcommon.Ethereum)

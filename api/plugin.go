@@ -18,7 +18,6 @@ import (
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
-	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 
 	"github.com/vultisig/plugin/common"
@@ -98,25 +97,6 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	req.Parties = []string{common.PluginPartyID, common.VerifierPartyID}
-
-	if s.txIndexerService != nil {
-		for i, msg := range req.Messages {
-			txToTrack, e := s.txIndexerService.CreateTx(
-				c.Request().Context(),
-				storage.CreateTxDto{
-					PluginID:      policy.PluginID,
-					ChainID:       msg.Chain,
-					PolicyID:      policy.ID,
-					FromPublicKey: req.PublicKey,
-					ProposedTxHex: req.Transaction,
-				},
-			)
-			if e != nil {
-				return fmt.Errorf("s.txIndexerService.CreateTx: %w", e)
-			}
-			req.Messages[i].TxIndexerID = txToTrack.ID.String()
-		}
-	}
 
 	buf, err := json.Marshal(req)
 	if err != nil {

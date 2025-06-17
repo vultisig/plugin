@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/verifier/plugin"
+	"github.com/vultisig/verifier/tx_indexer"
 
 	"github.com/vultisig/plugin/storage"
 )
@@ -13,14 +14,19 @@ import (
 var _ plugin.Plugin = (*PayrollPlugin)(nil)
 
 type PayrollPlugin struct {
-	db           storage.DatabaseStorage
-	nonceManager *NonceManager
-	rpcClient    *ethclient.Client
-	logger       logrus.FieldLogger
-	config       *PluginConfig
+	db               storage.DatabaseStorage
+	nonceManager     *NonceManager
+	rpcClient        *ethclient.Client
+	logger           logrus.FieldLogger
+	config           *PluginConfig
+	txIndexerService *tx_indexer.Service
 }
 
-func NewPayrollPlugin(db storage.DatabaseStorage, baseConfigPath string) (*PayrollPlugin, error) {
+func NewPayrollPlugin(
+	db storage.DatabaseStorage,
+	baseConfigPath string,
+	txIndexerService *tx_indexer.Service,
+) (*PayrollPlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -35,11 +41,12 @@ func NewPayrollPlugin(db storage.DatabaseStorage, baseConfigPath string) (*Payro
 	}
 
 	return &PayrollPlugin{
-		db:           db,
-		rpcClient:    rpcClient,
-		nonceManager: NewNonceManager(rpcClient),
-		logger:       logrus.WithField("plugin", "payroll"),
-		config:       cfg,
+		db:               db,
+		rpcClient:        rpcClient,
+		nonceManager:     NewNonceManager(rpcClient),
+		logger:           logrus.WithField("plugin", "payroll"),
+		config:           cfg,
+		txIndexerService: txIndexerService,
 	}, nil
 }
 

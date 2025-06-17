@@ -17,7 +17,6 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
-	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/verifier/vault"
 
@@ -31,19 +30,18 @@ import (
 )
 
 type Server struct {
-	cfg              ServerConfig
-	db               storage.DatabaseStorage
-	redis            *storage.RedisStorage
-	vaultStorage     vault.Storage
-	client           *asynq.Client
-	inspector        *asynq.Inspector
-	sdClient         *statsd.Client
-	scheduler        *scheduler.SchedulerService
-	policyService    service.Policy
-	plugin           plugin.Plugin
-	txIndexerService *tx_indexer.Service
-	logger           *logrus.Logger
-	mode             string
+	cfg           ServerConfig
+	db            storage.DatabaseStorage
+	redis         *storage.RedisStorage
+	vaultStorage  vault.Storage
+	client        *asynq.Client
+	inspector     *asynq.Inspector
+	sdClient      *statsd.Client
+	scheduler     *scheduler.SchedulerService
+	policyService service.Policy
+	plugin        plugin.Plugin
+	logger        *logrus.Logger
+	mode          string
 }
 
 // NewServer returns a new server.
@@ -57,7 +55,6 @@ func NewServer(
 	inspector *asynq.Inspector,
 	sdClient *statsd.Client,
 	p plugin.Plugin,
-	txIndexerService *tx_indexer.Service,
 ) *Server {
 	logger := logrus.WithField("service", "plugin").Logger
 	schedulerService, err := scheduler.NewSchedulerService(
@@ -76,18 +73,17 @@ func NewServer(
 	}
 
 	return &Server{
-		cfg:              cfg,
-		redis:            redis,
-		client:           client,
-		inspector:        inspector,
-		sdClient:         sdClient,
-		vaultStorage:     vaultStorage,
-		plugin:           p,
-		db:               db,
-		scheduler:        schedulerService,
-		logger:           logger,
-		policyService:    policyService,
-		txIndexerService: txIndexerService,
+		cfg:           cfg,
+		redis:         redis,
+		client:        client,
+		inspector:     inspector,
+		sdClient:      sdClient,
+		vaultStorage:  vaultStorage,
+		plugin:        p,
+		db:            db,
+		scheduler:     schedulerService,
+		logger:        logger,
+		policyService: policyService,
 	}
 }
 
