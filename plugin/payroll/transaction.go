@@ -184,6 +184,20 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 				Transaction: hex.EncodeToString(rawTx),
 			}
 
+			_, e = p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+				PluginID:      policy.PluginID,
+				PolicyID:      policy.ID,
+				ChainID:       chain,
+				TokenID:       payrollPolicy.TokenID[i],
+				FromPublicKey: policy.PublicKey,
+				ToPublicKey:   recipient.Address,
+				ProposedTxHex: signRequest.Transaction,
+			})
+			if e != nil {
+				p.logger.WithError(e).Error("p.txIndexerService.CreateTx")
+				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+			}
+
 			mu.Lock()
 			txs = append(txs, signRequest)
 			mu.Unlock()
