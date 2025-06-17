@@ -11,7 +11,9 @@ CREATE TABLE tx_indexer (
     tx_hash VARCHAR(255),
     chain_id INTEGER NOT NULL,
     policy_id UUID NOT NULL,
+    token_id VARCHAR(255) NOT NULL,
     from_public_key VARCHAR(255) NOT NULL,
+    to_public_key VARCHAR(255) NOT NULL,
     proposed_tx_hex TEXT NOT NULL,
 
     status tx_indexer_status NOT NULL DEFAULT 'PROPOSED',
@@ -29,5 +31,6 @@ CREATE TABLE tx_indexer (
 );
 
 CREATE INDEX idx_tx_indexer_status_onchain_lost ON tx_indexer(status_onchain, lost);
+CREATE INDEX idx_tx_indexer_key ON tx_indexer(chain_id, plugin_id, policy_id, token_id, to_public_key);
 END;
 -- +goose StatementEnd

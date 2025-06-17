@@ -60,7 +60,8 @@ func main() {
 		panic(fmt.Errorf("tx_indexer_storage.NewPostgresTxIndexStore: %w", err))
 	}
 
-	txIndexerService := tx_indexer.NewService(
+	// TODO: @webpiratt: add to dca.NewDCAPlugin constructor
+	_ = tx_indexer.NewService(
 		logger,
 		txIndexerStore,
 		tx_indexer.Chains(),
@@ -84,7 +85,6 @@ func main() {
 		inspector,
 		sdClient,
 		p,
-		txIndexerService,
 	)
 	if err := server.StartServer(); err != nil {
 		panic(err)

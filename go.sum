@@ -751,6 +751,12 @@ github.com/vultisig/verifier v0.0.0-20250612165949-9db8a6828606 h1:DGia8ZQM3izAm
 github.com/vultisig/verifier v0.0.0-20250612165949-9db8a6828606/go.mod h1:35VQIKhChb6/H+3J/XkbGhPkVF6lyLuxsUG/WXHS4+A=
 github.com/vultisig/verifier v0.0.0-20250614014346-e5348c16754b h1:8DFobGSwdD01Zzr8lCWW1UWGHqbd/EpwyrfhEy81xTI=
 github.com/vultisig/verifier v0.0.0-20250614014346-e5348c16754b/go.mod h1:35VQIKhChb6/H+3J/XkbGhPkVF6lyLuxsUG/WXHS4+A=
+github.com/vultisig/verifier v0.0.0-20250616174756-6ca7c9fac2d8 h1:MZBy2ame3ipaH/0V4TczTqIfW0s+gwtOsX1VSOB/5m4=
+github.com/vultisig/verifier v0.0.0-20250616174756-6ca7c9fac2d8/go.mod h1:35VQIKhChb6/H+3J/XkbGhPkVF6lyLuxsUG/WXHS4+A=
+github.com/vultisig/verifier v0.0.0-20250616181219-f7ba9f0dfa97 h1:uoeWKNKeTqEFDbqBrD9qeVKYWvzPy8kN/sA4VSNv80k=
+github.com/vultisig/verifier v0.0.0-20250616181219-f7ba9f0dfa97/go.mod h1:35VQIKhChb6/H+3J/XkbGhPkVF6lyLuxsUG/WXHS4+A=
+github.com/vultisig/verifier v0.0.0-20250616191510-cc66448469ef h1:VNDOwFI4eGJn76dP/lx3x+hoyPc/vzcZ2+fB6Ap8h1M=
+github.com/vultisig/verifier v0.0.0-20250616191510-cc66448469ef/go.mod h1:35VQIKhChb6/H+3J/XkbGhPkVF6lyLuxsUG/WXHS4+A=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9 h1:pZhGN8q8+gPB1JJjVDC1hDg8qn6Tbj0XBJymgTQ8qQg=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=

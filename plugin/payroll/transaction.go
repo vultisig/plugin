@@ -52,6 +52,7 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Tas
 	_ = pluginPolicy
 	return nil
 }
+
 func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	var txs []vtypes.PluginKeysignRequest
 	err := p.ValidatePluginPolicy(policy)
