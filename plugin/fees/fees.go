@@ -23,11 +23,13 @@ type FeePlugin struct {
 	config    *PluginConfig
 }
 
-func NewFeePlugin(db storage.DatabaseStorage, baseConfigPath string) (*FeePlugin, error) {
+// TODO garry, this needs work
+func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
-	cfg, err := loadPluginConfig(baseConfigPath)
+
+	cfg, err := NewPluginConfig(WithFileConfig(baseConfigPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugin config: %w", err)
 	}
@@ -40,7 +42,7 @@ func NewFeePlugin(db storage.DatabaseStorage, baseConfigPath string) (*FeePlugin
 	return &FeePlugin{
 		db:        db,
 		rpcClient: rpcClient,
-		logger:    logrus.WithField("plugin", "payroll"),
+		logger:    logger.WithField("plugin", "fees"),
 		config:    cfg,
 	}, nil
 }
@@ -49,11 +51,12 @@ func (fp *FeePlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	fp.logger.Debug("Getting recipe specification")
 	//TODO garry
 	return rtypes.RecipeSchema{
-		PluginId: "vultisig-fees-0000",
+		PluginId: "vultisig-fees-fees",
 		Version:  1,
 	}
 }
 
+// TODO garry all
 func (fp *FeePlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 	return nil
 }

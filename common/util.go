@@ -1,10 +1,13 @@
 package common
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
+	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
+	"google.golang.org/protobuf/proto"
 )
 
 // TODO: remove once the plugin installation is implemented (resharding)
@@ -52,4 +55,17 @@ func PolicyToMessageHex(policy vtypes.PluginPolicy) ([]byte, error) {
 	}
 	result := strings.Join(fields, delimiter)
 	return []byte(result), nil
+}
+
+// RecipeToBase64 converts a recipe policy to a protobuf-encoded, base64-encoded string.
+// This encoded string can be used as the recipe field in a vtypes.PluginPolicy.
+func RecipeToBase64(recipe rtypes.Policy) (string, error) {
+	// Marshal the recipe to protobuf
+	protoBytes, err := proto.Marshal(&recipe)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal recipe: %w", err)
+	}
+
+	// Encode to base64
+	return base64.StdEncoding.EncodeToString(protoBytes), nil
 }

@@ -1,1 +1,1 @@
-CREATE DATABASE "vultisig-verifier";
+CREATE DATABASE IF NOT EXISTS "vultisig-verifier";
