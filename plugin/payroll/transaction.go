@@ -475,14 +475,14 @@ func (p *PayrollPlugin) evmEstimateTx(
 		"eth_createAccessList",
 		[]interface{}{
 			createAccessListArgs{
-				From:                 from.Hex(),
-				To:                   to.Hex(),
-				Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
-				MaxPriorityFeePerGas: gcommon.Bytes2Hex(gasTipCap.Bytes()),
-				MaxFeePerGas:         gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
-				Value:                gcommon.Bytes2Hex(value.Bytes()),
-				Data:                 gcommon.Bytes2Hex(data),
-			},
+                From:                 from.Hex(),
+                To:                   to.Hex(),
+                Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
+                MaxPriorityFeePerGas: "0x" + gcommon.Bytes2Hex(gasTipCap.Bytes()),
+                MaxFeePerGas:         "0x" + gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
+                Value:                "0x" + gcommon.Bytes2Hex(value.Bytes()),
+                Data:                 "0x" + gcommon.Bytes2Hex(data),
+            },
 			"latest",
 		},
 	)
