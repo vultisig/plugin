@@ -480,7 +480,7 @@ func (p *PayrollPlugin) evmEstimateTx(
 				Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
 				MaxPriorityFeePerGas: gcommon.Bytes2Hex(gasTipCap.Bytes()),
 				MaxFeePerGas:         gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
-				Value:                "0x0",
+				Value:                gcommon.Bytes2Hex(value.Bytes()),
 				Data:                 gcommon.Bytes2Hex(data),
 			},
 			"latest",
