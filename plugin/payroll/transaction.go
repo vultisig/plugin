@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/vultisig/plugin/internal/scheduler"
+	reth "github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
@@ -38,6 +39,8 @@ import (
 const (
 	hexEncryptionKey = "hexencryptionkey"
 )
+
+var ethereumEvmChainID = big.NewInt(1)
 
 func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
@@ -152,18 +155,19 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 				return nil
 			}
 
-			txHash, rawTx, e := p.generatePayrollTransaction(
+			tx, e := p.genUnsignedTx(
+				ctx,
+				chain,
+				policy.PublicKey,
+				payrollPolicy.TokenID[i],
 				recipient.Amount,
 				recipient.Address,
-				payrollPolicy.ChainID[i],
-				payrollPolicy.TokenID[i],
-				policy.PublicKey,
-				"",
-				chain.GetDerivePath(),
 			)
 			if e != nil {
-				return fmt.Errorf("p.generatePayrollTransaction: %w", e)
+				return fmt.Errorf("p.genUnsignedTx: %w", e)
 			}
+
+			txHex := hex.EncodeToString(tx)
 
 			// Create signing request
 			signRequest := vtypes.PluginKeysignRequest{
@@ -171,9 +175,11 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 					PublicKey: policy.PublicKey,
 					Messages: []vtypes.KeysignMessage{
 						{
-							Message: hex.EncodeToString(rawTx),
-							Hash:    hex.EncodeToString(txHash),
+							Message: txHex,
 							Chain:   vcommon.Ethereum,
+							// Doesn't make sense to compute hash with empty V,R,S,
+							// not on-chain hash without signature
+							Hash: txHex,
 						},
 					},
 					SessionID:        uuid.New().String(),
@@ -181,7 +187,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 					PolicyID:         policy.ID,
 					PluginID:         policy.PluginID.String(),
 				},
-				Transaction: hex.EncodeToString(rawTx),
+				Transaction: txHex,
 			}
 
 			_, e = p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
@@ -228,208 +234,28 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	return txs, nil
 }
 
-func (p *PayrollPlugin) generatePayrollTransaction(amountString, recipientString, evmChainID, tokenID, publicKey, chainCodeHex, derivePath string) ([]byte, []byte, error) {
-	amount := new(big.Int)
-	amount.SetString(amountString, 10)
-	recipient := gcommon.HexToAddress(recipientString)
-
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse ABI: %v", err)
-	}
-
-	inputData, err := parsedABI.Pack("transfer", recipient, amount)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to pack transfer data: %v", err)
-	}
-
-	// create call message to estimate gas
-	callMsg := ethereum.CallMsg{
-		From:  recipient, // todo : this works, but maybe better to put the correct sender address once we have it
-		To:    &recipient,
-		Data:  inputData,
-		Value: big.NewInt(0),
-	}
-	// estimate gas limit
-	gasLimit, err := p.rpcClient.EstimateGas(context.Background(), callMsg)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to estimate gas: %v", err)
-	}
-	// Use config values for gas calculations
-	gasLimit = gasLimit * uint64(p.config.Gas.LimitMultiplier) / 100
-	// get suggested gas price
-	gasPrice, err := p.rpcClient.SuggestGasPrice(context.Background())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get gas price: %v", err)
-	}
-	gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(int64(p.config.Gas.PriceMultiplier)))
-	// Parse chain ID
-	chainIDInt := new(big.Int)
-	chainIDInt.SetString(evmChainID, 10)
-	fmt.Printf("Chain ID TEST 3: %s\n", chainIDInt.String())
-
-	addressStr, _, _, err := address.GetAddress(publicKey, chainCodeHex, vcommon.Ethereum)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to derive address: %v", err)
-	}
-
-	derivedAddress := gcommon.HexToAddress(addressStr)
-
-	nextNonce, err := p.GetNextNonce(derivedAddress.Hex())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get nonce: %v", err)
-	}
-
-	// Create unsigned transaction data
-	V := new(big.Int).Set(chainIDInt)
-	V = V.Mul(V, big.NewInt(2))
-	V = V.Add(V, big.NewInt(35))
-	txData := []interface{}{
-		nextNonce,                     // nonce
-		gasPrice,                      // gas price
-		gasLimit,                      // gas limit
-		gcommon.HexToAddress(tokenID), // to
-		big.NewInt(0),                 // value
-		inputData,                     // data
-		V,                             // chain id
-		uint(0),                       // empty v
-		uint(0),                       // empty r
-	}
-
-	// Log each component separately
-	p.logger.WithFields(logrus.Fields{
-		"nonce":     txData[0],
-		"gas_price": txData[1].(*big.Int).String(),
-		"gas_limit": txData[2],
-		"to":        txData[3].(gcommon.Address).Hex(),
-		"value":     txData[4].(*big.Int).String(),
-		"data_hex":  hex.EncodeToString(txData[5].([]byte)),
-		"empty_v":   txData[6],
-		"empty_r":   txData[7],
-		"recipient": recipient.Hex(),
-		"amount":    amount.String(),
-	}).Info("Transaction components")
-
-	rawTx, err := rlp.EncodeToBytes(txData)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to RLP encode transaction: %v", err)
-	}
-
-	signer := gtypes.NewEIP155Signer(chainIDInt)
-	tx := gtypes.NewTransaction(nextNonce, gcommon.HexToAddress(tokenID), big.NewInt(0), gasLimit, gasPrice, inputData)
-	txHash := signer.Hash(tx).Bytes()
-
-	p.logger.WithFields(logrus.Fields{
-		"raw_tx_hex":   hex.EncodeToString(rawTx),
-		"hash_to_sign": hex.EncodeToString(txHash),
-	}).Info("Final transaction data")
-
-	/*txBytes, err := hex.DecodeString(string(rawTx))
-	if err != nil {
-		p.logger.Errorf("Failed to decode transaction hex: %v", err)
-		return []types.PluginKeysignRequest{}, fmt.Errorf("failed to decode transaction hex: %w", err)
-	}*/
-	// unmarshal tx from sign req.transaction
-	txCheck := &gtypes.Transaction{}
-	err = rlp.DecodeBytes(rawTx, txCheck)
-	if err != nil {
-		p.logger.Errorf("Failed to RLP decode transaction: %v", err)
-		return nil, nil, fmt.Errorf("failed to RLP decode transaction: %v: %w", err, asynq.SkipRetry)
-	}
-	fmt.Printf("Chain ID TEST 4: %s\n", txCheck.ChainId().String())
-
-	return txHash, rawTx, nil
-}
-
 func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
-	R, S, V, originalTx, chainID, _, err := p.convertData(signature, signRequest, policy)
+	tx, err := evmAppendSignature(ethereumEvmChainID, gcommon.FromHex(signRequest.Transaction), signature)
 	if err != nil {
-		return fmt.Errorf("failed to convert R and S: %v", err)
+		p.logger.WithError(err).Error("evmAppendSignature")
+		return fmt.Errorf("evmAppendSignature: %w", err)
 	}
 
-	innerTx := &gtypes.LegacyTx{
-		Nonce:    originalTx.Nonce(),
-		GasPrice: originalTx.GasPrice(),
-		Gas:      originalTx.Gas(),
-		To:       originalTx.To(),
-		Value:    originalTx.Value(),
-		Data:     originalTx.Data(),
-		V:        V,
-		R:        R,
-		S:        S,
-	}
-
-	signedTx := gtypes.NewTx(innerTx)
-	signer := gtypes.NewLondonSigner(chainID)
-	sender, err := signer.Sender(signedTx)
+	sender, err := address.GetEVMAddress(signRequest.PublicKey)
 	if err != nil {
-		p.logger.WithError(err).Warn("Could not determine sender")
-	} else {
-		p.logger.WithField("sender", sender.Hex()).Info("Transaction sender")
+		p.logger.WithError(err).Error("address.GetEVMAddress")
+		return fmt.Errorf("address.GetEVMAddress: %w", err)
 	}
 
-	// Check if RPC client is initialized
-	if p.rpcClient == nil {
-		return fmt.Errorf("RPC client not initialized")
-	}
-
-	err = p.rpcClient.SendTransaction(ctx, signedTx)
+	err = p.rpcClient.SendTransaction(ctx, tx)
 	if err != nil {
 		p.logger.WithError(err).Error("Failed to broadcast transaction")
-		return p.handleBroadcastError(err, sender)
+		return p.handleBroadcastError(err, gcommon.HexToAddress(sender))
 	}
 
-	p.logger.WithField("hash", signedTx.Hash().Hex()).Info("Transaction successfully broadcast")
+	p.logger.WithField("hash", tx.Hash().Hex()).Info("Transaction successfully broadcast")
 
-	return p.monitorTransaction(signedTx)
-}
-
-func (p *PayrollPlugin) convertData(signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) (R *big.Int, S *big.Int, V *big.Int, originalTx *gtypes.Transaction, chainID *big.Int, recoveryID int64, err error) {
-	// convert R and S from hex strings to big.Int
-	R = new(big.Int)
-	R.SetString(signature.R, 16)
-	if R == nil {
-		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to parse R value")
-	}
-
-	S = new(big.Int)
-	S.SetString(signature.S, 16)
-	if S == nil {
-		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to parse S value")
-	}
-
-	// Decode the hex string to bytes first
-	txBytes, err := hex.DecodeString(signRequest.Transaction)
-	if err != nil {
-		p.logger.Errorf("Failed to decode transaction hex: %v", err)
-		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to decode transaction hex: %w", err)
-	}
-
-	originalTx = new(gtypes.Transaction)
-	if err := rlp.DecodeBytes(txBytes, originalTx); err != nil {
-		p.logger.Errorf("Failed to unmarshal transaction: %v", err)
-		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to unmarshal transaction: %w", err)
-	}
-
-	payrollPolicy := PayrollPolicy{}
-	// TODO: convert the recipes to PayrollPolicy
-	chainID = new(big.Int)
-	chainID.SetString(payrollPolicy.ChainID[0], 10)
-
-	/*chainID = originalTx.ChainId()
-	fmt.Printf("Chain ID TEST: %s\n", chainID.String())*/
-
-	// calculate V according to EIP-155
-	recoveryID, err = strconv.ParseInt(signature.RecoveryID, 10, 64)
-	if err != nil {
-		return nil, nil, nil, nil, nil, 0, fmt.Errorf("failed to parse recovery ID: %w", err)
-	}
-
-	V = new(big.Int).Set(chainID)
-	V.Mul(V, big.NewInt(2))
-	V.Add(V, big.NewInt(35+recoveryID))
-
-	return R, S, V, originalTx, chainID, recoveryID, nil
+	return p.monitorTransaction(tx)
 }
 
 func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
@@ -491,4 +317,235 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 			SupportedChains:    []string{"ethereum"},
 		},
 	}
+}
+
+func (p *PayrollPlugin) genUnsignedTx(
+	ctx context.Context,
+	chain vcommon.Chain,
+	senderPublicKey, tokenID, amount, to string,
+) ([]byte, error) {
+	switch chain {
+	case vcommon.Ethereum:
+		tx, err := p.evmMakeUnsignedErc20Transfer(
+			ctx,
+			ethereumEvmChainID,
+			senderPublicKey,
+			tokenID,
+			amount,
+			to,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("p.evmMakeUnsignedErc20Transfer: %v", err)
+		}
+		return tx, nil
+	default:
+	}
+	return nil, fmt.Errorf("unsupported chain: %s", chain)
+}
+
+func evmEncodeUnsignedDynamicFeeTx(
+	evmChainID *big.Int,
+	nonce uint64,
+	to gcommon.Address,
+	maxPriorityFeePerGas, maxFeePerGas *big.Int,
+	gas uint64,
+	value *big.Int,
+	data []byte,
+	accessList gtypes.AccessList,
+) ([]byte, error) {
+	bytes, err := rlp.EncodeToBytes(reth.DynamicFeeTxWithoutSignature{
+		ChainID:    evmChainID,
+		Nonce:      nonce,
+		GasTipCap:  maxPriorityFeePerGas,
+		GasFeeCap:  maxFeePerGas,
+		Gas:        gas,
+		To:         &to,
+		Value:      value,
+		Data:       data,
+		AccessList: accessList,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rlp.EncodeToBytes: %v", err)
+	}
+
+	res := append([]byte{gtypes.DynamicFeeTxType}, bytes...)
+	return res, nil
+}
+
+func evmAppendSignature(
+	evmChainID *big.Int,
+	unsignedTx []byte,
+	tssSig tss.KeysignResponse,
+) (*gtypes.Transaction, error) {
+	txData, err := reth.DecodeUnsignedPayload(unsignedTx)
+	if err != nil {
+		return nil, fmt.Errorf("reth.DecodeUnsignedPayload: %v", err)
+	}
+
+	var sig []byte
+	sig = append(sig, gcommon.FromHex(tssSig.R)...)
+	sig = append(sig, gcommon.FromHex(tssSig.S)...)
+	sig = append(sig, gcommon.FromHex(tssSig.RecoveryID)...)
+
+	tx, err := gtypes.NewTx(txData).WithSignature(gtypes.NewPragueSigner(evmChainID), sig)
+	if err != nil {
+		return nil, fmt.Errorf("gtypes.NewTx(txData).WithSignature: %v", err)
+	}
+	return tx, nil
+}
+
+func (p *PayrollPlugin) evmEstimateTx(
+	ctx context.Context,
+	from, to gcommon.Address,
+	value *big.Int,
+	data []byte,
+) (uint64, uint64, *big.Int, *big.Int, gtypes.AccessList, error) {
+	var eg errgroup.Group
+	var gasLimit uint64
+	eg.Go(func() error {
+		r, e := p.rpcClient.EstimateGas(ctx, ethereum.CallMsg{
+			From:  from,
+			To:    &to,
+			Data:  data,
+			Value: value,
+		})
+		if e != nil {
+			return fmt.Errorf("p.rpcClient.EstimateGas: %v", e)
+		}
+		gasLimit = r
+		return nil
+	})
+
+	var gasTipCap *big.Int
+	eg.Go(func() error {
+		r, e := p.rpcClient.SuggestGasTipCap(ctx)
+		if e != nil {
+			return fmt.Errorf("p.rpcClient.SuggestGasTipCap: %v", e)
+		}
+		gasTipCap = r
+		return nil
+	})
+
+	var baseFee *big.Int
+	eg.Go(func() error {
+		feeHistory, e := p.rpcClient.FeeHistory(ctx, 1, nil, nil)
+		if e != nil {
+			return fmt.Errorf("p.rpcClient.FeeHistory: %v", e)
+		}
+		if len(feeHistory.BaseFee) == 0 {
+			return fmt.Errorf("feeHistory.BaseFee is empty")
+		}
+		baseFee = feeHistory.BaseFee[0]
+		return nil
+	})
+
+	var nonce uint64
+	eg.Go(func() error {
+		r, e := p.nonceManager.GetNextNonce(from.Hex())
+		if e != nil {
+			return fmt.Errorf("p.nonceManager.GetNextNonce: %v", e)
+		}
+		nonce = r
+		return nil
+	})
+	err := eg.Wait()
+	if err != nil {
+		return 0, 0, nil, nil, nil, fmt.Errorf("eg.Wait: %v", err)
+	}
+
+	maxFeePerGas := new(big.Int).Add(gasTipCap, baseFee)
+
+	type createAccessListArgs struct {
+		From                 string `json:"from,omitempty"`
+		To                   string `json:"to,omitempty"`
+		Gas                  string `json:"gas,omitempty"`
+		GasPrice             string `json:"gasPrice,omitempty"`
+		MaxPriorityFeePerGas string `json:"maxPriorityFeePerGas,omitempty"`
+		MaxFeePerGas         string `json:"maxFeePerGas,omitempty"`
+		Value                string `json:"value,omitempty"`
+		Data                 string `json:"data,omitempty"`
+	}
+	createAccessListRes := struct {
+		AccessList gtypes.AccessList `json:"accessList"`
+		GasUsed    string            `json:"gasUsed"`
+	}{}
+	err = p.rpcClient.Client().CallContext(
+		ctx,
+		&createAccessListRes,
+		"eth_createAccessList",
+		[]interface{}{
+			createAccessListArgs{
+				From:                 from.Hex(),
+				To:                   to.Hex(),
+				Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
+				MaxPriorityFeePerGas: gcommon.Bytes2Hex(gasTipCap.Bytes()),
+				MaxFeePerGas:         gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
+				Value:                "0x0",
+				Data:                 gcommon.Bytes2Hex(data),
+			},
+			"latest",
+		},
+	)
+	if err != nil {
+		return 0, 0, nil, nil, nil, fmt.Errorf("p.rpcClient.Client().CallContext: %v", err)
+	}
+
+	return nonce, gasLimit, gasTipCap, maxFeePerGas, createAccessListRes.AccessList, nil
+}
+
+func (p *PayrollPlugin) evmMakeUnsignedErc20Transfer(
+	ctx context.Context,
+	evmChainID *big.Int,
+	senderPublicKey, tokenIDStr, amountStr, toStr string,
+) ([]byte, error) {
+	amount, ok := new(big.Int).SetString(amountStr, 10)
+	if !ok {
+		return nil, fmt.Errorf("new(big.Int).SetString: %s", amountStr)
+	}
+
+	tokenID := gcommon.HexToAddress(tokenIDStr)
+	to := gcommon.HexToAddress(toStr)
+	value := big.NewInt(0) // value is zero for ERC20
+
+	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("abi.JSON(strings.NewReader(erc20ABI)): %v", err)
+	}
+
+	data, err := parsedABI.Pack("transfer", to, amount)
+	if err != nil {
+		return nil, fmt.Errorf("parsedABI.Pack: %v", err)
+	}
+
+	senderAddressHex, err := address.GetEVMAddress(senderPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("address.GetEVMAddress: %v", err)
+	}
+
+	nonce, gasLimit, gasTipCap, maxFeePerGas, accessList, err := p.evmEstimateTx(
+		ctx,
+		gcommon.HexToAddress(senderAddressHex),
+		tokenID,
+		value,
+		data,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("p.evmEstimateTx: %v", err)
+	}
+
+	bytes, err := evmEncodeUnsignedDynamicFeeTx(
+		evmChainID,
+		nonce,
+		tokenID,
+		gasTipCap,
+		maxFeePerGas,
+		gasLimit,
+		value,
+		data,
+		accessList,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evmEncodeUnsignedDynamicFeeTx: %v", err)
+	}
+	return bytes, nil
 }
