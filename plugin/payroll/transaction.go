@@ -42,6 +42,9 @@ const (
 
 var ethereumEvmChainID = big.NewInt(1)
 
+// consider as native evm chain asset — ETH,BNB,ARB etc
+var evmZeroAddress = gcommon.HexToAddress("0x0000000000000000000000000000000000000000")
+
 func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		p.logger.WithError(err).Warn("Context cancelled, skipping scheduler trigger")
@@ -326,7 +329,7 @@ func (p *PayrollPlugin) genUnsignedTx(
 ) ([]byte, error) {
 	switch chain {
 	case vcommon.Ethereum:
-		tx, err := p.evmMakeUnsignedErc20Transfer(
+		tx, err := p.evmMakeUnsignedTransfer(
 			ctx,
 			ethereumEvmChainID,
 			senderPublicKey,
@@ -335,7 +338,7 @@ func (p *PayrollPlugin) genUnsignedTx(
 			to,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("p.evmMakeUnsignedErc20Transfer: %v", err)
+			return nil, fmt.Errorf("p.evmMakeUnsignedTransfer: %v", err)
 		}
 		return tx, nil
 	default:
@@ -475,14 +478,14 @@ func (p *PayrollPlugin) evmEstimateTx(
 		"eth_createAccessList",
 		[]interface{}{
 			createAccessListArgs{
-                From:                 from.Hex(),
-                To:                   to.Hex(),
-                Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
-                MaxPriorityFeePerGas: "0x" + gcommon.Bytes2Hex(gasTipCap.Bytes()),
-                MaxFeePerGas:         "0x" + gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
-                Value:                "0x" + gcommon.Bytes2Hex(value.Bytes()),
-                Data:                 "0x" + gcommon.Bytes2Hex(data),
-            },
+				From:                 from.Hex(),
+				To:                   to.Hex(),
+				Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
+				MaxPriorityFeePerGas: "0x" + gcommon.Bytes2Hex(gasTipCap.Bytes()),
+				MaxFeePerGas:         "0x" + gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
+				Value:                "0x" + gcommon.Bytes2Hex(value.Bytes()),
+				Data:                 "0x" + gcommon.Bytes2Hex(data),
+			},
 			"latest",
 		},
 	)
@@ -493,7 +496,7 @@ func (p *PayrollPlugin) evmEstimateTx(
 	return nonce, gasLimit, gasTipCap, maxFeePerGas, createAccessListRes.AccessList, nil
 }
 
-func (p *PayrollPlugin) evmMakeUnsignedErc20Transfer(
+func (p *PayrollPlugin) evmMakeUnsignedTransfer(
 	ctx context.Context,
 	evmChainID *big.Int,
 	senderPublicKey, tokenIDStr, amountStr, toStr string,
@@ -503,18 +506,28 @@ func (p *PayrollPlugin) evmMakeUnsignedErc20Transfer(
 		return nil, fmt.Errorf("new(big.Int).SetString: %s", amountStr)
 	}
 
-	tokenID := gcommon.HexToAddress(tokenIDStr)
 	to := gcommon.HexToAddress(toStr)
-	value := big.NewInt(0) // value is zero for ERC20
+	tokenID := gcommon.HexToAddress(tokenIDStr)
 
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		return nil, fmt.Errorf("abi.JSON(strings.NewReader(erc20ABI)): %v", err)
-	}
+	var (
+		value *big.Int
+		data  []byte
+	)
+	if tokenID == evmZeroAddress {
+		value = amount
+		data = nil
+	} else {
+		parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+		if err != nil {
+			return nil, fmt.Errorf("abi.JSON(strings.NewReader(erc20ABI)): %v", err)
+		}
 
-	data, err := parsedABI.Pack("transfer", to, amount)
-	if err != nil {
-		return nil, fmt.Errorf("parsedABI.Pack: %v", err)
+		d, err := parsedABI.Pack("transfer", to, amount)
+		if err != nil {
+			return nil, fmt.Errorf("parsedABI.Pack: %v", err)
+		}
+		value = big.NewInt(0)
+		data = d
 	}
 
 	senderAddressHex, err := address.GetEVMAddress(senderPublicKey)
