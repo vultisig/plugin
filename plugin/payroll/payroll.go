@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
-
-	"github.com/vultisig/plugin/storage"
 )
 
 var _ plugin.Plugin = (*PayrollPlugin)(nil)
@@ -20,12 +20,14 @@ type PayrollPlugin struct {
 	logger           logrus.FieldLogger
 	config           *PluginConfig
 	txIndexerService *tx_indexer.Service
+	client           *asynq.Client
 }
 
 func NewPayrollPlugin(
 	db storage.DatabaseStorage,
 	baseConfigPath string,
 	txIndexerService *tx_indexer.Service,
+	client *asynq.Client,
 ) (*PayrollPlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
@@ -47,6 +49,7 @@ func NewPayrollPlugin(
 		logger:           logrus.WithField("plugin", "payroll"),
 		config:           cfg,
 		txIndexerService: txIndexerService,
+		client:           client,
 	}, nil
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/plugin/internal/tasks"
 	reth "github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
@@ -45,7 +46,10 @@ var ethereumEvmChainID = big.NewInt(1)
 // consider as native evm chain asset — ETH,BNB,ARB etc
 var evmZeroAddress = gcommon.HexToAddress("0x0000000000000000000000000000000000000000")
 
-func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Task) error {
+func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
+	ctx, cancel := context.WithTimeout(c, 5*time.Minute)
+	defer cancel()
+
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		p.logger.WithError(err).Warn("Context cancelled, skipping scheduler trigger")
 		return err
@@ -60,9 +64,88 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(ctx context.Context, t *asynq.Tas
 		p.logger.WithError(err).Error("Failed to get plugin policy from database")
 		return fmt.Errorf("failed to get plugin policy: %s, %w", err, asynq.SkipRetry)
 	}
-	// propose transaction and get it signed
-	_ = pluginPolicy
+
+	reqs, err := p.ProposeTransactions(pluginPolicy)
+	if err != nil {
+		p.logger.WithError(err).Error("p.ProposeTransactions")
+		return fmt.Errorf("p.ProposeTransactions: %s, %w", err, asynq.SkipRetry)
+	}
+
+	var eg errgroup.Group
+	for _, _req := range reqs {
+		req := _req
+		eg.Go(func() error {
+			return p.initSign(ctx, req, pluginPolicy)
+		})
+	}
+	err = eg.Wait()
+	if err != nil {
+		p.logger.WithError(err).Error("eg.Wait")
+		return fmt.Errorf("eg.Wait: %s, %w", err, asynq.SkipRetry)
+	}
+
 	return nil
+}
+
+func (p *PayrollPlugin) initSign(
+	ctx context.Context,
+	req vtypes.PluginKeysignRequest,
+	pluginPolicy vtypes.PluginPolicy,
+) error {
+	buf, e := json.Marshal(req)
+	if e != nil {
+		p.logger.WithError(e).Error("json.Marshal")
+		return fmt.Errorf("json.Marshal: %w", e)
+	}
+
+	signTask, e := p.client.Enqueue(
+		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
+		asynq.MaxRetry(0),
+		asynq.Timeout(5*time.Minute),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME),
+	)
+	if e != nil {
+		p.logger.WithError(e).Error("p.client.Enqueue")
+		return fmt.Errorf("p.client.Enqueue: %w", e)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+			if signTask.State != asynq.TaskStateCompleted {
+				continue
+			}
+			if signTask.Result == nil {
+				p.logger.Info("signTask.Result is nil, skipping")
+				return nil
+			}
+
+			var res map[string]tss.KeysignResponse
+			er := json.Unmarshal(signTask.Result, &res)
+			if er != nil {
+				p.logger.WithError(er).Error("json.Unmarshal(signTask.Result, &res)")
+				return fmt.Errorf("json.Unmarshal(signTask.Result, &res): %w", er)
+			}
+
+			var sig tss.KeysignResponse
+			for _, v := range res { // one sig for evm (map with 1 key)
+				sig = v
+			}
+
+			er = p.SigningComplete(ctx, sig, req, pluginPolicy)
+			if er != nil {
+				p.logger.WithError(er).Error("p.SigningComplete")
+				return fmt.Errorf("p.SigningComplete: %w", er)
+			}
+
+			p.logger.WithField("public_key", req.PublicKey).
+				Info("successfully signed and broadcasted")
+			return nil
+		}
+	}
 }
 
 func (p *PayrollPlugin) IsAlreadyProposed(
@@ -172,14 +255,28 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 
 			txHex := hex.EncodeToString(tx)
 
+			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+				PluginID:      policy.PluginID,
+				PolicyID:      policy.ID,
+				ChainID:       chain,
+				TokenID:       payrollPolicy.TokenID[i],
+				FromPublicKey: policy.PublicKey,
+				ToPublicKey:   recipient.Address,
+				ProposedTxHex: txHex,
+			})
+			if e != nil {
+				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+			}
+
 			// Create signing request
 			signRequest := vtypes.PluginKeysignRequest{
 				KeysignRequest: vtypes.KeysignRequest{
 					PublicKey: policy.PublicKey,
 					Messages: []vtypes.KeysignMessage{
 						{
-							Message: txHex,
-							Chain:   vcommon.Ethereum,
+							TxIndexerID: txToTrack.ID.String(),
+							Message:     txHex,
+							Chain:       vcommon.Ethereum,
 							// Doesn't make sense to compute hash with empty V,R,S,
 							// not on-chain hash without signature
 							Hash: txHex,
@@ -191,20 +288,6 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 					PluginID:         policy.PluginID.String(),
 				},
 				Transaction: txHex,
-			}
-
-			_, e = p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
-				PluginID:      policy.PluginID,
-				PolicyID:      policy.ID,
-				ChainID:       chain,
-				TokenID:       payrollPolicy.TokenID[i],
-				FromPublicKey: policy.PublicKey,
-				ToPublicKey:   recipient.Address,
-				ProposedTxHex: signRequest.Transaction,
-			})
-			if e != nil {
-				p.logger.WithError(e).Error("p.txIndexerService.CreateTx")
-				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
 			}
 
 			mu.Lock()
@@ -220,24 +303,15 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		return []vtypes.PluginKeysignRequest{}, fmt.Errorf("eg.Wait: %w", err)
 	}
 
-	signRequest := txs[0]
-	txBytes, err := hex.DecodeString(signRequest.Transaction)
-	if err != nil {
-		p.logger.Errorf("Failed to decode transaction hex: %v", err)
-		return []vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to decode transaction hex: %w", err)
-	}
-	// unmarshal tx from sign req.transaction
-	tx := &gtypes.Transaction{}
-	err = tx.UnmarshalBinary(txBytes)
-	if err != nil {
-		p.logger.Errorf("Failed to unmarshal transaction: %v", err)
-		return []vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to unmarshal transaction: %w:", err)
-	}
-
 	return txs, nil
 }
 
-func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
+func (p *PayrollPlugin) SigningComplete(
+	ctx context.Context,
+	signature tss.KeysignResponse,
+	signRequest vtypes.PluginKeysignRequest,
+	_ vtypes.PluginPolicy,
+) error {
 	tx, err := evmAppendSignature(ethereumEvmChainID, gcommon.FromHex(signRequest.Transaction), signature)
 	if err != nil {
 		p.logger.WithError(err).Error("evmAppendSignature")
@@ -256,9 +330,8 @@ func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.Keysi
 		return p.handleBroadcastError(err, gcommon.HexToAddress(sender))
 	}
 
-	p.logger.WithField("hash", tx.Hash().Hex()).Info("Transaction successfully broadcast")
-
-	return p.monitorTransaction(tx)
+	p.logger.WithField("hash", tx.Hash().Hex()).Info("transaction successfully broadcasted")
+	return nil
 }
 
 func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
