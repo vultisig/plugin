@@ -116,7 +116,7 @@ func (p *PayrollPlugin) initSign(
 			return ctx.Err()
 		case <-time.After(3 * time.Second):
 			taskInfo, er := p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
-			if er == nil {
+			if er != nil {
 				p.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
 				return fmt.Errorf("p.inspector.GetTaskInfo: %w", er)
 			}
