@@ -43,6 +43,7 @@ func main() {
 
 	logger := logrus.StandardLogger()
 	client := asynq.NewClient(redisOptions)
+	inspector := asynq.NewInspector(redisOptions)
 	srv := asynq.NewServer(
 		redisOptions,
 		asynq.Config{
@@ -80,7 +81,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create postgres backend: %w", err))
 	}
-	p, err := payroll.NewPayrollPlugin(postgressDB, cfg.BaseConfigPath, txIndexerService)
+	p, err := payroll.NewPayrollPlugin(postgressDB, cfg.BaseConfigPath, txIndexerService, client, inspector)
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))
 	}

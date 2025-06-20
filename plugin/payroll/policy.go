@@ -98,7 +98,8 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 			return fmt.Errorf("transaction destination is nil")
 		}
 
-		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) { // todo : why we compare to tokenId and not recipient address?
+		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) {
+			// ERC20 transfer tx 'to' is contract address, and 'recipient' encoded in calldata
 			return fmt.Errorf("transaction destination does not match token ID")
 		}
 
