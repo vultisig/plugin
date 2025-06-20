@@ -11,7 +11,7 @@ import (
 	"github.com/vultisig/plugin/storage"
 )
 
-type FeesServerConfig struct {
+type CoreConfig struct {
 	Server   api.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
@@ -25,7 +25,7 @@ type FeesServerConfig struct {
 	} `mapstructure:"datadog" json:"datadog"`
 }
 
-func GetConfigure() (*FeesServerConfig, error) {
+func GetConfigure() (*CoreConfig, error) {
 	configName := os.Getenv("VS_CONFIG_NAME")
 	if configName == "" {
 		configName = "config"
@@ -34,7 +34,7 @@ func GetConfigure() (*FeesServerConfig, error) {
 	return ReadConfig(configName)
 }
 
-func ReadConfig(configName string) (*FeesServerConfig, error) {
+func ReadConfig(configName string) (*CoreConfig, error) {
 	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
@@ -44,7 +44,7 @@ func ReadConfig(configName string) (*FeesServerConfig, error) {
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("fail to reading config file, %w", err)
 	}
-	var cfg FeesServerConfig
+	var cfg CoreConfig
 	err := viper.Unmarshal(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode into struct, %w", err)

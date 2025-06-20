@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
@@ -12,6 +14,8 @@ import (
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/plugin/plugin/fees"
+	"github.com/vultisig/plugin/storage/postgres"
 )
 
 func main() {
@@ -38,7 +42,8 @@ func main() {
 		DB:       cfg.Redis.DB,
 	}
 	logger := logrus.StandardLogger()
-	client := asynq.NewClient(redisOptions)
+	asynqClient := asynq.NewClient(redisOptions)
+
 	srv := asynq.NewServer(
 		redisOptions,
 		asynq.Config{
@@ -50,6 +55,8 @@ func main() {
 			},
 		},
 	)
+
+	postgressDB, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
 
 	txIndexerStore, err := storage.NewPostgresTxIndexStore(ctx, cfg.Database.DSN)
 	if err != nil {
@@ -64,7 +71,7 @@ func main() {
 
 	vaultService, err := vault.NewManagementService(
 		cfg.VaultServiceConfig,
-		client,
+		asynqClient,
 		sdClient,
 		vaultStorage,
 		txIndexerService,
@@ -72,10 +79,59 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create vault service: %w", err))
 	}
+
+	feePluginConfig, err := fees.NewFeeConfig(fees.WithVerifierUrl(cfg.Server.VerifierUrl))
+	if err != nil {
+		logger.Fatalf("failed to create fees config,err: %s", err)
+	}
+
+	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, feePluginConfig)
+	if err != nil {
+		logger.Fatalf("failed to create DCA plugin,err: %s", err)
+	}
+
 	mux := asynq.NewServeMux()
 	//	mux.HandleFunc(tasks.TypePluginTransaction, vaultService.HandlePluginTransaction)
+
+	//Core functions, every plugin should have these functions
 	mux.HandleFunc(tasks.TypeKeySignDKLS, vaultService.HandleKeySignDKLS)
 	mux.HandleFunc(tasks.TypeReshareDKLS, vaultService.HandleReshareDKLS)
+
+	//Plugin specific functions.
+	mux.HandleFunc(fees.TypeFeeCollection, feePlugin.HandleCollections)
+
+	//Simulate a fee collection run
+	//TODO garry. This is purely for e2e testing. Remove from prod.
+	go func() {
+		logger.Info("Simulating a fee collection run, waiting 0.5 seconds")
+
+		time.Sleep(500 * time.Millisecond)
+		logger.Info("Enqueueing Task")
+
+		payload, err := json.Marshal(fees.FeeCollectionFormat{
+			FeeCollectionType: fees.FeeCollectionTypeByPolicy,
+			Value:             "00000000-0000-0000-0000-000000000001",
+		})
+
+		if err != nil {
+			logger.WithError(err).Error("Failed to marshal fee collection config in demo run")
+			return
+		}
+
+		if err != nil {
+			logger.WithError(err).Error("Failed to marshal fee collection config")
+			return
+		}
+
+		asynqClient.Enqueue(
+			asynq.NewTask(fees.TypeFeeCollection, payload),
+			asynq.MaxRetry(0),
+			asynq.Timeout(2*time.Minute),
+			asynq.Retention(5*time.Minute),
+			asynq.Queue(tasks.QUEUE_NAME))
+	}()
+
+	logger.Info("Starting asynq listener")
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))
 	}

@@ -8,10 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func (v VerifierApi) GetPolicy() string {
-	return "verifierapi"
-}
-
 // func (v VerifierApi) CreatePluginPolicy() (ptypes.PluginPolicy, error) {
 // 	url := "/policy"
 // 	method := http.MethodPost
@@ -39,10 +35,11 @@ func (v VerifierApi) GetPolicy() string {
 
 // dto types
 type FeeDto struct {
-	Amount      int    `json:"amount" validate:"required"`
-	ChargedAt   string `json:"charged_on" validate:"required"` // "tx" or "recurring"
-	Collected   bool   `json:"collected" validate:"required"`  // true if the fee is collected, false if it's just a record
-	CollectedAt string `json:"collected_at"`                   // timestamp when the fee was collected
+	ID          uuid.UUID `json:"id" validate:"required"`
+	Amount      int       `json:"amount" validate:"required"`
+	ChargedAt   string    `json:"charged_on" validate:"required"` // "tx" or "recurring"
+	Collected   bool      `json:"collected" validate:"required"`  // true if the fee is collected, false if it's just a record
+	CollectedAt string    `json:"collected_at"`                   // timestamp when the fee was collected
 }
 
 type FeeHistoryDto struct {
@@ -54,17 +51,33 @@ type FeeHistoryDto struct {
 
 // TODO add auth
 func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (FeeHistoryDto, error) {
-	url := fmt.Sprintf("/policies/%s/fees", policyId.String())
+	url := fmt.Sprintf("/fees/policy/%s", policyId.String())
+	v.logger.Debug("Getting plugin policy fees for policy: ", policyId.String())
+	v.logger.Debug("URL: ", url)
 	response, err := v.get(url)
 	if err != nil {
+		v.logger.WithError(err).Error("failed to get plugin policy fees")
 		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
+	if response.StatusCode == http.StatusNotFound {
+		v.logger.WithError(fmt.Errorf("policy not found")).Error("policy not found for id: ", policyId.String())
+		return FeeHistoryDto{}, fmt.Errorf("policy not found")
+	}
+
 	if response.StatusCode != http.StatusOK {
+		v.logger.WithError(err).Error("failed to get plugin policy fees")
+		fmt.Println(response.StatusCode)
 		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees, status code: %d", response.StatusCode)
 	}
-	var feeHistory FeeHistoryDto
+
+	var feeHistory APIResponse[FeeHistoryDto]
 	if err := json.NewDecoder(response.Body).Decode(&feeHistory); err != nil {
 		return FeeHistoryDto{}, fmt.Errorf("failed to decode plugin policy fees response: %w", err)
 	}
-	return feeHistory, nil
+
+	if feeHistory.Error.Message != "" {
+		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees, error: %s", feeHistory.Error.Message, feeHistory.Error.DetailedResponse)
+	}
+
+	return feeHistory.Data, nil
 }

@@ -7,13 +7,16 @@ import (
 	"github.com/spf13/viper"
 	"github.com/vultisig/verifier/vault_config"
 
+	"github.com/vultisig/plugin/api"
 	"github.com/vultisig/plugin/storage"
 )
 
-type FeesWorkerConfig struct {
+type CoreConfig struct {
+	Server   api.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
+	BaseConfigPath     string                          `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
 	Redis              storage.RedisConfig             `mapstructure:"redis" json:"redis,omitempty"`
 	BlockStorage       vault_config.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`
 	VaultServiceConfig vault_config.Config             `mapstructure:"vault_service" json:"vault_service,omitempty"`
@@ -23,7 +26,7 @@ type FeesWorkerConfig struct {
 	} `mapstructure:"datadog" json:"datadog"`
 }
 
-func GetConfigure() (*FeesWorkerConfig, error) {
+func GetConfigure() (*CoreConfig, error) {
 	configName := os.Getenv("VS_CONFIG_NAME")
 	if configName == "" {
 		configName = "config"
@@ -32,7 +35,7 @@ func GetConfigure() (*FeesWorkerConfig, error) {
 	return ReadConfig(configName)
 }
 
-func ReadConfig(configName string) (*FeesWorkerConfig, error) {
+func ReadConfig(configName string) (*CoreConfig, error) {
 	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
@@ -40,7 +43,7 @@ func ReadConfig(configName string) (*FeesWorkerConfig, error) {
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("fail to reading config file, %w", err)
 	}
-	var cfg FeesWorkerConfig
+	var cfg CoreConfig
 	err := viper.Unmarshal(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode into struct, %w", err)

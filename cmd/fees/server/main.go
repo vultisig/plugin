@@ -71,7 +71,17 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to connect to database: %v", err)
 	}
-	p, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath)
+
+	//base config path
+	feesConfig, err := fees.NewFeeConfig(
+		fees.WithVerifierUrl(cfg.Server.VerifierUrl),
+	)
+
+	if err != nil {
+		logger.Fatalf("failed to create fees config,err: %s", err)
+	}
+
+	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, feesConfig)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}
@@ -84,7 +94,7 @@ func main() {
 		client,
 		inspector,
 		sdClient,
-		p,
+		feePlugin,
 		txIndexerService,
 	)
 	if err := server.StartServer(); err != nil {

@@ -6,12 +6,31 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+/*
+Verifier API Response types
+*/
+type APIResponse[T any] struct {
+	Data      T             `json:"data,omitempty"`
+	Error     ErrorResponse `json:"error"`
+	Status    int           `json:"status"`
+	Timestamp string        `json:"timestamp"`
+	Version   string        `json:"version"`
+}
+
+type ErrorResponse struct {
+	Message          string `json:"message"`
+	DetailedResponse string `json:"details,omitempty"`
+}
+
+//Verifier API type
+
 type VerifierApi struct {
 	URL    string
 	logger *logrus.Logger
 }
 
 func NewVerifierApi(url string, logger *logrus.Logger) *VerifierApi {
+	logger.Debug("New Verifier API created with URL: ", url)
 	return &VerifierApi{
 		URL:    url,
 		logger: logger,

@@ -24,12 +24,15 @@ import (
 	  }
 	}
 */
-type PluginConfig struct {
-	Type        string `mapstructure:"type"`
-	Version     string `mapstructure:"version"`
-	RpcURL      string `mapstructure:"rpc_url"`      // URL for the RPC endpoint to interact with the ethereum/evm blockchain
-	USDCAddress string `mapstructure:"usdc_address"` // If a non-ethereum chain is used, this is the address of the USDC token contract on that chain
-	Gas         struct {
+
+type FeeConfig struct {
+	Type             string `mapstructure:"type"`
+	Version          string `mapstructure:"version"`
+	RpcURL           string `mapstructure:"rpc_url"`           // URL for the RPC endpoint to interact with the ethereum/evm blockchain
+	USDCAddress      string `mapstructure:"usdc_address"`      // If a non-ethereum chain is used, this is the address of the USDC token contract on that chain
+	VerifierUrl      string `mapstructure:"verifier_url"`      // The url of the verifier (i.e. the counter party to sign transactions).
+	CollectorAddress string `mapstructure:"collector_address"` // The address of the collector of the fees.
+	Gas              struct {
 		LimitMultiplier int `mapstructure:"limit_multiplier"`
 		PriceMultiplier int `mapstructure:"price_multiplier"`
 	} `mapstructure:"gas"`
@@ -39,13 +42,14 @@ type PluginConfig struct {
 	} `mapstructure:"monitoring"`
 }
 
-type ConfigOption func(*PluginConfig) error
+type ConfigOption func(*FeeConfig) error
 
-func withDefaults(c *PluginConfig) {
+func withDefaults(c *FeeConfig) {
 	c.Type = PLUGIN_TYPE
 	c.Version = "1.0.0"
 	c.RpcURL = "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
 	c.USDCAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+	c.VerifierUrl = ""
 	c.Gas.LimitMultiplier = 1
 	c.Gas.PriceMultiplier = 1
 	c.Monitoring.TimeoutMinutes = 30
@@ -53,15 +57,30 @@ func withDefaults(c *PluginConfig) {
 }
 
 func WithEthConfig(rpcUrl string, usdcAddress string) ConfigOption {
-	return func(c *PluginConfig) error {
+	return func(c *FeeConfig) error {
 		c.RpcURL = rpcUrl
 		c.USDCAddress = usdcAddress
 		return nil
 	}
 }
 
-func NewPluginConfig(fns ...ConfigOption) (*PluginConfig, error) {
-	c := &PluginConfig{}
+func WithVerifierUrl(verifierUrl string) ConfigOption {
+	return func(c *FeeConfig) error {
+		c.VerifierUrl = verifierUrl
+		return nil
+	}
+}
+
+func WithCollectorAddress(collectorAddress string) ConfigOption {
+	// TODO garry. Verify address whitelisted. Verify address is valid.
+	return func(c *FeeConfig) error {
+		c.CollectorAddress = collectorAddress
+		return nil
+	}
+}
+
+func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
+	c := &FeeConfig{}
 	withDefaults(c)
 	for _, fn := range fns {
 		if err := fn(c); err != nil {
@@ -79,12 +98,15 @@ func NewPluginConfig(fns ...ConfigOption) (*PluginConfig, error) {
 	if c.Gas.LimitMultiplier <= 0 {
 		return c, errors.New("gas limit multiplier must be positive")
 	}
+	if c.VerifierUrl == "" {
+		return c, errors.New("verifier_url is required")
+	}
 
 	return c, nil
 }
 
 func WithFileConfig(basePath string) ConfigOption {
-	return func(c *PluginConfig) error {
+	return func(c *FeeConfig) error {
 
 		v := viper.New()
 		v.SetConfigName("fees")
@@ -110,4 +132,25 @@ func WithFileConfig(basePath string) ConfigOption {
 		}
 		return nil
 	}
+}
+
+/* Fee collection types
+Can be collected:
+   - by public key (all active plugins)
+   - by policy
+   - by plugin id
+*/
+
+type FeeCollectionType int
+
+const (
+	FeeCollectionTypeByPublicKey FeeCollectionType = iota
+	FeeCollectionTypeByPolicy
+	FeeCollectionTypeByPluginID
+	FeeCollectionTypeAll
+)
+
+type FeeCollectionFormat struct {
+	FeeCollectionType FeeCollectionType `json:"fee_collection_type"`
+	Value             string            `json:"value"` // will use this as the key value, should be empty string for FeeCollectionTypeAll
 }

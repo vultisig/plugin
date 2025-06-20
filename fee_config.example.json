@@ -1,0 +1,15 @@
+{
+    "type": "fees",
+    "version": "1.0.0",
+    "rpc_url": "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+    "usdc_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "collector_address": "0x0000000000000000000000000000000000000000",
+    "gas": {
+        "limit_multiplier": 1,
+        "price_multiplier": 1
+    },
+    "monitoring": {
+        "timeout_minutes": 30,
+        "check_interval_seconds": 60
+    }
+}
