@@ -76,7 +76,7 @@ func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (FeeHistoryDto, err
 	}
 
 	if feeHistory.Error.Message != "" {
-		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees, error: %s", feeHistory.Error.Message, feeHistory.Error.DetailedResponse)
+		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees, error: %s, details: %s", feeHistory.Error.Message, feeHistory.Error.DetailedResponse)
 	}
 
 	return feeHistory.Data, nil

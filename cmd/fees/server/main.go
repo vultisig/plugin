@@ -61,7 +61,7 @@ func main() {
 		panic(fmt.Errorf("tx_indexer_storage.NewPostgresTxIndexStore: %w", err))
 	}
 
-	txIndexerService := tx_indexer.NewService(
+	_ = tx_indexer.NewService(
 		logger,
 		txIndexerStore,
 		tx_indexer.Chains(),
@@ -95,7 +95,6 @@ func main() {
 		inspector,
 		sdClient,
 		feePlugin,
-		txIndexerService,
 	)
 	if err := server.StartServer(); err != nil {
 		panic(err)
