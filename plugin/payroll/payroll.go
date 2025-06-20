@@ -21,6 +21,7 @@ type PayrollPlugin struct {
 	config           *PluginConfig
 	txIndexerService *tx_indexer.Service
 	client           *asynq.Client
+	inspector        *asynq.Inspector
 }
 
 func NewPayrollPlugin(
@@ -28,6 +29,7 @@ func NewPayrollPlugin(
 	baseConfigPath string,
 	txIndexerService *tx_indexer.Service,
 	client *asynq.Client,
+	inspector *asynq.Inspector,
 ) (*PayrollPlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
@@ -50,6 +52,7 @@ func NewPayrollPlugin(
 		config:           cfg,
 		txIndexerService: txIndexerService,
 		client:           client,
+		inspector:        inspector,
 	}, nil
 }
 

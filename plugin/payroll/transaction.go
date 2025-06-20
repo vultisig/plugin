@@ -98,7 +98,7 @@ func (p *PayrollPlugin) initSign(
 		return fmt.Errorf("json.Marshal: %w", e)
 	}
 
-	signTask, e := p.client.Enqueue(
+	task, e := p.client.Enqueue(
 		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
 		asynq.MaxRetry(0),
 		asynq.Timeout(5*time.Minute),
@@ -115,19 +115,24 @@ func (p *PayrollPlugin) initSign(
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(3 * time.Second):
-			if signTask.State != asynq.TaskStateCompleted {
+			taskInfo, er := p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
+			if er == nil {
+				p.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
+				return fmt.Errorf("p.inspector.GetTaskInfo: %w", er)
+			}
+			if taskInfo.State != asynq.TaskStateCompleted {
 				continue
 			}
-			if signTask.Result == nil {
-				p.logger.Info("signTask.Result is nil, skipping")
+			if taskInfo.Result == nil {
+				p.logger.Info("taskInfo.Result is nil, skipping")
 				return nil
 			}
 
 			var res map[string]tss.KeysignResponse
-			er := json.Unmarshal(signTask.Result, &res)
+			er = json.Unmarshal(taskInfo.Result, &res)
 			if er != nil {
-				p.logger.WithError(er).Error("json.Unmarshal(signTask.Result, &res)")
-				return fmt.Errorf("json.Unmarshal(signTask.Result, &res): %w", er)
+				p.logger.WithError(er).Error("json.Unmarshal(taskInfo.Result, &res)")
+				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
 			}
 
 			var sig tss.KeysignResponse
