@@ -5,10 +5,10 @@ server:
   port: 8081
   verifier_url: "http://localhost:8081"
   base_config_path: /etc/vultisig
-  vaults_file_path: /tmp/plugin/vaults
+  vaults_file_path: test/vaults
   mode: plugin
   plugin:
-    type: dca
+    type: fees
 
 database:
   dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
@@ -36,3 +36,5 @@ block_storage:
 datadog:
   host: localhost
   port: 8125
+
+base_config_path: fee_config.json

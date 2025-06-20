@@ -1,1 +1,1 @@
-CREATE DATABASE "vultisig-plugin";
+CREATE DATABASE IF NOT EXISTS "vultisig-plugin";
