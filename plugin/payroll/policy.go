@@ -2,18 +2,16 @@ package payroll
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	gcommon "github.com/ethereum/go-ethereum/common"
-	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/golang/protobuf/proto"
+	"github.com/vultisig/recipes/chain"
+	"github.com/vultisig/recipes/engine"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 )
@@ -74,63 +72,33 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 		return fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+	recipe, err := policy.GetRecipe()
 	if err != nil {
-		return fmt.Errorf("failed to parse ABI: %v", err)
+		return fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
 
-	var payrollPolicy PayrollPolicy
-	// TODO: convert the recipes to PayrollPolicy
-	for i, tx := range txs {
-		var parsedTx *gtypes.Transaction
-		txBytes, err := hex.DecodeString(tx.Transaction)
-		if err != nil {
-			return fmt.Errorf("failed to decode transaction: %v", err)
-		}
+	eng := engine.NewEngine()
 
-		err = rlp.DecodeBytes(txBytes, &parsedTx)
-		if err != nil {
-			return fmt.Errorf("failed to parse transaction: %v", err)
-		}
-
-		txDestination := parsedTx.To()
-		if txDestination == nil {
-			return fmt.Errorf("transaction destination is nil")
-		}
-
-		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) {
-			// ERC20 transfer tx 'to' is contract address, and 'recipient' encoded in calldata
-			return fmt.Errorf("transaction destination does not match token ID")
-		}
-
-		txData := parsedTx.Data()
-		m, err := parsedABI.MethodById(txData[:4])
-		if err != nil {
-			return fmt.Errorf("failed to get method by ID: %v", err)
-		}
-
-		v := make(map[string]interface{})
-		if err := m.Inputs.UnpackIntoMap(v, txData[4:]); err != nil {
-			return fmt.Errorf("failed to unpack transaction data: %v", err)
-		}
-
-		fmt.Printf("Decoded: %+v\n", v)
-
-		recipientAddress, ok := v["recipient"].(gcommon.Address)
-		if !ok {
-			return fmt.Errorf("failed to get recipient address")
-		}
-
-		var recipientFound bool
-		for _, recipient := range payrollPolicy.Recipients {
-			if strings.EqualFold(recipientAddress.Hex(), recipient.Address) {
-				recipientFound = true
-				break
+	for _, tx := range txs {
+		for _, keysignMessage := range tx.Messages {
+			messageChain, err := chain.GetChain(strings.ToLower(keysignMessage.Chain.String()))
+			if err != nil {
+				return fmt.Errorf("failed to get chain: %w", err)
 			}
-		}
 
-		if !recipientFound {
-			return fmt.Errorf("recipient not found in policy")
+			decodedTx, err := messageChain.ParseTransaction(keysignMessage.Message)
+			if err != nil {
+				return fmt.Errorf("failed to parse transaction: %w", err)
+			}
+
+			transactionAllowed, _, err := eng.Evaluate(recipe, messageChain, decodedTx)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate transaction: %w", err)
+			}
+
+			if !transactionAllowed {
+				return fmt.Errorf("transaction %s on %s not allowed by policy", keysignMessage.Hash, keysignMessage.Chain)
+			}
 		}
 	}
 
