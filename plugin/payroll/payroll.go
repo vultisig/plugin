@@ -9,6 +9,7 @@ import (
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
+	"github.com/vultisig/verifier/vault"
 )
 
 var _ plugin.Plugin = (*PayrollPlugin)(nil)
@@ -22,14 +23,18 @@ type PayrollPlugin struct {
 	txIndexerService *tx_indexer.Service
 	client           *asynq.Client
 	inspector        *asynq.Inspector
+	vaultStorage     vault.Storage
+	encryptionSecret string
 }
 
 func NewPayrollPlugin(
 	db storage.DatabaseStorage,
+	vaultStorage vault.Storage,
 	baseConfigPath string,
 	txIndexerService *tx_indexer.Service,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
+	encryptionSecret string,
 ) (*PayrollPlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
@@ -53,6 +58,8 @@ func NewPayrollPlugin(
 		txIndexerService: txIndexerService,
 		client:           client,
 		inspector:        inspector,
+		vaultStorage:     vaultStorage,
+		encryptionSecret: encryptionSecret,
 	}, nil
 }
 

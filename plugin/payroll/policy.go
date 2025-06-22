@@ -4,9 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
-	"time"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/golang/protobuf/proto"
@@ -15,56 +13,6 @@ import (
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 )
-
-type PayrollPolicy struct {
-	ChainID    []string           `json:"chain_id"`
-	TokenID    []string           `json:"token_id"`
-	Recipients []PayrollRecipient `json:"recipients"`
-	Schedule   Schedule           `json:"schedule"`
-}
-
-type PayrollRecipient struct {
-	Address string `json:"address"`
-	Amount  string `json:"amount"`
-}
-
-// This is duplicated between DCA and Payroll to avoid a
-// circular top-level dependency on the types package
-type Schedule struct {
-	Frequency string `json:"frequency"`
-	Interval  string `json:"interval"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time,omitempty"`
-}
-
-type ScheduleTyped struct {
-	Frequency rtypes.ScheduleFrequency
-	Interval  int
-	StartTime time.Time
-}
-
-func (s Schedule) Typed() (ScheduleTyped, error) {
-	frequency, ok := rtypes.ScheduleFrequency_value[s.Frequency]
-	if !ok {
-		return ScheduleTyped{}, fmt.Errorf("unknown schedule frequency: %s", s.Frequency)
-	}
-
-	interval, err := strconv.Atoi(s.Interval)
-	if err != nil {
-		return ScheduleTyped{}, fmt.Errorf("strconv.Atoi(%s): %w", s.Interval, err)
-	}
-
-	startTime, err := time.Parse(time.RFC3339, s.StartTime)
-	if err != nil {
-		return ScheduleTyped{}, fmt.Errorf("time.Parse(%s): %w", s.StartTime, err)
-	}
-
-	return ScheduleTyped{
-		Frequency: rtypes.ScheduleFrequency(frequency),
-		Interval:  interval,
-		StartTime: startTime,
-	}, nil
-}
 
 func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
 	err := p.ValidatePluginPolicy(policy)
@@ -152,6 +100,7 @@ func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
 	}
 	return nil
 }
+
 func (p *PayrollPlugin) validateSchedule(schedule *rtypes.Schedule) error {
 	if schedule == nil {
 		return fmt.Errorf("schedule is nil")
@@ -170,6 +119,7 @@ func (p *PayrollPlugin) validateSchedule(schedule *rtypes.Schedule) error {
 
 	return nil
 }
+
 func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 	if rule.Effect != rtypes.Effect_EFFECT_ALLOW {
 		return fmt.Errorf("rule effect must be ALLOW, got: %s", rule.Effect)
@@ -196,6 +146,7 @@ func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 	}
 	return nil
 }
+
 func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	if policyDoc.PluginID != vtypes.PluginVultisigPayroll_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", vtypes.PluginVultisigPayroll_0000, policyDoc.PluginID)

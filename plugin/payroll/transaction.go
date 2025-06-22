@@ -13,9 +13,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
+	"github.com/vultisig/recipes/chain"
 	reth "github.com/vultisig/recipes/ethereum"
+	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
@@ -201,47 +204,75 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
-	var payrollPolicy PayrollPolicy
-	// TODO: convert the recipes to PayrollPolicy
+	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, p.encryptionSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
+	}
+
+	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get eth address: %v", err)
+	}
+
+	recipe, err := policy.GetRecipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
+	}
+
+	echain, err := chain.GetChain("ethereum")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ethereum chain: %v", err)
+	}
+
+	ethchain := echain.(*reth.Ethereum)
 
 	chain := vcommon.Ethereum
 
-	schedule, err := payrollPolicy.Schedule.Typed()
-	if err != nil {
-		p.logger.WithError(err).Error("payrollPolicy.Schedule.Typed")
-		return nil, fmt.Errorf("payrollPolicy.Schedule.Typed: %w", err)
-	}
+	schedule := recipe.Schedule
 
 	var (
 		mu  = &sync.Mutex{}
 		txs = make([]vtypes.PluginKeysignRequest, 0)
 	)
 	var eg errgroup.Group
-	for _i, _recipient := range payrollPolicy.Recipients {
-		i := _i
-		recipient := _recipient
+
+	for _, rule := range recipe.Rules {
+		resourcePath, err := rutil.ParseResource(rule.Resource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse resource: %v", err)
+		}
+
+		token, found := ethchain.GetToken(resourcePath.ProtocolId)
+		if !found {
+			return nil, fmt.Errorf("failed to get token: %v", resourcePath.ProtocolId)
+		}
+
+		recipient, amountStr, err := RuleToRecipientAndAmount(rule)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get recipient and amount: %v", err)
+		}
 
 		eg.Go(func() error {
 			isAlreadyProposed, e := p.IsAlreadyProposed(
 				ctx,
 				schedule.Frequency,
-				schedule.StartTime,
-				schedule.Interval,
+				schedule.StartTime.AsTime(),
+				int(schedule.Interval),
 				chain,
 				policy.PluginID,
 				policy.ID,
-				payrollPolicy.TokenID[i],
-				recipient.Address,
+				token.Address,
+				recipient,
 			)
 			if e != nil {
 				return fmt.Errorf("p.IsAlreadyProposed: %w", e)
 			}
 			if isAlreadyProposed {
 				p.logger.WithFields(logrus.Fields{
-					"recipient": recipient.Address,
-					"amount":    recipient.Amount,
-					"chain_id":  payrollPolicy.ChainID[i],
-					"token_id":  payrollPolicy.TokenID[i],
+					"recipient": recipient,
+					"amount":    amountStr,
+					"chain_id":  chain,
+					"token_id":  token.Address,
 				}).Info("transaction already proposed, skipping")
 				return nil
 			}
@@ -249,10 +280,10 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 			tx, e := p.genUnsignedTx(
 				ctx,
 				chain,
-				policy.PublicKey,
-				payrollPolicy.TokenID[i],
-				recipient.Amount,
-				recipient.Address,
+				ethAddress,
+				token.Address,
+				amountStr,
+				recipient,
 			)
 			if e != nil {
 				return fmt.Errorf("p.genUnsignedTx: %w", e)
@@ -264,9 +295,9 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 				PluginID:      policy.PluginID,
 				PolicyID:      policy.ID,
 				ChainID:       chain,
-				TokenID:       payrollPolicy.TokenID[i],
+				TokenID:       token.Address,
 				FromPublicKey: policy.PublicKey,
-				ToPublicKey:   recipient.Address,
+				ToPublicKey:   recipient,
 				ProposedTxHex: txHex,
 			})
 			if e != nil {
@@ -403,14 +434,14 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 func (p *PayrollPlugin) genUnsignedTx(
 	ctx context.Context,
 	chain vcommon.Chain,
-	senderPublicKey, tokenID, amount, to string,
+	senderAddress, tokenID, amount, to string,
 ) ([]byte, error) {
 	switch chain {
 	case vcommon.Ethereum:
 		tx, err := p.evmMakeUnsignedTransfer(
 			ctx,
 			ethereumEvmChainID,
-			senderPublicKey,
+			senderAddress,
 			tokenID,
 			amount,
 			to,
@@ -577,7 +608,7 @@ func (p *PayrollPlugin) evmEstimateTx(
 func (p *PayrollPlugin) evmMakeUnsignedTransfer(
 	ctx context.Context,
 	evmChainID *big.Int,
-	senderPublicKey, tokenIDStr, amountStr, toStr string,
+	senderAddress, tokenIDStr, amountStr, toStr string,
 ) ([]byte, error) {
 	amount, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
@@ -608,14 +639,11 @@ func (p *PayrollPlugin) evmMakeUnsignedTransfer(
 		data = d
 	}
 
-	senderAddressHex, err := address.GetEVMAddress(senderPublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("address.GetEVMAddress: %v", err)
-	}
+	senderAddressHex := gcommon.HexToAddress(senderAddress)
 
 	nonce, gasLimit, gasTipCap, maxFeePerGas, accessList, err := p.evmEstimateTx(
 		ctx,
-		gcommon.HexToAddress(senderAddressHex),
+		senderAddressHex,
 		tokenID,
 		value,
 		data,
@@ -639,4 +667,39 @@ func (p *PayrollPlugin) evmMakeUnsignedTransfer(
 		return nil, fmt.Errorf("evmEncodeUnsignedDynamicFeeTx: %v", err)
 	}
 	return bytes, nil
+}
+
+func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
+	var recipient string
+	var amountStr string
+
+	if len(rule.ParameterConstraints) == 0 {
+		return "", "", fmt.Errorf("no parameter constraints found")
+	}
+
+	if len(rule.ParameterConstraints) > 2 {
+		return "", "", fmt.Errorf("too many parameter constraints found")
+	}
+
+	for _, constraint := range rule.ParameterConstraints {
+		if constraint.ParameterName == "recipient" {
+			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+				return "", "", fmt.Errorf("recipient constraint is not a fixed value")
+			}
+
+			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
+			recipient = fixedValue.FixedValue
+		}
+
+		if constraint.ParameterName == "amount" {
+			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+				return "", "", fmt.Errorf("amount constraint is not a fixed value")
+			}
+
+			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
+			amountStr = fixedValue.FixedValue
+		}
+	}
+
+	return recipient, amountStr, nil
 }
