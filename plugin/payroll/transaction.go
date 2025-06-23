@@ -398,8 +398,6 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 						ParameterName: "amount",
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX_PER_PERIOD,
 						},
 						Required: true,
 					},
@@ -407,7 +405,6 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 						ParameterName: "token",
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
 						},
 						Required: true,
 					},
