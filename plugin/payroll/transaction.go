@@ -2,6 +2,7 @@ package payroll
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -40,6 +42,8 @@ import (
 const (
 	hexEncryptionKey = "hexencryptionkey"
 )
+
+const signPollInterval = 3 * time.Second
 
 var ethereumEvmChainID = big.NewInt(1)
 
@@ -114,7 +118,7 @@ func (p *PayrollPlugin) initSign(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(3 * time.Second):
+		case <-time.After(signPollInterval):
 			taskInfo, er := p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
 			if er != nil {
 				p.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
@@ -201,10 +205,78 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
-	var payrollPolicy PayrollPolicy
-	// TODO: convert the recipes to PayrollPolicy
+	policyBytes, err := base64.RawStdEncoding.DecodeString(policy.Recipe)
+	if err != nil {
+		return nil, fmt.Errorf("base64.RawStdEncoding.DecodeString: %w", err)
+	}
 
-	chain := vcommon.Ethereum
+	var policyProto rtypes.Policy
+	err = proto.Unmarshal(policyBytes, &policyProto)
+	if err != nil {
+		return nil, fmt.Errorf("proto.Unmarshal: %w", err)
+	}
+
+	var (
+		chains     []string
+		tokens     []string
+		recipients []PayrollRecipient
+	)
+	for _, rule := range policyProto.GetRules() {
+		recipient, ok := rule.GetConstraints()["recipient"]
+		if !ok {
+			return nil, fmt.Errorf("rule constraints must contain 'recipient'")
+		}
+
+		var toAddresses []string
+		switch recipient.Type {
+		case rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED:
+			toAddresses = []string{recipient.GetFixedValue()}
+		case rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST:
+			toAddresses = recipient.GetWhitelistValues().GetValues()
+		default:
+			return nil, fmt.Errorf(
+				"recipient must be of type CONSTRAINT_TYPE_FIXED/WHITELIST, got: %s",
+				recipient.Type,
+			)
+		}
+
+		amount, ok := rule.GetConstraints()["amount"]
+		if !ok {
+			return nil, fmt.Errorf("rule constraints must contain 'amount'")
+		}
+		if amount.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+			return nil, fmt.Errorf("amount must be of type CONSTRAINT_TYPE_FIXED, got: %s", amount)
+		}
+
+		token, ok := rule.GetConstraints()["token"]
+		if !ok {
+			return nil, fmt.Errorf("rule constraints must contain 'token'")
+		}
+		if token.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+			return nil, fmt.Errorf("token must be of type CONSTRAINT_TYPE_FIXED, got: %s", token)
+		}
+
+		for _, addr := range toAddresses {
+			chains = append(chains, strconv.Itoa(int(vcommon.Ethereum)))
+			tokens = append(tokens, token.GetFixedValue())
+			recipients = append(recipients, PayrollRecipient{
+				Address: addr,
+				Amount:  amount.GetFixedValue(),
+			})
+		}
+	}
+
+	payrollPolicy := PayrollPolicy{
+		ChainID:    chains,
+		TokenID:    tokens,
+		Recipients: recipients,
+		Schedule: Schedule{
+			Frequency: policyProto.GetSchedule().GetFrequency().String(),
+			Interval:  strconv.Itoa(int(policyProto.GetSchedule().GetInterval())),
+			StartTime: policyProto.GetSchedule().GetStartTime().AsTime().Format(time.RFC3339),
+			EndTime:   policyProto.GetSchedule().GetEndTime().AsTime().Format(time.RFC3339),
+		},
+	}
 
 	schedule, err := payrollPolicy.Schedule.Typed()
 	if err != nil {
@@ -222,6 +294,12 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		recipient := _recipient
 
 		eg.Go(func() error {
+			chainRaw, e := strconv.Atoi(payrollPolicy.ChainID[i])
+			if e != nil {
+				return fmt.Errorf("strconv.Atoi(payrollPolicy.ChainID[%d]): %w", i, e)
+			}
+			chain := vcommon.Chain(chainRaw)
+
 			isAlreadyProposed, e := p.IsAlreadyProposed(
 				ctx,
 				schedule.Frequency,
@@ -367,8 +445,6 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 						ParameterName: "amount",
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX_PER_PERIOD,
 						},
 						Required: true,
 					},
@@ -376,7 +452,6 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 						ParameterName: "token",
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
 						},
 						Required: true,
 					},
