@@ -21,7 +21,8 @@ type PayrollWorkerConfig struct {
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
-	BaseConfigPath string `mapstructure:"base_file_path" json:"base_file_path,omitempty"`
+	BaseConfigPath   string `mapstructure:"base_file_path" json:"base_file_path,omitempty"`
+	EncryptionSecret string `mapstructure:"encryption_secret" json:"encryption_secret,omitempty"`
 }
 
 func GetConfigure() (*PayrollWorkerConfig, error) {

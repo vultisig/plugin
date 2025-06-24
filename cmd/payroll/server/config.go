@@ -23,6 +23,7 @@ type PayrollServerConfig struct {
 		Host string `mapstructure:"host" json:"host,omitempty"`
 		Port string `mapstructure:"port" json:"port,omitempty"`
 	} `mapstructure:"datadog" json:"datadog"`
+	EncryptionSecret string `mapstructure:"encryption_secret" json:"encryption_secret,omitempty"`
 }
 
 func GetConfigure() (*PayrollServerConfig, error) {

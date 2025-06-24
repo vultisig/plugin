@@ -2,71 +2,17 @@ package payroll
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
-	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	gcommon "github.com/ethereum/go-ethereum/common"
-	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/golang/protobuf/proto"
+	"github.com/vultisig/recipes/chain"
+	"github.com/vultisig/recipes/engine"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 )
-
-type PayrollPolicy struct {
-	ChainID    []string           `json:"chain_id"`
-	TokenID    []string           `json:"token_id"`
-	Recipients []PayrollRecipient `json:"recipients"`
-	Schedule   Schedule           `json:"schedule"`
-}
-
-type PayrollRecipient struct {
-	Address string `json:"address"`
-	Amount  string `json:"amount"`
-}
-
-// This is duplicated between DCA and Payroll to avoid a
-// circular top-level dependency on the types package
-type Schedule struct {
-	Frequency string `json:"frequency"`
-	Interval  string `json:"interval"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time,omitempty"`
-}
-
-type ScheduleTyped struct {
-	Frequency rtypes.ScheduleFrequency
-	Interval  int
-	StartTime time.Time
-}
-
-func (s Schedule) Typed() (ScheduleTyped, error) {
-	frequency, ok := rtypes.ScheduleFrequency_value[s.Frequency]
-	if !ok {
-		return ScheduleTyped{}, fmt.Errorf("unknown schedule frequency: %s", s.Frequency)
-	}
-
-	interval, err := strconv.Atoi(s.Interval)
-	if err != nil {
-		return ScheduleTyped{}, fmt.Errorf("strconv.Atoi(%s): %w", s.Interval, err)
-	}
-
-	startTime, err := time.Parse(time.RFC3339, s.StartTime)
-	if err != nil {
-		return ScheduleTyped{}, fmt.Errorf("time.Parse(%s): %w", s.StartTime, err)
-	}
-
-	return ScheduleTyped{
-		Frequency: rtypes.ScheduleFrequency(frequency),
-		Interval:  interval,
-		StartTime: startTime,
-	}, nil
-}
 
 func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
 	err := p.ValidatePluginPolicy(policy)
@@ -74,63 +20,33 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 		return fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+	recipe, err := policy.GetRecipe()
 	if err != nil {
-		return fmt.Errorf("failed to parse ABI: %v", err)
+		return fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
 
-	var payrollPolicy PayrollPolicy
-	// TODO: convert the recipes to PayrollPolicy
-	for i, tx := range txs {
-		var parsedTx *gtypes.Transaction
-		txBytes, err := hex.DecodeString(tx.Transaction)
-		if err != nil {
-			return fmt.Errorf("failed to decode transaction: %v", err)
-		}
+	eng := engine.NewEngine()
 
-		err = rlp.DecodeBytes(txBytes, &parsedTx)
-		if err != nil {
-			return fmt.Errorf("failed to parse transaction: %v", err)
-		}
-
-		txDestination := parsedTx.To()
-		if txDestination == nil {
-			return fmt.Errorf("transaction destination is nil")
-		}
-
-		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID[i]) {
-			// ERC20 transfer tx 'to' is contract address, and 'recipient' encoded in calldata
-			return fmt.Errorf("transaction destination does not match token ID")
-		}
-
-		txData := parsedTx.Data()
-		m, err := parsedABI.MethodById(txData[:4])
-		if err != nil {
-			return fmt.Errorf("failed to get method by ID: %v", err)
-		}
-
-		v := make(map[string]interface{})
-		if err := m.Inputs.UnpackIntoMap(v, txData[4:]); err != nil {
-			return fmt.Errorf("failed to unpack transaction data: %v", err)
-		}
-
-		fmt.Printf("Decoded: %+v\n", v)
-
-		recipientAddress, ok := v["recipient"].(gcommon.Address)
-		if !ok {
-			return fmt.Errorf("failed to get recipient address")
-		}
-
-		var recipientFound bool
-		for _, recipient := range payrollPolicy.Recipients {
-			if strings.EqualFold(recipientAddress.Hex(), recipient.Address) {
-				recipientFound = true
-				break
+	for _, tx := range txs {
+		for _, keysignMessage := range tx.Messages {
+			messageChain, err := chain.GetChain(strings.ToLower(keysignMessage.Chain.String()))
+			if err != nil {
+				return fmt.Errorf("failed to get chain: %w", err)
 			}
-		}
 
-		if !recipientFound {
-			return fmt.Errorf("recipient not found in policy")
+			decodedTx, err := messageChain.ParseTransaction(keysignMessage.Message)
+			if err != nil {
+				return fmt.Errorf("failed to parse transaction: %w", err)
+			}
+
+			transactionAllowed, _, err := eng.Evaluate(recipe, messageChain, decodedTx)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate transaction: %w", err)
+			}
+
+			if !transactionAllowed {
+				return fmt.Errorf("transaction %s on %s not allowed by policy", keysignMessage.Hash, keysignMessage.Chain)
+			}
 		}
 	}
 
@@ -184,6 +100,7 @@ func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
 	}
 	return nil
 }
+
 func (p *PayrollPlugin) validateSchedule(schedule *rtypes.Schedule) error {
 	if schedule == nil {
 		return fmt.Errorf("schedule is nil")
@@ -202,6 +119,7 @@ func (p *PayrollPlugin) validateSchedule(schedule *rtypes.Schedule) error {
 
 	return nil
 }
+
 func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 	if rule.Effect != rtypes.Effect_EFFECT_ALLOW {
 		return fmt.Errorf("rule effect must be ALLOW, got: %s", rule.Effect)
@@ -228,6 +146,7 @@ func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 	}
 	return nil
 }
+
 func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	if policyDoc.PluginID != vtypes.PluginVultisigPayroll_0000 {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", vtypes.PluginVultisigPayroll_0000, policyDoc.PluginID)
