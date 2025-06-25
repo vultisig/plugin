@@ -44,7 +44,8 @@ type BaseConfig struct {
 var _ plugin.Plugin = (*FeePlugin)(nil)
 
 type FeePlugin struct {
-	vaultService *vault.ManagementService
+	vaultService *vault.ManagementService //TODO garry - not sure if this is needed yet. For now a null pointer
+	vaultStorage *vault.BlockStorageImp
 	db           storage.DatabaseStorage
 	rpcClient    *ethclient.Client
 	logger       logrus.FieldLogger
@@ -53,7 +54,7 @@ type FeePlugin struct {
 }
 
 // TODO garry, this needs work
-func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, feeConfig *FeeConfig) (*FeePlugin, error) {
+func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, feeConfig *FeeConfig) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -67,17 +68,22 @@ func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseCon
 		return nil, fmt.Errorf("logger must be *logrus.Logger, got %T", logger)
 	}
 
+	if vaultStorage == nil {
+		return nil, fmt.Errorf("vault storage cannot be nil")
+	}
+
 	verifierApi := verifierapi.NewVerifierApi(feeConfig.VerifierUrl, logger.(*logrus.Logger))
 	if verifierApi == nil {
 		return nil, fmt.Errorf("failed to create verifier api")
 	}
 
 	return &FeePlugin{
-		db:          db,
-		rpcClient:   rpcClient,
-		logger:      logger.WithField("plugin", "fees"),
-		config:      feeConfig,
-		verifierApi: verifierApi,
+		db:           db,
+		rpcClient:    rpcClient,
+		logger:       logger.WithField("plugin", "fees"),
+		config:       feeConfig,
+		verifierApi:  verifierApi,
+		vaultStorage: vaultStorage,
 	}, nil
 }
 
@@ -135,6 +141,7 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 	switch feeCollectionFormat.FeeCollectionType {
 	case FeeCollectionTypeByPublicKey:
 		fp.Log(logrus.InfoLevel, "Collecting fees by public key")
+		return fp.collectFeesByPublicKey(feeCollectionFormat.Value)
 	case FeeCollectionTypeByPolicy:
 		fp.Log(logrus.InfoLevel, "Collecting fees by policy")
 		return fp.collectFeesByPolicy(feeCollectionFormat.Value)
@@ -142,6 +149,7 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 		fp.Log(logrus.InfoLevel, "Collecting fees by plugin id")
 	case FeeCollectionTypeAll:
 		fp.Log(logrus.InfoLevel, "Collecting fees by all")
+		return fp.collectAllFees()
 	default:
 		fp.Log(logrus.ErrorLevel, "Invalid fee collection type")
 		return fmt.Errorf("invalid fee collection type")
@@ -154,10 +162,45 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 
 // Collects fee data by ... Should only be called by HandleFeeCollections
 func (fp *FeePlugin) collectFeesByPublicKey(publicKey string) error {
+	// TODO: implement logic
+	fp.Log(logrus.DebugLevel, "Collecting fees by policy: ")
+	feesResponse, err := fp.verifierApi.GetPublicKeysFees(publicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get plugin policy fees: %w", err)
+	}
+
+	fp.logger.Debug("Fees response: ", feesResponse)
+
+	if feesResponse.FeesPendingCollection > 0 {
+		fp.Log(logrus.InfoLevel, "Fees pending collection: ", feesResponse.FeesPendingCollection)
+
+		feesToCollect := []uuid.UUID{}
+		checkAmount := 0
+		for _, fee := range feesResponse.Fees {
+			fp.Log(logrus.DebugLevel, "Fee: ", fee)
+			if !fee.Collected {
+				feesToCollect = append(feesToCollect, fee.ID)
+				checkAmount += fee.Amount
+			}
+		}
+		if checkAmount != feesResponse.FeesPendingCollection {
+			fp.Log(logrus.ErrorLevel, "Fees pending collection amount does not match the sum of the fees")
+			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
+		}
+
+		fp.buildUSDCEthFeeTransaction(publicKey, feesToCollect, checkAmount)
+
+		fp.Log(logrus.InfoLevel, "Fees to collect: ", feesToCollect)
+
+	} else {
+		fp.Log(logrus.InfoLevel, "No fees pending collection")
+	}
+
 	return nil
 }
 
 // Collects fee data by ... Should only be called by HandleFeeCollections
+// Not yet working
 func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
 	// TODO: implement logic
 	fp.Log(logrus.DebugLevel, "Collecting fees by policy: ")
@@ -189,7 +232,9 @@ func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
 			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
 		}
 
-		fp.Log(logrus.InfoLevel, "Fees to collect: ", feesToCollect)
+		// fp.buildUSDCEthFeeTransaction(feesToCollect)
+
+		// fp.Log(logrus.InfoLevel, "Fees to collect: ", feesToCollect)
 
 	} else {
 		fp.Log(logrus.InfoLevel, "No fees pending collection")
@@ -205,7 +250,43 @@ func (fp *FeePlugin) collectFeesByPluginID(pluginId string) error {
 }
 
 // Collects fee data by ... Should only be called by HandleFeeCollections
-func (fp *FeePlugin) collectFeesByAll() error {
-	// TODO: implement logic
+func (fp *FeePlugin) collectAllFees() error {
+	fp.Log(logrus.DebugLevel, "Collecting all fees")
+	feesResponse, err := fp.verifierApi.GetAllPublicKeysFees()
+	if err != nil {
+		return fmt.Errorf("failed to get plugin policy fees: %w", err)
+	}
+
+	fp.logger.Debug("Fees response: ", feesResponse)
+
+	for publicKey, feeHistory := range feesResponse {
+		fp.Log(logrus.DebugLevel, "Public key: ", publicKey)
+		fp.Log(logrus.DebugLevel, "Fee history: ", feeHistory)
+
+		if feeHistory.FeesPendingCollection > 0 {
+			fp.Log(logrus.InfoLevel, "Fees pending collection: ", feeHistory.FeesPendingCollection)
+
+			feesToCollect := []uuid.UUID{}
+			checkAmount := 0
+			for _, fee := range feeHistory.Fees {
+				fp.Log(logrus.DebugLevel, "Fee: ", fee)
+				if !fee.Collected {
+					feesToCollect = append(feesToCollect, fee.ID)
+					checkAmount += fee.Amount
+				}
+			}
+			if checkAmount != feeHistory.FeesPendingCollection {
+				fp.Log(logrus.ErrorLevel, "Fees pending collection amount does not match the sum of the fees")
+				return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
+			}
+
+			fp.buildUSDCEthFeeTransaction(publicKey, feesToCollect, checkAmount)
+			fp.Log(logrus.InfoLevel, "Fees to collect: ", feesToCollect)
+
+		} else {
+			fp.Log(logrus.InfoLevel, "No fees pending collection for public key: ", publicKey)
+		}
+	}
+
 	return nil
 }

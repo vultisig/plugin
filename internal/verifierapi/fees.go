@@ -81,3 +81,70 @@ func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (FeeHistoryDto, err
 
 	return feeHistory.Data, nil
 }
+
+// TODO add auth
+func (v VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (FeeHistoryDto, error) {
+	url := fmt.Sprintf("/fees/publickey/%s", ecdsaPublicKey)
+	v.logger.Debug("Getting public key fees for public key: ", ecdsaPublicKey)
+	v.logger.Debug("URL: ", url)
+	response, err := v.get(url)
+	if err != nil {
+		v.logger.WithError(err).Error("failed to get public key fees")
+		return FeeHistoryDto{}, fmt.Errorf("failed to get public key fees: %w", err)
+	}
+
+	//TODO - this probably shouldn't be a 404, just an empty wrapped response with 0
+	if response.StatusCode == http.StatusNotFound {
+		v.logger.WithError(fmt.Errorf("public key not found")).Error("public key not found for id: ", ecdsaPublicKey)
+		return FeeHistoryDto{}, fmt.Errorf("public key not found")
+	}
+
+	if response.StatusCode != http.StatusOK {
+		v.logger.WithError(err).Error("failed to get public key fees")
+		fmt.Println(response.StatusCode)
+		return FeeHistoryDto{}, fmt.Errorf("failed to get public key fees, status code: %d", response.StatusCode)
+	}
+
+	var feeHistory APIResponse[FeeHistoryDto]
+	if err := json.NewDecoder(response.Body).Decode(&feeHistory); err != nil {
+		return FeeHistoryDto{}, fmt.Errorf("failed to decode public key fees response: %w", err)
+	}
+
+	if feeHistory.Error.Message != "" {
+		return FeeHistoryDto{}, fmt.Errorf("failed to get public key fees, error: %s, details: %s", feeHistory.Error.Message, feeHistory.Error.DetailedResponse)
+	}
+
+	return feeHistory.Data, nil
+}
+
+func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
+	url := "/fees/all"
+	v.logger.Debug("Getting all public key fees")
+	v.logger.Debug("URL: ", url)
+	response, err := v.get(url)
+	if err != nil {
+		v.logger.WithError(err).Error("failed to get all public key fees")
+		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees: %w", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		v.logger.WithError(err).Error("failed to get all public key fees")
+		fmt.Println(response.StatusCode)
+		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, status code: %d", response.StatusCode)
+	}
+
+	resp := map[string]FeeHistoryDto{}
+	feeHistory := APIResponse[map[string]FeeHistoryDto]{
+		Data: resp,
+	}
+
+	if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
+		return resp, fmt.Errorf("failed to decode all public key fees response: %w", err)
+	}
+
+	if feeHistory.Error.Message != "" {
+		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, error: %s, details: %s", feeHistory.Error.Message, feeHistory.Error.DetailedResponse)
+	}
+
+	return feeHistory.Data, nil
+}
