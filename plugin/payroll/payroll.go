@@ -7,6 +7,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/storage"
+	"github.com/vultisig/recipes/sdk/evm"
+	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/vault"
@@ -16,8 +18,7 @@ var _ plugin.Plugin = (*PayrollPlugin)(nil)
 
 type PayrollPlugin struct {
 	db               storage.DatabaseStorage
-	nonceManager     *NonceManager
-	rpcClient        *ethclient.Client
+	eth              *evm.SDK
 	logger           logrus.FieldLogger
 	config           *PluginConfig
 	txIndexerService *tx_indexer.Service
@@ -49,10 +50,14 @@ func NewPayrollPlugin(
 		return nil, err
 	}
 
+	ethEvmChainID, err := common.Ethereum.EvmID()
+	if err != nil {
+		return nil, fmt.Errorf("common.Ethereum.EvmID: %w", err)
+	}
+
 	return &PayrollPlugin{
 		db:               db,
-		rpcClient:        rpcClient,
-		nonceManager:     NewNonceManager(rpcClient),
+		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
 		logger:           logrus.WithField("plugin", "payroll"),
 		config:           cfg,
 		txIndexerService: txIndexerService,
@@ -61,8 +66,4 @@ func NewPayrollPlugin(
 		vaultStorage:     vaultStorage,
 		encryptionSecret: encryptionSecret,
 	}, nil
-}
-
-func (p *PayrollPlugin) GetNextNonce(address string) (uint64, error) {
-	return p.nonceManager.GetNextNonce(address)
 }
