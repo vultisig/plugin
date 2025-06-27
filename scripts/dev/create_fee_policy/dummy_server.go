@@ -24,9 +24,9 @@ type FeesServerConfig struct {
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
-	BaseConfigPath string                          `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
-	Redis          storage.RedisConfig             `mapstructure:"redis" json:"redis,omitempty"`
-	BlockStorage   vault_config.BlockStorageConfig `mapstructure:"block_storage" json:"block_storage,omitempty"`
+	BaseConfigPath string                    `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
+	Redis          storage.RedisConfig       `mapstructure:"redis" json:"redis,omitempty"`
+	BlockStorage   vault_config.BlockStorage `mapstructure:"block_storage" json:"block_storage,omitempty"`
 	Datadog        struct {
 		Host string `mapstructure:"host" json:"host,omitempty"`
 		Port string `mapstructure:"port" json:"port,omitempty"`
