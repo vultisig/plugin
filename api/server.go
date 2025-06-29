@@ -112,6 +112,7 @@ func (s *Server) StartServer() error {
 	grp.GET("/exist/:pluginId/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
 	grp.POST("/sign", s.SignMessages)                         // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult)     // Get keysign result
+	grp.DELETE("/:pluginId/:publicKeyECDSA", s.DeleteVault)   // Delete Vault
 
 	pluginGroup := e.Group("/plugin")
 
@@ -295,6 +296,25 @@ func (s *Server) GetKeysignResult(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, result)
+}
+func (s *Server) DeleteVault(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return c.JSON(http.StatusBadRequest, NewErrorResponse("public key is required"))
+	}
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	pluginId := c.Param("pluginId")
+	if pluginId == "" {
+		return c.JSON(http.StatusBadRequest, NewErrorResponse("pluginId is required"))
+	}
+
+	fileName := vcommon.GetVaultBackupFilename(publicKeyECDSA, pluginId)
+	if err := s.vaultStorage.DeleteFile(fileName); err != nil {
+		return c.JSON(http.StatusInternalServerError, NewErrorResponse(err.Error()))
+	}
+	return c.NoContent(http.StatusOK)
 }
 
 func (s *Server) isValidHash(hash string) bool {
