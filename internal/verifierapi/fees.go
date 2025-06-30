@@ -40,13 +40,16 @@ type FeeDto struct {
 	ChargedAt   string    `json:"charged_on" validate:"required"` // "tx" or "recurring"
 	Collected   bool      `json:"collected" validate:"required"`  // true if the fee is collected, false if it's just a record
 	CollectedAt string    `json:"collected_at"`                   // timestamp when the fee was collected
+	PublicKey   string    `json:"public_key" validate:"required"`
+	PolicyId    uuid.UUID `json:"policy_id" validate:"required"`
+	PluginId    string    `json:"plugin_id" validate:"required"`
 }
 
 type FeeHistoryDto struct {
-	PolicyId              uuid.UUID `json:"policy_id" validate:"required"`
-	Fees                  []FeeDto  `json:"fees" validate:"required"`
-	TotalFeesIncurred     int       `json:"total_fees_incurred" validate:"required"`     // Total fees incurred in the smallest unit, e.g., "1000000" for 0.01 VULTI
-	FeesPendingCollection int       `json:"fees_pending_collection" validate:"required"` // Total fees pending collection in the smallest unit, e.g., "1000000" for 0.01 VULTI
+	// PolicyId              uuid.UUID `json:"policy_id" validate:"required"`
+	Fees                  []FeeDto `json:"fees" validate:"required"`
+	TotalFeesIncurred     int      `json:"total_fees_incurred" validate:"required"`     // Total fees incurred in the smallest unit, e.g., "1000000" for 0.01 VULTI
+	FeesPendingCollection int      `json:"fees_pending_collection" validate:"required"` // Total fees pending collection in the smallest unit, e.g., "1000000" for 0.01 VULTI
 }
 
 // TODO add auth
@@ -133,18 +136,14 @@ func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
 		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, status code: %d", response.StatusCode)
 	}
 
-	resp := map[string]FeeHistoryDto{}
-	feeHistory := APIResponse[map[string]FeeHistoryDto]{
-		Data: resp,
+	var apiResponse APIResponse[map[string]FeeHistoryDto]
+	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
+		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to decode all public key fees response: %w", err)
 	}
 
-	if err := json.NewDecoder(response.Body).Decode(&resp); err != nil {
-		return resp, fmt.Errorf("failed to decode all public key fees response: %w", err)
+	if apiResponse.Error.Message != "" {
+		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, error: %s, details: %s", apiResponse.Error.Message, apiResponse.Error.DetailedResponse)
 	}
 
-	if feeHistory.Error.Message != "" {
-		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, error: %s, details: %s", feeHistory.Error.Message, feeHistory.Error.DetailedResponse)
-	}
-
-	return feeHistory.Data, nil
+	return apiResponse.Data, nil
 }

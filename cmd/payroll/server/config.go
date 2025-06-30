@@ -8,12 +8,12 @@ import (
 	"github.com/spf13/viper"
 	"github.com/vultisig/verifier/vault_config"
 
-	"github.com/vultisig/plugin/api"
+	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/storage"
 )
 
 type PayrollServerConfig struct {
-	Server   api.ServerConfig `mapstructure:"server" json:"server"`
+	Server   common.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`

@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"runtime/debug"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -83,17 +82,11 @@ func main() {
 	flag.StringVar(&privateKey, "private-key", privateKey, "The private key of the policy (eth derived private key)")
 
 	// script helpers
-	insertIntoVault := false
-	vaultPath := "example.vult"
 	createPolicyInDb := true
-	flag.BoolVar(&insertIntoVault, "insert-into-vault", insertIntoVault, "Whether to insert the policy into the vault")
-	flag.StringVar(&vaultPath, "vault-path", vaultPath, "The path to the vault")
 	flag.BoolVar(&createPolicyInDb, "create-policy-in-db", createPolicyInDb, "Whether to create the policy in the database")
 
 	//--collector "0x214D6fe391ca1e87A3bf3D2b0086c2D40c4c67D7" --public-key "03a1a78bb50bd7acc6f0a56778b7f6529192dbe05e85b07a828b9d0941694e2945" --private-key "b1e5c04430f79e8fce0a64d0131e20842df8e878179433b3256a616230533573"
 	flag.Parse()
-
-	fmt.Println(insertIntoVault, createPolicyInDb, vaultPath)
 
 	transferRule := rtypes.Rule{
 		Id:          "allow-usdc-transfer-to-collector",
@@ -107,6 +100,13 @@ func main() {
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: collectorAddress,
 					},
+					Required: true,
+				},
+			},
+			&rtypes.ParameterConstraint{
+				ParameterName: "amount",
+				Constraint: &rtypes.Constraint{
+					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_UNSPECIFIED,
 					Required: true,
 				},
 			},
@@ -141,36 +141,7 @@ func main() {
 	fmt.Println(string(json))
 	//POLICY CREATION IS DONE ABOVE HERE. BELOW HERE ARE ADDITIONAL DB/VAULT HELPERS
 
-	server, vaultStorage, _ := createDummyServer()
-
-	if insertIntoVault {
-		file, err := os.ReadFile(vaultPath)
-		if err != nil {
-			panic(err)
-		}
-
-		v, byts, err := DecryptVaultFromBackup("888717", file)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(v.PublicKeyEcdsa)
-
-		vaultFileName := vcommon.GetVaultBackupFilename(v.PublicKeyEcdsa, string(pluginPolicy.PluginID))
-		exists, err := vaultStorage.Exist(vaultFileName)
-		if err != nil {
-			panic(err)
-		}
-
-		if !exists {
-			if err := vaultStorage.SaveVault(vaultFileName, byts); err != nil {
-				panic(err)
-			}
-			fmt.Printf("Vault saved to %s\n", vaultFileName)
-		} else {
-			fmt.Println("Vault already exists")
-		}
-	}
+	server, _, _ := createDummyServer()
 
 	if createPolicyInDb {
 		// Create a mock echo context with the policy in the request body

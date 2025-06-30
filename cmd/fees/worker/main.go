@@ -13,6 +13,7 @@ import (
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 
+	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -21,10 +22,11 @@ import (
 func main() {
 	ctx := context.Background()
 
-	cfg, err := GetConfigure()
-	if err != nil {
+	if err := common.LoadConfig(); err != nil {
 		panic(err)
 	}
+
+	cfg := common.GetConfig()
 
 	sdClient, err := statsd.New(cfg.Datadog.Host + ":" + cfg.Datadog.Port)
 	if err != nil {
@@ -85,7 +87,7 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, feePluginConfig)
+	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, feePluginConfig)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}
@@ -109,17 +111,11 @@ func main() {
 		logger.Info("Enqueueing Task")
 
 		payload, err := json.Marshal(fees.FeeCollectionFormat{
-			FeeCollectionType: fees.FeeCollectionTypeByPolicy,
-			Value:             "00000000-0000-0000-0000-000000000001",
+			FeeCollectionType: fees.FeeCollectionTypeAll,
 		})
 
 		if err != nil {
 			logger.WithError(err).Error("Failed to marshal fee collection config in demo run")
-			return
-		}
-
-		if err != nil {
-			logger.WithError(err).Error("Failed to marshal fee collection config")
 			return
 		}
 

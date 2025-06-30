@@ -2,21 +2,33 @@ package fees
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/scheduler"
+	plugincommon "github.com/vultisig/plugin/plugin/common"
+	"github.com/vultisig/recipes/chain"
+	reth "github.com/vultisig/recipes/ethereum"
+	rtypes "github.com/vultisig/recipes/types"
+	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 )
 
-func (fp *FeePlugin) buildUSDCEthFeeTransaction(ecdsaPublicKey string, feeIds []uuid.UUID, amount int) (vtypes.PluginKeysignRequest, error) {
+func (fp *FeePlugin) buildUSDCEthFeeTransaction(vault *v1.Vault, amount int) (vtypes.PluginKeysignRequest, error) {
 	//TODO should amount be non negative
 	// derivePath := common.Ethereum.GetDerivePath()
 	erc20ABI, err := abi.JSON(strings.NewReader(erc20ABI))
@@ -24,12 +36,14 @@ func (fp *FeePlugin) buildUSDCEthFeeTransaction(ecdsaPublicKey string, feeIds []
 		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to parse erc20 abi: %w", err)
 	}
 
-	vault, _ := fp.vaultStorage.GetVault("TODO FILENAME")
+	ethFromAddressString, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
+	if err != nil {
+		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to get eth from address: %w", err)
+	}
 
-	//TODO wrong
-	chainCode := string(vault)
+	ethFromAddress := ecommon.HexToAddress(ethFromAddressString)
 
-	ethFromAddressString, _, _, err := address.GetAddress(ecdsaPublicKey, chainCode, vcommon.Ethereum)
+	nonce, err := fp.rpcClient.PendingNonceAt(context.Background(), ethFromAddress)
 	if err != nil {
 		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to get eth from address: %w", err)
 	}
@@ -40,9 +54,6 @@ func (fp *FeePlugin) buildUSDCEthFeeTransaction(ecdsaPublicKey string, feeIds []
 		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to pack erc20 abi: %w", err)
 	}
 
-	ethFromAddress := ecommon.HexToAddress(ethFromAddressString)
-	nonce, err := fp.rpcClient.PendingNonceAt(context.Background(), ethFromAddress)
-
 	gasPrice, err := fp.rpcClient.SuggestGasPrice(context.Background())
 	if err != nil {
 		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to suggest gas price: %w", err)
@@ -50,20 +61,220 @@ func (fp *FeePlugin) buildUSDCEthFeeTransaction(ecdsaPublicKey string, feeIds []
 
 	gasPrice = gasPrice.Mul(gasPrice, big.NewInt(int64(fp.config.Gas.PriceMultiplier)))
 
-	tx := etypes.NewTransaction(nonce, ethFromAddress, big.NewInt(0), uint64(fp.config.Gas.LimitMultiplier*ERC20_TRANSFER_GAS), gasPrice, data)
-
-	//TODO - partial work completed to here
-	fmt.Println(tx)
-
-	fp.Log(logrus.DebugLevel, "Building fee transaction for fee: ", feeIds)
+	etypes.NewTransaction(nonce, ethFromAddress, big.NewInt(0), uint64(fp.config.Gas.LimitMultiplier*ERC20_TRANSFER_GAS), gasPrice, data)
 
 	sessionID := uuid.New()
 
 	return vtypes.PluginKeysignRequest{
 		KeysignRequest: vtypes.KeysignRequest{
-			PublicKey: ecdsaPublicKey,
+			PublicKey: vault.PublicKeyEcdsa,
+			Messages: []vtypes.KeysignMessage{
+				{
+					TxIndexerID: "TODO",
+					Message:     hex.EncodeToString([]byte{}),
+					Chain:       vcommon.Ethereum,
+				},
+			},
 			SessionID: sessionID.String(),
 		},
 	}, nil
 
+}
+
+func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+
+	// Set config, get encryption secret and then get the vault connected to the fee policy.
+	ctx := context.Background()
+	encryptionSecret := common.GetConfig().Server.EncryptionSecret
+	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, encryptionSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
+	}
+
+	// Get the ethereum derived addresses from the vaults master public key
+	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get eth address: %v", err)
+	}
+
+	// Get some consts and types needed for later
+	recipe, err := policy.GetRecipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
+	}
+	echain, err := chain.GetChain("ethereum")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ethereum chain: %v", err)
+	}
+	ethchain := echain.(*reth.Ethereum)
+	chain := vcommon.Ethereum
+	txs := []vtypes.PluginKeysignRequest{}
+
+	// This should only return one rule, but in case there are more/fewer rules, we'll loop through them all and error if it's the case.
+	for _, rule := range recipe.Rules {
+
+		// This section of code goes through the rules in the fee policy. It looks for the recipient of the fee collection policy and extracts it. If other data is found throws an error as they're unsupported rules.
+		var recipient string // The address specified in the fee policy.
+		switch rule.Id {
+		case "allow-usdc-transfer-to-collector":
+			for _, constraint := range rule.ParameterConstraints {
+				if constraint.ParameterName == "recipient" {
+					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+						return nil, fmt.Errorf("recipient constraint is not a fixed value")
+					}
+				}
+				fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
+				recipient = fixedValue.FixedValue
+			}
+		default:
+			return nil, fmt.Errorf("unsupported rule: %v", rule.Id)
+		}
+		if recipient == "" {
+			return nil, fmt.Errorf("recipient is not set in policy")
+		}
+
+		// This section of code is used to get the token address for the fee collection (just eth usdc for now)
+		resourcePath, err := rutil.ParseResource(rule.Resource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse resource: %v", err)
+		}
+		token, found := ethchain.GetToken(resourcePath.ProtocolId)
+		if !found {
+			return nil, fmt.Errorf("failed to get token: %v", resourcePath.ProtocolId)
+		}
+
+		// Here we call the verifier api to get a list of fees that have the same public key as the signed policy document.
+		feeHistory, err := p.verifierApi.GetPublicKeysFees(policy.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get fee history: %v", err)
+		}
+		amount := feeHistory.FeesPendingCollection
+
+		//
+		//Check if fees have been collected withing a 6 hour time window.
+		fromTime := time.Now().Add(-6 * time.Hour)
+		toTime := time.Now()
+
+		_, err = p.txIndexerService.GetTxInTimeRange(
+			ctx,
+			chain,
+			policy.PluginID,
+			policy.ID,
+			token.Address, //TODO check if this is symbol or address
+			recipient,
+			fromTime,
+			toTime,
+		)
+		if err == nil {
+			p.logger.WithFields(logrus.Fields{
+				"recipient": recipient,
+				"amount":    amount,
+				"chain_id":  chain,
+				"token_id":  token.Address,
+			}).Info("transaction already proposed, skipping")
+			return []vtypes.PluginKeysignRequest{}, nil
+		}
+
+		nonce, err := p.nonceManager.GetNextNonce(ethAddress)
+		if err != nil {
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.nonceManager.GetNextNonce: %w", err)
+		}
+
+		tx, e := plugincommon.GenUnsignedTx(
+			ctx,
+			chain,
+			ethAddress,
+			token.Address,
+			fmt.Sprint(amount),
+			recipient,
+			p.rpcClient,
+			nonce,
+		)
+
+		if e != nil {
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.genUnsignedTx: %w", e)
+		}
+
+		txHex := hex.EncodeToString(tx)
+
+		txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+			PluginID:      policy.PluginID,
+			PolicyID:      policy.ID,
+			ChainID:       chain,
+			TokenID:       token.Address,
+			FromPublicKey: policy.PublicKey,
+			ToPublicKey:   recipient,
+			ProposedTxHex: txHex,
+		})
+		if e != nil {
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+		}
+
+		// Create signing request
+		signRequest := vtypes.PluginKeysignRequest{
+			KeysignRequest: vtypes.KeysignRequest{
+				PublicKey: policy.PublicKey,
+				Messages: []vtypes.KeysignMessage{
+					{
+						TxIndexerID: txToTrack.ID.String(),
+						Message:     txHex,
+						Chain:       vcommon.Ethereum,
+						// Doesn't make sense to compute hash with empty V,R,S,
+						// not on-chain hash without signature
+						Hash: txHex,
+					},
+				},
+				SessionID:        uuid.New().String(),
+				HexEncryptionKey: "0x0000000000000000000000000000000000000000000000000000000000000000", //TODO garry - look into this
+				PolicyID:         policy.ID,
+				PluginID:         policy.PluginID.String(),
+			},
+			Transaction: txHex,
+		}
+
+		txs = append(txs, signRequest)
+	}
+
+	return txs, nil
+}
+
+// Copy from the payroll plugin. Checks if a tx was created
+func (p *FeePlugin) IsAlreadyProposed(
+	ctx context.Context,
+	frequency rtypes.ScheduleFrequency,
+	startTime time.Time,
+	interval int,
+	chainID vcommon.Chain,
+	pluginID vtypes.PluginID,
+	policyID uuid.UUID,
+	tokenID, recipientPublicKey string,
+) (bool, error) {
+	sched, err := scheduler.NewIntervalSchedule(
+		frequency,
+		startTime,
+		interval,
+	)
+	if err != nil {
+		return false, fmt.Errorf("scheduler.NewIntervalSchedule: %w", err)
+	}
+
+	fromTime, toTime := sched.ToRangeFrom(time.Now())
+
+	_, err = p.txIndexerService.GetTxInTimeRange(
+		ctx,
+		chainID,
+		pluginID,
+		policyID,
+		tokenID,
+		recipientPublicKey,
+		fromTime,
+		toTime,
+	)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, storage.ErrNoTx) {
+		return false, nil
+	}
+	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
 }
