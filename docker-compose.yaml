@@ -1,52 +1,103 @@
 services:
-  db:
-    build:
-      context: .
-      dockerfile: Dockerfile.postgres
-    container_name: postgres-db
+  payroll-db:
+    image: postgres:15
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
       POSTGRES_DB: vultisig-plugin
     ports:
-      - "5432:5432"
+      - "5431:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "myuser" ]
+      interval: 1s
+      timeout: 5s
+      retries: 3
+    networks:
+      - shared_network
 
   redis:
     image: redis:latest
-    container_name: signer-redis
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - "6378:6379"
+    networks:
+      - shared_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 1s
+      timeout: 5s
+      retries: 3
 
   asynqmon:
     platform: linux/amd64
     image: hibiken/asynqmon:latest
-    container_name: asynq-monitor
     ports:
       - "8181:8080"
     depends_on:
       - redis
 
   minio:
-    # image: minio/minio
-    build:
-      context: .
-      dockerfile: Dockerfile.minio
-    container_name: signer-minio
+    image: minio/minio
     ports:
-      - "9000:9000" # s3 api
-      - "9090:9090" # console
+      - "9100:9000" # s3 api
+      - "9091:9090" # console
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":9090"
     volumes:
       - minio_data:/data
+    networks:
+      - shared_network
 
+  payroll-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.Payroll.server
+      platforms:
+        - linux/amd64
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6378
+      BLOCK_STORAGE_HOST: http://minio:9000
+      DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5432/vultisig-payroll?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      payroll-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - shared_network
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.Payroll.worker
+      platforms:
+        - linux/amd64
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6378
+      BLOCK_STORAGE_HOST: http://minio:9100
+      DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5431/vultisig-payroll?sslmode=disable
+    depends_on:
+      payroll-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - shared_network
 volumes:
   db_data:
   redis_data:
   minio_data: 
+networks:
+  shared_network:
+    external: true

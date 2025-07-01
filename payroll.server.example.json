@@ -1,0 +1,27 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 8080,
+    "encryption_secret": "test123"
+  },
+  "database": {
+    "dsn": "postgres://myuser:mypassword@localhost:5431/vultisig-payroll?sslmode=disable"
+  },
+  "base_config_path": "../../../etc/vultisig",
+  "redis": {
+    "host": "localhost",
+    "port": "6378",
+    "password": "password"
+  },
+  "block_storage": {
+    "host": "http://localhost:9100",
+    "region": "us-east-1",
+    "access_key": "minioadmin",
+    "secret": "minioadmin",
+    "bucket": "vultisig-payroll"
+  },
+  "datadog": {
+    "host": "localhost",
+    "port": 8125
+  }
+}
