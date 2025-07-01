@@ -28,7 +28,6 @@ import (
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
-	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/pkg/uniswap"
 	"github.com/vultisig/plugin/storage"
 )
@@ -732,11 +731,8 @@ func (p *DCAPlugin) logTokenBalances(client *uniswap.Client, signerAddress *gcom
 }
 
 func (p *DCAPlugin) getCompletedSwapTransactionsCount(ctx context.Context, policyID uuid.UUID) (int64, error) {
-	count, err := p.db.CountTransactions(ctx, policyID, types.StatusMined, "SWAP")
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
+	// TODO implement in scope of DCA plugin implementation
+	return 0, nil
 }
 
 func (p *DCAPlugin) calculateSwapAmountPerOrder(totalAmount, totalOrders *big.Int, completedSwaps int64) *big.Int {
