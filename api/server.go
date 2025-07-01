@@ -22,7 +22,6 @@ import (
 
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
-	"github.com/vultisig/plugin/internal/types"
 	vv "github.com/vultisig/plugin/internal/vultisig_validator"
 	"github.com/vultisig/plugin/service"
 	"github.com/vultisig/plugin/storage"
@@ -342,51 +341,6 @@ func (s *Server) ExistVault(c echo.Context) error {
 	exist, err := s.vaultStorage.Exist(filePathName)
 	if err != nil || !exist {
 		return c.NoContent(http.StatusBadRequest)
-	}
-	return c.NoContent(http.StatusOK)
-}
-
-func (s *Server) CreateTransaction(c echo.Context) error {
-	var reqTx types.TransactionHistory
-	if err := c.Bind(&reqTx); err != nil {
-		return c.NoContent(http.StatusBadRequest)
-	}
-
-	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
-	if existingTx != nil {
-		if existingTx.Status != types.StatusSigningFailed &&
-			existingTx.Status != types.StatusRejected {
-			return c.NoContent(http.StatusConflict)
-		}
-
-		if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, types.StatusPending, reqTx.Metadata); err != nil {
-			s.logger.Errorf("fail to update transaction status: %v", err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		return c.NoContent(http.StatusOK)
-	}
-
-	if _, err := s.db.CreateTransactionHistory(c.Request().Context(), reqTx); err != nil {
-		s.logger.Errorf("fail to create transaction, err: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	return c.NoContent(http.StatusOK)
-}
-
-func (s *Server) UpdateTransaction(c echo.Context) error {
-	var reqTx types.TransactionHistory
-	if err := c.Bind(&reqTx); err != nil {
-		return c.NoContent(http.StatusBadRequest)
-	}
-
-	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
-	if existingTx == nil {
-		return c.NoContent(http.StatusNotFound)
-	}
-
-	if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
-		s.logger.Errorf("fail to update transaction status, err: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
 	}
 	return c.NoContent(http.StatusOK)
 }

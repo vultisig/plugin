@@ -107,7 +107,7 @@ jobs:
           fi
 
           # Check if migrations ran successfully by verifying tables exist
-          PGPASSWORD=mypassword psql -h localhost -U myuser -d vultisig-plugin -c "\dt" | grep -E "(plugin_policies|time_triggers|transaction_history) | wc -l" > /dev/null
+          PGPASSWORD=mypassword psql -h localhost -U myuser -d vultisig-plugin -c "\dt" | grep -E "(plugin_policies|time_triggers) | wc -l" > /dev/null
           if [ $? -ne 0 ]; then
             echo "Migrations did not run successfully - expected tables not found"
             kill $DCA_PID
