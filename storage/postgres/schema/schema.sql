@@ -5,15 +5,6 @@ CREATE TYPE "plugin_id" AS ENUM (
     'vultisig-fees-feee'
 );
 
-CREATE TYPE "transaction_status" AS ENUM (
-    'PENDING',
-    'SIGNING_FAILED',
-    'SIGNED',
-    'BROADCAST',
-    'MINED',
-    'REJECTED'
-);
-
 CREATE TYPE "trigger_status" AS ENUM (
     'PENDING',
     'RUNNING'
@@ -67,18 +58,6 @@ CREATE SEQUENCE "time_triggers_id_seq"
 
 ALTER SEQUENCE "time_triggers_id_seq" OWNED BY "public"."time_triggers"."id";
 
-CREATE TABLE "transaction_history" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "policy_id" "uuid" NOT NULL,
-    "tx_body" "text" NOT NULL,
-    "tx_hash" "text" NOT NULL,
-    "status" "transaction_status" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"(),
-    "metadata" "jsonb",
-    "error_message" "text"
-);
-
 CREATE TABLE "tx_indexer" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "plugin_id" character varying(255) NOT NULL,
@@ -105,14 +84,8 @@ ALTER TABLE ONLY "plugin_policies"
 ALTER TABLE ONLY "time_triggers"
     ADD CONSTRAINT "time_triggers_pkey" PRIMARY KEY ("id");
 
-ALTER TABLE ONLY "transaction_history"
-    ADD CONSTRAINT "transaction_history_pkey" PRIMARY KEY ("id");
-
 ALTER TABLE ONLY "tx_indexer"
     ADD CONSTRAINT "tx_indexer_pkey" PRIMARY KEY ("id");
-
-ALTER TABLE ONLY "transaction_history"
-    ADD CONSTRAINT "unique_tx_hash" UNIQUE ("tx_hash");
 
 CREATE INDEX "idx_plugin_policies_active" ON "plugin_policies" USING "btree" ("active");
 
@@ -124,22 +97,10 @@ CREATE INDEX "idx_time_triggers_policy_id" ON "time_triggers" USING "btree" ("po
 
 CREATE INDEX "idx_time_triggers_start_time" ON "time_triggers" USING "btree" ("start_time");
 
-CREATE INDEX "idx_transaction_history_policy_id" ON "transaction_history" USING "btree" ("policy_id");
-
-CREATE INDEX "idx_transaction_history_status" ON "transaction_history" USING "btree" ("status");
-
-CREATE INDEX "idx_transaction_history_tx_hash" ON "transaction_history" USING "btree" ("tx_hash");
-
 CREATE INDEX "idx_tx_indexer_key" ON "tx_indexer" USING "btree" ("chain_id", "plugin_id", "policy_id", "token_id", "to_public_key", "created_at");
 
 CREATE INDEX "idx_tx_indexer_status_onchain_lost" ON "tx_indexer" USING "btree" ("status_onchain", "lost");
 
-ALTER TABLE ONLY "transaction_history"
-    ADD CONSTRAINT "fk_policy" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id");
-
 ALTER TABLE ONLY "time_triggers"
     ADD CONSTRAINT "time_triggers_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id");
-
-ALTER TABLE ONLY "transaction_history"
-    ADD CONSTRAINT "transaction_history_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id");
 

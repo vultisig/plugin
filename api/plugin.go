@@ -302,24 +302,6 @@ func (s *Server) GetRecipeSpecification(c echo.Context) error {
 	return c.JSON(http.StatusOK, &recipeSpec)
 }
 
-func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
-	policyID := c.Param("policyId")
-
-	if policyID == "" {
-		return c.JSON(http.StatusBadRequest, NewErrorResponse("invalid policy ID"))
-	}
-
-	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(c.Request().Context(), policyID)
-	if err != nil {
-		s.logger.WithError(err).
-			WithField("policy_id", policyID).
-			Error("Failed to get plugin policy transaction history")
-		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to get policy transaction history"))
-	}
-
-	return c.JSON(http.StatusOK, policyHistory)
-}
-
 func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy) bool {
 	msgBytes, err := common.PolicyToMessageHex(policy)
 	if err != nil {

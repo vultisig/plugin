@@ -10,7 +10,6 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/storage"
 )
 
@@ -20,7 +19,6 @@ type Policy interface {
 	DeletePolicy(ctx context.Context, policyID uuid.UUID, signature string) error
 	GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string) ([]vtypes.PluginPolicy, error)
 	GetPluginPolicy(ctx context.Context, policyID uuid.UUID) (vtypes.PluginPolicy, error)
-	GetPluginPolicyTransactionHistory(ctx context.Context, policyID string) ([]types.TransactionHistory, error)
 }
 
 var _ Policy = (*PolicyService)(nil)
@@ -141,19 +139,4 @@ func (s *PolicyService) GetPluginPolicy(ctx context.Context, policyID uuid.UUID)
 		return vtypes.PluginPolicy{}, fmt.Errorf("failed to get policy: %w", err)
 	}
 	return policy, nil
-}
-
-func (s *PolicyService) GetPluginPolicyTransactionHistory(ctx context.Context, policyID string) ([]types.TransactionHistory, error) {
-	// Convert string to UUID
-	policyUUID, err := uuid.Parse(policyID)
-	if err != nil {
-		return []types.TransactionHistory{}, fmt.Errorf("invalid policy_id: %s", policyID)
-	}
-
-	history, err := s.db.GetTransactionHistory(ctx, policyUUID, "SWAP", 30, 0) // take the last 30 records and skip the first 0
-	if err != nil {
-		return []types.TransactionHistory{}, fmt.Errorf("failed to get policy history: %w", err)
-	}
-
-	return history, nil
 }
