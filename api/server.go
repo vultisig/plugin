@@ -14,7 +14,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
@@ -22,7 +21,6 @@ import (
 
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
-	"github.com/vultisig/plugin/internal/types"
 	vv "github.com/vultisig/plugin/internal/vultisig_validator"
 	"github.com/vultisig/plugin/service"
 	"github.com/vultisig/plugin/storage"
@@ -103,7 +101,6 @@ func (s *Server) StartServer() error {
 	e.Validator = &vv.VultisigValidator{Validator: validator.New()}
 
 	e.GET("/ping", s.Ping)
-	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	e.POST("/signFromPlugin", s.SignPluginMessages)
 
 	grp := e.Group("/vault")
@@ -128,34 +125,6 @@ func (s *Server) StartServer() error {
 
 func (s *Server) Ping(c echo.Context) error {
 	return c.String(http.StatusOK, "Payroll & DCA Plugin server is running")
-}
-
-// GetDerivedPublicKey is a handler to get the derived public key
-func (s *Server) GetDerivedPublicKey(c echo.Context) error {
-	publicKey := c.QueryParam("publicKey")
-	if publicKey == "" {
-		return fmt.Errorf("publicKey is required")
-	}
-	hexChainCode := c.QueryParam("hexChainCode")
-	if hexChainCode == "" {
-		return fmt.Errorf("hexChainCode is required")
-	}
-	derivePath := c.QueryParam("derivePath")
-	if derivePath == "" {
-		return fmt.Errorf("derivePath is required")
-	}
-	isEdDSA := false
-	isEdDSAstr := c.QueryParam("isEdDSA")
-	if isEdDSAstr == "true" {
-		isEdDSA = true
-	}
-
-	derivedPublicKey, err := tss.GetDerivedPubKey(publicKey, hexChainCode, derivePath, isEdDSA)
-	if err != nil {
-		return fmt.Errorf("fail to get derived public key from tss, err: %w", err)
-	}
-
-	return c.JSON(http.StatusOK, derivedPublicKey)
 }
 
 // ReshareVault is a handler to reshare a vault
@@ -342,51 +311,6 @@ func (s *Server) ExistVault(c echo.Context) error {
 	exist, err := s.vaultStorage.Exist(filePathName)
 	if err != nil || !exist {
 		return c.NoContent(http.StatusBadRequest)
-	}
-	return c.NoContent(http.StatusOK)
-}
-
-func (s *Server) CreateTransaction(c echo.Context) error {
-	var reqTx types.TransactionHistory
-	if err := c.Bind(&reqTx); err != nil {
-		return c.NoContent(http.StatusBadRequest)
-	}
-
-	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
-	if existingTx != nil {
-		if existingTx.Status != types.StatusSigningFailed &&
-			existingTx.Status != types.StatusRejected {
-			return c.NoContent(http.StatusConflict)
-		}
-
-		if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, types.StatusPending, reqTx.Metadata); err != nil {
-			s.logger.Errorf("fail to update transaction status: %v", err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-		return c.NoContent(http.StatusOK)
-	}
-
-	if _, err := s.db.CreateTransactionHistory(c.Request().Context(), reqTx); err != nil {
-		s.logger.Errorf("fail to create transaction, err: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	return c.NoContent(http.StatusOK)
-}
-
-func (s *Server) UpdateTransaction(c echo.Context) error {
-	var reqTx types.TransactionHistory
-	if err := c.Bind(&reqTx); err != nil {
-		return c.NoContent(http.StatusBadRequest)
-	}
-
-	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
-	if existingTx == nil {
-		return c.NoContent(http.StatusNotFound)
-	}
-
-	if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
-		s.logger.Errorf("fail to update transaction status, err: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
 	}
 	return c.NoContent(http.StatusOK)
 }
