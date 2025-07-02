@@ -1,1 +1,1 @@
-CREATE DATABASE IF NOT EXISTS "vultisig-plugin";
+CREATE DATABASE "vultisig-payroll";

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/vultisig/verifier/vault_config"
@@ -23,7 +24,6 @@ type PayrollServerConfig struct {
 		Host string `mapstructure:"host" json:"host,omitempty"`
 		Port string `mapstructure:"port" json:"port,omitempty"`
 	} `mapstructure:"datadog" json:"datadog"`
-	EncryptionSecret string `mapstructure:"encryption_secret" json:"encryption_secret,omitempty"`
 }
 
 func GetConfigure() (*PayrollServerConfig, error) {
@@ -38,6 +38,7 @@ func GetConfigure() (*PayrollServerConfig, error) {
 func ReadConfig(configName string) (*PayrollServerConfig, error) {
 	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	viper.SetDefault("Server.VaultsFilePath", "vaults")

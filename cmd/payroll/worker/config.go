@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/vultisig/verifier/vault_config"
@@ -21,8 +22,7 @@ type PayrollWorkerConfig struct {
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
-	BaseConfigPath   string `mapstructure:"base_file_path" json:"base_file_path,omitempty"`
-	EncryptionSecret string `mapstructure:"encryption_secret" json:"encryption_secret,omitempty"`
+	BaseConfigPath string `mapstructure:"base_file_path" json:"base_file_path,omitempty"`
 }
 
 func GetConfigure() (*PayrollWorkerConfig, error) {
@@ -36,6 +36,7 @@ func GetConfigure() (*PayrollWorkerConfig, error) {
 func ReadConfig(configName string) (*PayrollWorkerConfig, error) {
 	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
