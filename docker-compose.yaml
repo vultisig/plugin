@@ -60,7 +60,7 @@ services:
         - linux/amd64
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: 6378
+      REDIS_PORT: 6379
       BLOCK_STORAGE_HOST: http://minio:9000
       DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5432/vultisig-payroll?sslmode=disable
     ports:
@@ -82,9 +82,9 @@ services:
         - linux/amd64
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: 6378
-      BLOCK_STORAGE_HOST: http://minio:9100
-      DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5431/vultisig-payroll?sslmode=disable
+      REDIS_PORT: 6379
+      BLOCK_STORAGE_HOST: http://minio:9000
+      DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5432/vultisig-payroll?sslmode=disable
     depends_on:
       payroll-db:
         condition: service_healthy
