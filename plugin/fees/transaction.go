@@ -3,6 +3,7 @@ package fees
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -13,10 +14,13 @@ import (
 	ecommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/plugin/internal/tasks"
 	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/recipes/chain"
 	reth "github.com/vultisig/recipes/ethereum"
@@ -81,12 +85,12 @@ func (fp *FeePlugin) buildUSDCEthFeeTransaction(vault *v1.Vault, amount int) (vt
 
 }
 
-func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 
 	// Set config, get encryption secret and then get the vault connected to the fee policy.
 	ctx := context.Background()
 	encryptionSecret := common.GetConfig().Server.EncryptionSecret
-	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, encryptionSecret)
+	vault, err := common.GetVaultFromPolicy(fp.vaultStorage, policy, encryptionSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
 	}
@@ -103,6 +107,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
 	echain, err := chain.GetChain("ethereum")
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ethereum chain: %v", err)
 	}
@@ -144,7 +149,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 		}
 
 		// Here we call the verifier api to get a list of fees that have the same public key as the signed policy document.
-		feeHistory, err := p.verifierApi.GetPublicKeysFees(policy.PublicKey)
+		feeHistory, err := fp.verifierApi.GetPublicKeysFees(policy.PublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get fee history: %v", err)
 		}
@@ -155,7 +160,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 		fromTime := time.Now().Add(-6 * time.Hour)
 		toTime := time.Now()
 
-		_, err = p.txIndexerService.GetTxInTimeRange(
+		_, err = fp.txIndexerService.GetTxInTimeRange(
 			ctx,
 			chain,
 			policy.PluginID,
@@ -166,7 +171,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 			toTime,
 		)
 		if err == nil {
-			p.logger.WithFields(logrus.Fields{
+			fp.logger.WithFields(logrus.Fields{
 				"recipient": recipient,
 				"amount":    amount,
 				"chain_id":  chain,
@@ -175,7 +180,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 			return []vtypes.PluginKeysignRequest{}, nil
 		}
 
-		nonce, err := p.nonceManager.GetNextNonce(ethAddress)
+		nonce, err := fp.nonceManager.GetNextNonce(ethAddress)
 		if err != nil {
 			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.nonceManager.GetNextNonce: %w", err)
 		}
@@ -187,7 +192,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 			token.Address,
 			fmt.Sprint(amount),
 			recipient,
-			p.rpcClient,
+			fp.rpcClient,
 			nonce,
 		)
 
@@ -197,7 +202,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 
 		txHex := hex.EncodeToString(tx)
 
-		txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+		txToTrack, e := fp.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
 			PluginID:      policy.PluginID,
 			PolicyID:      policy.ID,
 			ChainID:       chain,
@@ -239,7 +244,7 @@ func (p *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 }
 
 // Copy from the payroll plugin. Checks if a tx was created
-func (p *FeePlugin) IsAlreadyProposed(
+func (fp *FeePlugin) IsAlreadyProposed(
 	ctx context.Context,
 	frequency rtypes.ScheduleFrequency,
 	startTime time.Time,
@@ -260,7 +265,7 @@ func (p *FeePlugin) IsAlreadyProposed(
 
 	fromTime, toTime := sched.ToRangeFrom(time.Now())
 
-	_, err = p.txIndexerService.GetTxInTimeRange(
+	_, err = fp.txIndexerService.GetTxInTimeRange(
 		ctx,
 		chainID,
 		pluginID,
@@ -277,4 +282,70 @@ func (p *FeePlugin) IsAlreadyProposed(
 		return false, nil
 	}
 	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
+}
+
+func (fp *FeePlugin) initSign(
+	ctx context.Context,
+	req vtypes.PluginKeysignRequest,
+	pluginPolicy vtypes.PluginPolicy,
+) error {
+	buf, e := json.Marshal(req)
+	if e != nil {
+		fp.logger.WithError(e).Error("json.Marshal")
+		return fmt.Errorf("json.Marshal: %w", e)
+	}
+
+	task, e := fp.asynqClient.Enqueue(
+		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
+		asynq.MaxRetry(0),
+		asynq.Timeout(5*time.Minute),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME),
+	)
+	if e != nil {
+		fp.logger.WithError(e).Error("p.client.Enqueue")
+		return fmt.Errorf("p.client.Enqueue: %w", e)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+			taskInfo, er := fp.asynqInspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
+			if er != nil {
+				fp.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
+				return fmt.Errorf("p.inspector.GetTaskInfo: %w", er)
+			}
+			if taskInfo.State != asynq.TaskStateCompleted {
+				continue
+			}
+			if taskInfo.Result == nil {
+				fp.logger.Info("taskInfo.Result is nil, skipping")
+				return nil
+			}
+
+			var res map[string]tss.KeysignResponse
+			er = json.Unmarshal(taskInfo.Result, &res)
+			if er != nil {
+				fp.logger.WithError(er).Error("json.Unmarshal(taskInfo.Result, &res)")
+				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
+			}
+
+			var sig tss.KeysignResponse
+			for _, v := range res { // one sig for evm (map with 1 key)
+				sig = v
+			}
+
+			er = fp.SigningComplete(ctx, sig, req, pluginPolicy)
+			if er != nil {
+				fp.logger.WithError(er).Error("p.SigningComplete")
+				return fmt.Errorf("p.SigningComplete: %w", er)
+			}
+
+			fp.logger.WithField("public_key", req.PublicKey).
+				Info("successfully signed and broadcasted")
+			return nil
+		}
+	}
 }

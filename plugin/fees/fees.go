@@ -23,6 +23,7 @@ import (
 	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/verifier/vault"
+	"golang.org/x/sync/errgroup"
 )
 
 /*
@@ -58,10 +59,12 @@ type FeePlugin struct {
 	config           *FeeConfig
 	txIndexerService *tx_indexer.Service
 	nonceManager     *plugincommon.NonceManager
+	asynqInspector   *asynq.Inspector
+	asynqClient      *asynq.Client
 }
 
 // TODO garry, this needs work
-func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, txIndexerService *tx_indexer.Service, feeConfig *FeeConfig) (*FeePlugin, error) {
+func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, txIndexerService *tx_indexer.Service, inspector *asynq.Inspector, client *asynq.Client, feeConfig *FeeConfig) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -92,6 +95,9 @@ func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseCon
 		verifierApi:      verifierApi,
 		vaultStorage:     vaultStorage,
 		txIndexerService: txIndexerService,
+		asynqInspector:   inspector,
+		asynqClient:      client,
+		nonceManager:     plugincommon.NewNonceManager(rpcClient),
 	}, nil
 }
 
@@ -124,7 +130,7 @@ func (fp FeePlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 							rtypes.ConstraintType_CONSTRAINT_TYPE_UNSPECIFIED,
 						},
 						Required: true,
-					}
+					},
 				},
 				Required: true,
 			},
@@ -309,20 +315,14 @@ func (fp *FeePlugin) collectAllFees() error {
 	for publicKey, feeHistory := range feesResponse {
 		//TODO just for testing
 
-		feePolicies, err := fp.db.GetAllPluginPolicies(ctx, publicKey, vtypes.PluginVultisigFees_feee)
-
-		fp.Log(logrus.DebugLevel, "Public key: ", publicKey)
-		fp.Log(logrus.DebugLevel, "Fee history: ", feeHistory)
-
 		if feeHistory.FeesPendingCollection > 0 {
+
 			fp.Log(logrus.InfoLevel, "Fees pending collection: ", feeHistory.FeesPendingCollection)
 
-			feesToCollect := []uuid.UUID{}
 			checkAmount := 0
 			for _, fee := range feeHistory.Fees {
 				fp.Log(logrus.DebugLevel, "Fee: ", fee)
 				if !fee.Collected {
-					feesToCollect = append(feesToCollect, fee.ID)
 					checkAmount += fee.Amount
 				}
 			}
@@ -331,7 +331,7 @@ func (fp *FeePlugin) collectAllFees() error {
 				return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
 			}
 
-			fp.executeFeeCollection(publicKey, feesToCollect)
+			fp.executeFeeCollection(ctx, publicKey, feeHistory.Fees)
 
 		} else {
 			fp.Log(logrus.InfoLevel, "No fees pending collection for public key: ", publicKey)
@@ -341,13 +341,13 @@ func (fp *FeePlugin) collectAllFees() error {
 	return nil
 }
 
-func (fp *FeePlugin) executeFeeCollection(ecdsaPublicKey string, feeIds []verifierapi.FeeDto) error {
+func (fp *FeePlugin) executeFeeCollection(ctx context.Context, ecdsaPublicKey string, feeIds []verifierapi.FeeDto) error {
 
-	ctx := context.Background()
 	fp.Log(logrus.DebugLevel, "Executing fee collection for public key: ", ecdsaPublicKey)
 
 	//Get fee policy document
 	feePolicies, err := fp.db.GetAllPluginPolicies(ctx, ecdsaPublicKey, vtypes.PluginVultisigFees_feee, true)
+	fp.Log(logrus.DebugLevel, "Fee policies: ", len(feePolicies))
 	if err != nil {
 		fp.Log(logrus.DebugLevel, "Failed to get fee policies: ", err)
 		return fmt.Errorf("failed to get fee policies: %w", err)
@@ -376,7 +376,7 @@ func (fp *FeePlugin) executeFeeCollection(ecdsaPublicKey string, feeIds []verifi
 	if err != nil {
 		// TODO some real error handling here
 		fp.Log(logrus.DebugLevel, "Failed to get vault: ", err)
-		return fmt.Errorf("failed to get vault", err)
+		return fmt.Errorf("failed to get vault: %w", err)
 	}
 	if vaultContent == nil {
 		// TODO some real error handling here
@@ -384,10 +384,24 @@ func (fp *FeePlugin) executeFeeCollection(ecdsaPublicKey string, feeIds []verifi
 		return fmt.Errorf("vault not found")
 	}
 
-	keySignRequest, err := fp.ProposeTransactions(feePolicy)
+	keySignRequests, err := fp.ProposeTransactions(feePolicy)
 	if err != nil {
 		fp.Log(logrus.DebugLevel, "Failed to propose transactions: ", err)
 	}
-	fp.Log(logrus.DebugLevel, "Fee policy: ", feePolicy)
+	fp.Log(logrus.DebugLevel, "keySignRequest: ", keySignRequests)
 
+	var eg errgroup.Group
+	for _, keySignRequest := range keySignRequests {
+		req := keySignRequest
+		eg.Go(func() error {
+			return fp.initSign(ctx, req, feePolicy)
+		})
+	}
+	err = eg.Wait()
+	if err != nil {
+		fp.logger.WithError(err).Error("eg.Wait")
+		return fmt.Errorf("eg.Wait: %s, %w", err, asynq.SkipRetry)
+	}
+
+	return nil
 }

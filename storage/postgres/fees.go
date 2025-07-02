@@ -13,7 +13,7 @@ import (
 func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, state types.FeeRunState, fees []verifierapi.FeeDto) (types.FeeRun, error) {
 
 	// Check policy id is valid
-	query := `select plugin_id from plugin_policy where plugin_policy.id = $1`
+	query := `select plugin_id from plugin_policies where id = $1`
 	policyrows := p.pool.QueryRow(ctx, query, policyId)
 	var pluginId string
 	err := policyrows.Scan(&pluginId)
@@ -29,15 +29,15 @@ func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, 
 		return types.FeeRun{}, err
 	}
 
-	var feeRunID uuid.UUID
-	insertRunRow := tx.QueryRow(ctx, `insert into fee_run (status, policy_id) values ($1, $2) returning id`, state, policyId).Scan(&feeRunID)
-	if insertRunRow.Error() != "" {
+	runId := uuid.New()
+	_, err = tx.Exec(ctx, `insert into fee_run (id, status, policy_id) values ($1, $2, $3) returning id`, runId, state, policyId)
+	if err != nil {
 		tx.Rollback(ctx)
-		return types.FeeRun{}, fmt.Errorf("failed to insert fee run: %s", insertRunRow.Error())
+		return types.FeeRun{}, fmt.Errorf("failed to insert fee run: %w", err)
 	}
 
 	for _, fee := range fees {
-		_, err = tx.Exec(ctx, `insert into fee (fee_run_id, amount) values ($1, $2)`, feeRunID, fee.Amount)
+		_, err = tx.Exec(ctx, `insert into fee (id, fee_run_id, amount) values ($1, $2, $3)`, fee.ID, runId, fee.Amount)
 		if err != nil {
 			tx.Rollback(ctx)
 			return types.FeeRun{}, fmt.Errorf("failed to insert fee: %s", err)
@@ -50,7 +50,7 @@ func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, 
 	}
 
 	var run types.FeeRun
-	err = p.pool.QueryRow(ctx, `select id, status, created_at, updated_at, tx_id, policy_id, total_amount, fee_count from fee_run where id = $1`, feeRunID).Scan(&run.ID, &run.Status, &run.CreatedAt, &run.UpdatedAt, &run.TxID, &run.PolicyID, &run.TotalAmount, &run.FeeCount)
+	err = p.pool.QueryRow(ctx, `select id, status, created_at, updated_at, tx_id, policy_id, total_amount, fee_count from fee_run_with_totals where id = $1`, runId).Scan(&run.ID, &run.Status, &run.CreatedAt, &run.UpdatedAt, &run.TxID, &run.PolicyID, &run.TotalAmount, &run.FeeCount)
 	if err != nil {
 		return types.FeeRun{}, fmt.Errorf("failed to get fee run (post commit): %s", err)
 	}

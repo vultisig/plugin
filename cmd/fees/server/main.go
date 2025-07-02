@@ -84,7 +84,7 @@ func main() {
 	}
 
 	// Not passing a txIndexerService as we don't need it for the server. MAYBE.. TO be looked at further.
-	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, feesConfig)
+	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feesConfig)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}

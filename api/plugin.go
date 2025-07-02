@@ -158,7 +158,7 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("missing required header: plugin_id"))
 	}
 
-	policies, err := s.policyService.GetPluginPolicies(c.Request().Context(), vtypes.PluginID(pluginID), publicKey)
+	policies, err := s.policyService.GetPluginPolicies(c.Request().Context(), vtypes.PluginID(pluginID), publicKey, true)
 	if err != nil {
 		s.logger.WithError(err).WithFields(
 			logrus.Fields{

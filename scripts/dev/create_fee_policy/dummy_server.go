@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/vultisig/plugin/api"
+	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -20,7 +21,7 @@ import (
 //replicates the config created in the cmd/fees/server/config.go
 
 type FeesServerConfig struct {
-	Server   api.ServerConfig `mapstructure:"server" json:"server"`
+	Server   common.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`

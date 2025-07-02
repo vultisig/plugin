@@ -45,6 +45,7 @@ func main() {
 	}
 	logger := logrus.StandardLogger()
 	asynqClient := asynq.NewClient(redisOptions)
+	asynqInspector := asynq.NewInspector(redisOptions)
 
 	srv := asynq.NewServer(
 		redisOptions,
@@ -87,7 +88,7 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, feePluginConfig)
+	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}

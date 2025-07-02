@@ -106,7 +106,10 @@ func main() {
 			&rtypes.ParameterConstraint{
 				ParameterName: "amount",
 				Constraint: &rtypes.Constraint{
-					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_UNSPECIFIED,
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
+					Value: &rtypes.Constraint_MaxValue{
+						MaxValue: "500000000", //500 usdc
+					},
 					Required: true,
 				},
 			},
