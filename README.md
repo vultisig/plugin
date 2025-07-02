@@ -142,7 +142,12 @@ if server return http status code 200, it means the code is valid , other status
 First, start the required infrastructure services using Docker Compose:
 
 ```
-docker compose up -d --remove-orphans
+# create shared network in docker
+docker network create shared-network
+# start running service with docker compose
+make up
+# stop running service with docker compose
+make down
 ```
 
 ## 2. Configure MinIO

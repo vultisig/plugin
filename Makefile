@@ -7,17 +7,6 @@ up:
 down:
 	@docker compose down
 
-verifier-server:
-	@DYLD_LIBRARY_PATH=$(DYLD_LIBRARY) VS_CONFIG_NAME=config-verifier go run cmd/vultisigner/main.go
-
-verifier-worker:
-	@DYLD_LIBRARY_PATH=$(DYLD_LIBRARY) VS_CONFIG_NAME=config-verifier go run cmd/worker/main.go
-	
-plugin-server:
-	@DYLD_LIBRARY_PATH=$(DYLD_LIBRARY) VS_CONFIG_NAME=config-plugin go run cmd/vultisigner/main.go
-
-plugin-worker:
-	@DYLD_LIBRARY_PATH=$(DYLD_LIBRARY) VS_CONFIG_NAME=config-plugin go run cmd/worker/main.go
 
 # Dump database schema
 # Usage: make dump-schema CONFIG=config-plugin.yaml
