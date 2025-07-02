@@ -3,7 +3,7 @@
     "relay": {
       "server": "https://api.vultisig.com/router"
     },
-    "local_party_prefix": "payroll-plugin-",
+    "local_party_prefix": "payroll-plugin-0000",
     "queue_email_task": false,
     "encryption_secret": "test123"
   },
