@@ -153,7 +153,7 @@ func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) erro
 	}
 	var rPolicy rtypes.Policy
 
-	policyBytes, err := base64.RawStdEncoding.DecodeString(policyDoc.Recipe)
+	policyBytes, err := base64.StdEncoding.DecodeString(policyDoc.Recipe)
 	if err != nil {
 		return fmt.Errorf("failed to decode policy recipe: %w", err)
 	}
