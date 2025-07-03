@@ -1,5 +1,5 @@
 services:
-  payroll-db:
+  plugin-db: # One DB instance for all plugins, which point to different databases
     image: postgres:15
     environment:
       POSTGRES_USER: myuser
@@ -22,6 +22,18 @@ services:
     image: redis:latest
     ports:
       - "6378:6379"
+    networks:
+      - shared_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 1s
+      timeout: 5s
+      retries: 3
+
+  redis-fees:
+    image: redis:latest
+    ports:
+      - "6377:6379"
     networks:
       - shared_network
     healthcheck:
@@ -65,11 +77,11 @@ services:
       REDIS_HOST: redis-payroll
       REDIS_PORT: 6379
       BLOCK_STORAGE_HOST: http://minio-plugin:9000
-      DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5432/vultisig-payroll?sslmode=disable
+      DATABASE_DSN: postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable
     ports:
-      - "8081:8080"
+      - "8081:8080" 
     depends_on:
-      payroll-db:
+      plugin-db:
         condition: service_healthy
       redis-payroll:
         condition: service_healthy
@@ -77,7 +89,7 @@ services:
         condition: service_started
     networks:
       - shared_network
-  worker:
+  payroll-worker:
     build:
       context: .
       dockerfile: Dockerfile.Payroll.worker
@@ -87,9 +99,9 @@ services:
       REDIS_HOST: redis-payroll
       REDIS_PORT: 6379
       BLOCK_STORAGE_HOST: http://minio-plugin:9000
-      DATABASE_DSN: postgres://myuser:mypassword@payroll-db:5432/vultisig-payroll?sslmode=disable
+      DATABASE_DSN: postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable
     depends_on:
-      payroll-db:
+      plugin-db:
         condition: service_healthy
       redis-payroll:
         condition: service_healthy
@@ -97,9 +109,29 @@ services:
         condition: service_started
     networks:
       - shared_network
+  fee-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.Fee.worker
+      platforms:
+        - linux/amd64
+    environment:
+      REDIS_HOST: redis-fees
+      REDIS_PORT: 6379
+      BLOCK_STORAGE_HOST: http://minio-plugin:9000
+      DATABASE_DSN: postgres://myuser:mypassword@plugin-db:5432/vultisig-fee?sslmode=disable
+    depends_on:
+      plugin-db:
+        condition: service_healthy
+      redis-fees:
+        condition: service_healthy
+      minio-plugin:
+        condition: service_started
+    networks:
+      - shared_network
+
 volumes:
   db_data:
-  redis_data:
   minio_data: 
 networks:
   shared_network:

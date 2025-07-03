@@ -1,0 +1,7 @@
+type: fee
+version: 0.0.1
+rpc_url: https://eth.llamarpc.com
+
+gas:
+    limit_multiplier: 300 # 300% of estimated gas
+    price_multiplier: 3 # 300% of suggested gas price

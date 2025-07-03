@@ -1,0 +1,44 @@
+# Use the official Go image as the base image
+FROM golang:1.24 as builder
+
+# Set the working directory
+WORKDIR /app
+
+# Copy go.mod and go.sum to install dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+RUN wget https://github.com/vultisig/go-wrappers/archive/refs/heads/master.tar.gz
+RUN tar -xzf master.tar.gz && \
+    cd go-wrappers-master && \
+    mkdir -p /usr/local/lib/dkls && \
+    cp --recursive includes /usr/local/lib/dkls
+
+ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux/:${LD_LIBRARY_PATH:-}
+
+# Build the application
+RUN go build -o worker ./cmd/fees/worker
+
+# Use a minimal base image for the final stage
+FROM ubuntu:24.04
+
+RUN apt-get update && \
+    apt-get install -y wget && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the built binary from the builder stage
+COPY --from=builder /app/worker .
+COPY --from=builder /usr/local/lib/dkls /usr/local/lib/dkls
+COPY fee.worker.example.json config.json
+COPY ./etc/vultisig/fee.yml /etc/vultisig/fee.yml
+
+ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux/:${LD_LIBRARY_PATH:-}
+
+# Run the application
+CMD ["./worker"]

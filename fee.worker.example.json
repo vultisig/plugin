@@ -1,23 +1,26 @@
 {
+    "server": {
+        "verifier_url": "http://localhost:8080"
+    },
     "vault_service": {
         "relay": {
             "server": "https://api.vultisig.com/router"
         },
-        "local_party_prefix": "payroll-plugin-0000",
+        "local_party_prefix": "fee-plugin-feee",
         "queue_email_task": false,
         "encryption_secret": "test123"
     },
     "redis": {
-        "host": "localhost",
-        "port": "6378",
+        "host": "redis-fees",
+        "port": "6379",
         "password": "password"
     },
     "block_storage": {
-        "host": "http://localhost:9100",
+        "host": "http://minio-plugin:9000",
         "region": "us-east-1",
         "access_key": "minioadmin",
         "secret": "minioadmin",
-        "bucket": "vultisig-payroll"
+        "bucket": "vultisig-fee"
     },
     "datadog": {
         "host": "localhost",
@@ -25,6 +28,6 @@
     },
     "base_file_path": "../../../etc/vultisig",
     "database": {
-        "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable"
+        "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-fee?sslmode=disable"
     }
 }
