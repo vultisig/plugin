@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[git] payroll worker" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="plugin" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="BASE_FILE_PATH" value="etc/vultisig" />
+      <env name="DATABASE_DSN" value="postgres://myuser:mypassword@localhost:5431/vultisig-plugin?sslmode=disable" />
+      <env name="VS_CONFIG_NAME" value="payroll.worker.example" />
+    </envs>
+    <kind value="PACKAGE" />
+    <package value="github.com/vultisig/plugin/cmd/payroll/worker" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/payroll/worker/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

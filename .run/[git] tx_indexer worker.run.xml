@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[git] tx_indexer worker" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="plugin" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="DATABASE.DSN" value="postgres://myuser:mypassword@localhost:5431/vultisig-plugin?sslmode=disable" />
+      <env name="RPC.BITCOIN.URL" value="https://bitcoin-rpc.publicnode.com" />
+      <env name="RPC.ETHEREUM.URL" value="https://ethereum-rpc.publicnode.com" />
+      <env name="VS_CONFIG_NAME" value="config-tx-indexer" />
+    </envs>
+    <kind value="PACKAGE" />
+    <package value="github.com/vultisig/plugin/cmd/tx_indexer" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/tx_indexer/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

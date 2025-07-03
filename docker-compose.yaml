@@ -100,7 +100,7 @@ services:
 volumes:
   db_data:
   redis_data:
-  minio_data: 
+  minio_data:
 networks:
   shared_network:
     external: true
