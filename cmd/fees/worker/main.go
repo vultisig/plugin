@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
@@ -13,7 +11,6 @@ import (
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 
-	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -22,11 +19,10 @@ import (
 func main() {
 	ctx := context.Background()
 
-	if err := common.LoadConfig(); err != nil {
+	cfg, err := GetConfigure()
+	if err != nil {
 		panic(err)
 	}
-
-	cfg := common.GetConfig()
 
 	sdClient, err := statsd.New(cfg.Datadog.Host + ":" + cfg.Datadog.Port)
 	if err != nil {
@@ -88,7 +84,7 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig)
+	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig, cfg.VaultServiceConfig.EncryptionSecret)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}
@@ -102,31 +98,6 @@ func main() {
 
 	//Plugin specific functions.
 	mux.HandleFunc(fees.TypeFeeCollection, feePlugin.HandleCollections)
-
-	//Simulate a fee collection run
-	//TODO garry. This is purely for e2e testing. Remove from prod.
-	go func() {
-		logger.Info("Simulating a fee collection run, waiting 0.5 seconds")
-
-		time.Sleep(500 * time.Millisecond)
-		logger.Info("Enqueueing Task")
-
-		payload, err := json.Marshal(fees.FeeCollectionFormat{
-			FeeCollectionType: fees.FeeCollectionTypeAll,
-		})
-
-		if err != nil {
-			logger.WithError(err).Error("Failed to marshal fee collection config in demo run")
-			return
-		}
-
-		asynqClient.Enqueue(
-			asynq.NewTask(fees.TypeFeeCollection, payload),
-			asynq.MaxRetry(0),
-			asynq.Timeout(2*time.Minute),
-			asynq.Retention(5*time.Minute),
-			asynq.Queue(tasks.QUEUE_NAME))
-	}()
 
 	logger.Info("Starting asynq listener")
 	if err := srv.Run(mux); err != nil {

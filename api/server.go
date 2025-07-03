@@ -19,7 +19,6 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/verifier/vault"
 
-	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
 	vv "github.com/vultisig/plugin/internal/vultisig_validator"
@@ -29,7 +28,7 @@ import (
 )
 
 type Server struct {
-	cfg           common.ServerConfig
+	cfg           ServerConfig
 	db            storage.DatabaseStorage
 	redis         *storage.RedisStorage
 	vaultStorage  vault.Storage
@@ -45,7 +44,7 @@ type Server struct {
 
 // NewServer returns a new server.
 func NewServer(
-	cfg common.ServerConfig,
+	cfg ServerConfig,
 	db *postgres.PostgresBackend,
 	redis *storage.RedisStorage,
 	vaultStorage vault.Storage,

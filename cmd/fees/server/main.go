@@ -13,7 +13,6 @@ import (
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/api"
-	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -22,11 +21,10 @@ import (
 func main() {
 	ctx := context.Background()
 
-	if err := common.LoadConfig(); err != nil {
+	cfg, err := GetConfigure()
+	if err != nil {
 		panic(err)
 	}
-
-	cfg := common.GetConfig()
 
 	logger := logrus.New()
 	sdClient, err := statsd.New(net.JoinHostPort(cfg.Datadog.Host, cfg.Datadog.Port))
@@ -84,7 +82,7 @@ func main() {
 	}
 
 	// Not passing a txIndexerService as we don't need it for the server. MAYBE.. TO be looked at further.
-	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feesConfig)
+	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feesConfig, cfg.Server.EncryptionSecret)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}

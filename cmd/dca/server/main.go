@@ -13,7 +13,6 @@ import (
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/api"
-	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/plugin/dca"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -22,11 +21,10 @@ import (
 func main() {
 	ctx := context.Background()
 
-	if err := common.LoadConfig(); err != nil {
+	cfg, err := GetConfigure()
+	if err != nil {
 		panic(err)
 	}
-
-	cfg := common.GetConfig()
 
 	logger := logrus.New()
 	sdClient, err := statsd.New(net.JoinHostPort(cfg.Datadog.Host, cfg.Datadog.Port))

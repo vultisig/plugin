@@ -10,7 +10,6 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/plugin/common"
 	rtypes "github.com/vultisig/recipes/types"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
@@ -18,6 +17,7 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/verifier/vault_config"
 
+	"github.com/vultisig/plugin/api"
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
 	plugincommon "github.com/vultisig/plugin/plugin/common"
@@ -34,7 +34,7 @@ All key logic related to fees will go here, that includes
 
 // TODO do we actually need this?
 type BaseConfig struct {
-	Server   common.ServerConfig `mapstructure:"server" json:"server"`
+	Server   api.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
@@ -61,10 +61,11 @@ type FeePlugin struct {
 	nonceManager     *plugincommon.NonceManager
 	asynqInspector   *asynq.Inspector
 	asynqClient      *asynq.Client
+	encryptionSecret string
 }
 
 // TODO garry, this needs work
-func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, txIndexerService *tx_indexer.Service, inspector *asynq.Inspector, client *asynq.Client, feeConfig *FeeConfig) (*FeePlugin, error) {
+func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, txIndexerService *tx_indexer.Service, inspector *asynq.Inspector, client *asynq.Client, feeConfig *FeeConfig, encryptionSecret string) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -98,6 +99,7 @@ func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseCon
 		asynqInspector:   inspector,
 		asynqClient:      client,
 		nonceManager:     plugincommon.NewNonceManager(rpcClient),
+		encryptionSecret: encryptionSecret,
 	}, nil
 }
 
@@ -134,16 +136,6 @@ func (fp FeePlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 				},
 				Required: true,
 			},
-		},
-		Scheduling: &rtypes.SchedulingCapability{
-			SupportsScheduling: true,
-			SupportedFrequencies: []rtypes.ScheduleFrequency{
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_DAILY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
-			},
-			MaxScheduledExecutions: 100, //TODO garry - don't know if this is a good number or not
 		},
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
@@ -371,7 +363,8 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, ecdsaPublicKey st
 	fp.Log(logrus.DebugLevel, "Fee run created: ", feeRun)
 
 	//Get vault and check it exists
-	vaultFileName := vcommon.GetVaultBackupFilename(ecdsaPublicKey, PLUGIN_ID)
+
+	vaultFileName := vcommon.GetVaultBackupFilename(ecdsaPublicKey, vtypes.PluginVultisigFees_feee.String())
 	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
 	if err != nil {
 		// TODO some real error handling here

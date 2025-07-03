@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/vultisig/verifier/vault_config"
@@ -12,7 +11,7 @@ import (
 	"github.com/vultisig/plugin/storage"
 )
 
-type PayrollServerConfig struct {
+type CoreConfig struct {
 	Server   api.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
@@ -26,7 +25,7 @@ type PayrollServerConfig struct {
 	} `mapstructure:"datadog" json:"datadog"`
 }
 
-func GetConfigure() (*PayrollServerConfig, error) {
+func GetConfigure() (*CoreConfig, error) {
 	configName := os.Getenv("VS_CONFIG_NAME")
 	if configName == "" {
 		configName = "config"
@@ -35,18 +34,17 @@ func GetConfigure() (*PayrollServerConfig, error) {
 	return ReadConfig(configName)
 }
 
-func ReadConfig(configName string) (*PayrollServerConfig, error) {
+func ReadConfig(configName string) (*CoreConfig, error) {
 	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	viper.SetDefault("Server.VaultsFilePath", "vaults")
 
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file, %w", err)
+		return nil, fmt.Errorf("fail to reading config file, %w", err)
 	}
-	var cfg PayrollServerConfig
+	var cfg CoreConfig
 	err := viper.Unmarshal(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode into struct, %w", err)

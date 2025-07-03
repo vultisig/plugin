@@ -6,17 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
-	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	ecommon "github.com/ethereum/go-ethereum/common"
-	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
-	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
@@ -32,65 +26,11 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 )
 
-func (fp *FeePlugin) buildUSDCEthFeeTransaction(vault *v1.Vault, amount int) (vtypes.PluginKeysignRequest, error) {
-	//TODO should amount be non negative
-	// derivePath := common.Ethereum.GetDerivePath()
-	erc20ABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to parse erc20 abi: %w", err)
-	}
-
-	ethFromAddressString, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
-	if err != nil {
-		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to get eth from address: %w", err)
-	}
-
-	ethFromAddress := ecommon.HexToAddress(ethFromAddressString)
-
-	nonce, err := fp.rpcClient.PendingNonceAt(context.Background(), ethFromAddress)
-	if err != nil {
-		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to get eth from address: %w", err)
-	}
-
-	//TODO garry
-	data, err := erc20ABI.Pack("transfer", fp.config.CollectorAddress)
-	if err != nil {
-		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to pack erc20 abi: %w", err)
-	}
-
-	gasPrice, err := fp.rpcClient.SuggestGasPrice(context.Background())
-	if err != nil {
-		return vtypes.PluginKeysignRequest{}, fmt.Errorf("failed to suggest gas price: %w", err)
-	}
-
-	gasPrice = gasPrice.Mul(gasPrice, big.NewInt(int64(fp.config.Gas.PriceMultiplier)))
-
-	etypes.NewTransaction(nonce, ethFromAddress, big.NewInt(0), uint64(fp.config.Gas.LimitMultiplier*ERC20_TRANSFER_GAS), gasPrice, data)
-
-	sessionID := uuid.New()
-
-	return vtypes.PluginKeysignRequest{
-		KeysignRequest: vtypes.KeysignRequest{
-			PublicKey: vault.PublicKeyEcdsa,
-			Messages: []vtypes.KeysignMessage{
-				{
-					TxIndexerID: "TODO",
-					Message:     hex.EncodeToString([]byte{}),
-					Chain:       vcommon.Ethereum,
-				},
-			},
-			SessionID: sessionID.String(),
-		},
-	}, nil
-
-}
-
 func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 
 	// Set config, get encryption secret and then get the vault connected to the fee policy.
 	ctx := context.Background()
-	encryptionSecret := common.GetConfig().Server.EncryptionSecret
-	vault, err := common.GetVaultFromPolicy(fp.vaultStorage, policy, encryptionSecret)
+	vault, err := common.GetVaultFromPolicy(fp.vaultStorage, policy, fp.encryptionSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
 	}
@@ -155,7 +95,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		}
 		amount := feeHistory.FeesPendingCollection
 
-		//
 		//Check if fees have been collected withing a 6 hour time window.
 		fromTime := time.Now().Add(-6 * time.Hour)
 		toTime := time.Now()
@@ -230,7 +169,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 					},
 				},
 				SessionID:        uuid.New().String(),
-				HexEncryptionKey: "0x0000000000000000000000000000000000000000000000000000000000000000", //TODO garry - look into this
+				HexEncryptionKey: "",
 				PolicyID:         policy.ID,
 				PluginID:         policy.PluginID.String(),
 			},

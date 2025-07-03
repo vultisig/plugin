@@ -11,7 +11,7 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "myuser" ]
+      test: [ "CMD", "pg_isready", "-d", "vultisig-plugin", "-U", "myuser" ]
       interval: 1s
       timeout: 5s
       retries: 3

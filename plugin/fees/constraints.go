@@ -1,7 +1,6 @@
 package fees
 
 const PLUGIN_TYPE = "fees"
-const PLUGIN_ID = "vultisig-fees-feee"
 
 // Task Definitions
 const TypeFeeCollection = "fees:collection"

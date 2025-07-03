@@ -18,6 +18,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var ethereumMainnetEvmChainID *big.Int = big.NewInt(1) // 1 is the chain id for Ethereum mainnet
+var ethereumZeroAddress gcommon.Address = gcommon.HexToAddress("0x0000000000000000000000000000000000000000")
+
 // DEFINE COMMON PLUGIN FUNCTIONS HERE (eg creating an unsigned erc20 transaction)
 
 // Creates an unsigned ERC20 transaction
@@ -32,7 +35,7 @@ func GenUnsignedTx(
 	case vcommon.Ethereum:
 		tx, err := EvmMakeUnsignedTransfer(
 			ctx,
-			EthereumMainnetEvmChainID,
+			ethereumMainnetEvmChainID,
 			senderAddress,
 			tokenID,
 			amount,
@@ -68,7 +71,7 @@ func EvmMakeUnsignedTransfer(
 		value *big.Int
 		data  []byte
 	)
-	if tokenID == EthereumZeroAddress {
+	if tokenID == ethereumZeroAddress {
 		value = amount
 		data = nil
 	} else {

@@ -15,8 +15,7 @@ CREATE TABLE IF NOT EXISTS fee (
     id UUID PRIMARY KEY,
     fee_run_id UUID NOT NULL REFERENCES fee_run(id) ON DELETE CASCADE,
     amount INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(id, fee_run_id)
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Create view for fee runs with total amounts

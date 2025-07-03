@@ -9,9 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+// Copy of the nonce manager from payroll but with cache removed. Can be added later.
+
 type NonceManager struct {
 	rpcClient *ethclient.Client
-	nonceMap  sync.Map
 	mu        sync.Mutex
 }
 
@@ -29,9 +30,6 @@ func (n *NonceManager) GetNextNonce(address string) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to get nonce from network: %w", err)
 	}
-	return nonce, nil
-}
 
-func (n *NonceManager) ResetNonce(address string) {
-	n.nonceMap.Delete(address)
+	return nonce, nil
 }
