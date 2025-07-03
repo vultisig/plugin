@@ -3,15 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.Fee.worker.dev
-    environment:
-      REDIS_HOST: redis-fees
-      REDIS_PORT: 6379
-      BLOCK_STORAGE_HOST: http://minio-plugin:9000
-      DATABASE_DSN: postgres://myuser:mypassword@plugin-db:5432/vultisig-fee?sslmode=disable
     volumes:
-      - /app/tmp
-      - /app/build-errors.log
-      # Mount specific directories that need to be watched
       - ./cmd:/app/cmd
       - ./plugin:/app/plugin
       - ./internal:/app/internal
@@ -21,15 +13,21 @@ services:
       - ./pkg:/app/pkg
       - ./service:/app/service
       - ./fee.worker.example.json:/app/config.json
-    depends_on:
-      plugin-db:
-        condition: service_healthy
-      redis-fees:
-        condition: service_healthy
-      minio-plugin:
-        condition: service_started
-    networks:
-      - shared_network
+
+  fee-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.Fee.server.dev
+    volumes:
+      - ./cmd:/app/cmd
+      - ./plugin:/app/plugin
+      - ./internal:/app/internal
+      - ./api:/app/api
+      - ./storage:/app/storage
+      - ./common:/app/common
+      - ./pkg:/app/pkg
+      - ./service:/app/service
+      - ./fee.server.example.json:/app/config.json
 
 volumes:
   db_data:

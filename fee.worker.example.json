@@ -1,6 +1,6 @@
 {
     "server": {
-        "verifier_url": "http://localhost:8080"
+        "verifier_url": "http://host.docker.internal:8080"
     },
     "vault_service": {
         "relay": {

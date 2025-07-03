@@ -56,6 +56,9 @@ func main() {
 	)
 
 	postgressDB, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
+	if err != nil {
+		panic(fmt.Errorf("failed to create postgres backend: %w", err))
+	}
 
 	txIndexerStore, err := storage.NewPostgresTxIndexStore(ctx, cfg.Database.DSN)
 	if err != nil {
