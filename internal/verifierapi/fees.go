@@ -59,16 +59,13 @@ func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (FeeHistoryDto, err
 	v.logger.Debug("URL: ", url)
 	response, err := v.get(url)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to get plugin policy fees")
 		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
 	if response.StatusCode == http.StatusNotFound {
-		v.logger.WithError(fmt.Errorf("policy not found")).Error("policy not found for id: ", policyId.String())
 		return FeeHistoryDto{}, fmt.Errorf("policy not found")
 	}
 
 	if response.StatusCode != http.StatusOK {
-		v.logger.WithError(err).Error("failed to get plugin policy fees")
 		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees, status code: %d", response.StatusCode)
 	}
 
@@ -87,22 +84,17 @@ func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (FeeHistoryDto, err
 // TODO add auth
 func (v VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (FeeHistoryDto, error) {
 	url := fmt.Sprintf("/fees/publickey/%s", ecdsaPublicKey)
-	v.logger.Debug("Getting public key fees for public key: ", ecdsaPublicKey)
-	v.logger.Debug("URL: ", url)
 	response, err := v.get(url)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to get public key fees")
 		return FeeHistoryDto{}, fmt.Errorf("failed to get public key fees: %w", err)
 	}
 
 	//TODO - this probably shouldn't be a 404, just an empty wrapped response with 0
 	if response.StatusCode == http.StatusNotFound {
-		v.logger.WithError(fmt.Errorf("public key not found")).Error("public key not found for id: ", ecdsaPublicKey)
 		return FeeHistoryDto{}, fmt.Errorf("public key not found")
 	}
 
 	if response.StatusCode != http.StatusOK {
-		v.logger.WithError(err).Error("failed to get public key fees")
 		return FeeHistoryDto{}, fmt.Errorf("failed to get public key fees, status code: %d", response.StatusCode)
 	}
 
@@ -124,12 +116,10 @@ func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
 	v.logger.Debug("URL: ", url)
 	response, err := v.get(url)
 	if err != nil {
-		v.logger.WithError(err).Error("failed to get all public key fees")
 		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees: %w", err)
 	}
 
 	if response.StatusCode != http.StatusOK {
-		v.logger.WithError(err).Error("failed to get all public key fees")
 		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, status code: %d", response.StatusCode)
 	}
 

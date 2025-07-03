@@ -142,14 +142,6 @@ func (fp FeePlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 	}
 }
 
-// This wraps the logger with the plugin name and context "i.e the worker execution".
-func (fp *FeePlugin) Log(level logrus.Level, args ...interface{}) {
-	fp.logger.WithFields(logrus.Fields{
-		"plugin":  "fees",
-		"context": "execution",
-	}).Log(level, args...)
-}
-
 func (fp *FeePlugin) GetPolicyFees(cfg BaseConfig) error {
 	return nil
 }
@@ -167,7 +159,7 @@ func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignR
 // HANDLER FUNCTIONS
 
 func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) error {
-	fp.Log(logrus.InfoLevel, "Starting Fee Collection Job")
+	fp.logger.Info("Starting Fee Collection Job")
 
 	// Figure out if we're collecting fees by public key, policy, or plugin id
 	feeCollectionFormat := FeeCollectionFormat{
@@ -175,25 +167,23 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 	}
 	if len(task.Payload()) != 0 {
 		if err := json.Unmarshal(task.Payload(), &feeCollectionFormat); err != nil {
-			fp.Log(logrus.ErrorLevel, "Failed to unmarshal fee collection config")
-			return err
+			return fmt.Errorf("fp.HandleCollections, failed to unmarshall asynq task payload, %w", err)
 		}
 	}
 
 	switch feeCollectionFormat.FeeCollectionType {
 	case FeeCollectionTypeByPublicKey:
-		fp.Log(logrus.InfoLevel, "Collecting fees by public key")
+		fp.logger.Info("Collecting fees by public key")
 		return fp.collectFeesByPublicKey(feeCollectionFormat.Value)
 	case FeeCollectionTypeByPolicy:
-		fp.Log(logrus.InfoLevel, "Collecting fees by policy")
+		fp.logger.Info("Collecting fees by policy")
 		return fp.collectFeesByPolicy(feeCollectionFormat.Value)
 	case FeeCollectionTypeByPluginID:
-		fp.Log(logrus.InfoLevel, "Collecting fees by plugin id")
+		fp.logger.Info("Collecting fees by plugin id")
 	case FeeCollectionTypeAll:
-		fp.Log(logrus.InfoLevel, "Collecting fees by all")
+		fp.logger.Info("Collecting fees by all")
 		return fp.collectAllFees()
 	default:
-		fp.Log(logrus.ErrorLevel, "Invalid fee collection type")
 		return fmt.Errorf("invalid fee collection type")
 	}
 
@@ -204,45 +194,38 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 
 // Collects fee data by ... Should only be called by HandleFeeCollections
 func (fp *FeePlugin) collectFeesByPublicKey(publicKey string) error {
-	fp.Log(logrus.DebugLevel, "Collecting fees by policy: ")
 	feesResponse, err := fp.verifierApi.GetPublicKeysFees(publicKey)
 	if err != nil {
 		return fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
 
-	fp.logger.Debug("Fees response: ", feesResponse)
-
 	if feesResponse.FeesPendingCollection > 0 {
-		fp.Log(logrus.InfoLevel, "Fees pending collection: ", feesResponse.FeesPendingCollection)
+		fp.logger.Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
 
 		feesToCollect := []uuid.UUID{}
 		checkAmount := 0
 		for _, fee := range feesResponse.Fees {
-			fp.Log(logrus.DebugLevel, "Fee: ", fee)
 			if !fee.Collected {
 				feesToCollect = append(feesToCollect, fee.ID)
 				checkAmount += fee.Amount
 			}
 		}
 		if checkAmount != feesResponse.FeesPendingCollection {
-			fp.Log(logrus.ErrorLevel, "Fees pending collection amount does not match the sum of the fees")
 			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
 		}
 
-		fp.Log(logrus.InfoLevel, "Fees to collect: ", feesToCollect)
+		fp.logger.Info("Fees to collect: ", feesToCollect)
 
 	} else {
-		fp.Log(logrus.InfoLevel, "No fees pending collection")
+		fp.logger.Info("No fees pending collection")
 	}
 
 	return nil
 }
 
 // Collects fee data by ... Should only be called by HandleFeeCollections
-// Not yet working
 func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
-	// TODO: implement logic
-	fp.Log(logrus.DebugLevel, "Collecting fees by policy: ")
+
 	policyId, err := uuid.Parse(policyIdString)
 	if err != nil {
 		return fmt.Errorf("failed to parse policy id: %w", err)
@@ -252,31 +235,23 @@ func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
 		return fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
 
-	fp.logger.Debug("Fees response: ", feesResponse)
-
 	if feesResponse.FeesPendingCollection > 0 {
-		fp.Log(logrus.InfoLevel, "Fees pending collection: ", feesResponse.FeesPendingCollection)
+		fp.logger.Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
 
 		feesToCollect := []uuid.UUID{}
 		checkAmount := 0
 		for _, fee := range feesResponse.Fees {
-			fp.Log(logrus.DebugLevel, "Fee: ", fee)
 			if !fee.Collected {
 				feesToCollect = append(feesToCollect, fee.ID)
 				checkAmount += fee.Amount
 			}
 		}
 		if checkAmount != feesResponse.FeesPendingCollection {
-			fp.Log(logrus.ErrorLevel, "Fees pending collection amount does not match the sum of the fees")
 			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
 		}
 
-		// fp.buildUSDCEthFeeTransaction(feesToCollect)
-
-		// fp.Log(logrus.InfoLevel, "Fees to collect: ", feesToCollect)
-
 	} else {
-		fp.Log(logrus.InfoLevel, "No fees pending collection")
+		fp.logger.Info("No fees pending collection")
 	}
 
 	return nil
@@ -285,38 +260,32 @@ func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
 // Collects fee data by ... Should only be called by HandleFeeCollections
 func (fp *FeePlugin) collectAllFees() error {
 	ctx := context.Background()
-	fp.Log(logrus.DebugLevel, "Collecting all fees")
 	feesResponse, err := fp.verifierApi.GetAllPublicKeysFees()
 	if err != nil {
-		fp.Log(logrus.ErrorLevel, "Failed to get plugin policy fees: ", err)
 		return fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
-
-	fp.logger.Debug("Fees response: ", feesResponse)
 
 	for publicKey, feeHistory := range feesResponse {
 		//TODO just for testing
 
 		if feeHistory.FeesPendingCollection > 0 {
 
-			fp.Log(logrus.InfoLevel, "Fees pending collection: ", feeHistory.FeesPendingCollection)
+			fp.logger.Info("Fees pending collection: ", feeHistory.FeesPendingCollection)
 
 			checkAmount := 0
 			for _, fee := range feeHistory.Fees {
-				fp.Log(logrus.DebugLevel, "Fee: ", fee)
 				if !fee.Collected {
 					checkAmount += fee.Amount
 				}
 			}
 			if checkAmount != feeHistory.FeesPendingCollection {
-				fp.Log(logrus.ErrorLevel, "Fees pending collection amount does not match the sum of the fees")
 				return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
 			}
 
 			fp.executeFeeCollection(ctx, publicKey, feeHistory.Fees)
 
 		} else {
-			fp.Log(logrus.InfoLevel, "No fees pending collection for public key: ", publicKey)
+			fp.logger.Info("No fees pending collection for public key: ", publicKey)
 		}
 	}
 
@@ -325,53 +294,40 @@ func (fp *FeePlugin) collectAllFees() error {
 
 func (fp *FeePlugin) executeFeeCollection(ctx context.Context, ecdsaPublicKey string, feeIds []verifierapi.FeeDto) error {
 
-	fp.Log(logrus.DebugLevel, "Executing fee collection for public key: ", ecdsaPublicKey)
-
 	//Get fee policy document
 	feePolicies, err := fp.db.GetAllPluginPolicies(ctx, ecdsaPublicKey, vtypes.PluginVultisigFees_feee, true)
-	fp.Log(logrus.DebugLevel, "Fee policies: ", len(feePolicies))
 	if err != nil {
-		fp.Log(logrus.DebugLevel, "Failed to get fee policies: ", err)
 		return fmt.Errorf("failed to get fee policies: %w", err)
 	}
 	if len(feePolicies) == 0 {
-		fp.Log(logrus.DebugLevel, "No fee policies found")
 		return fmt.Errorf("no fee policies found")
 	} else if len(feePolicies) > 1 {
-		fp.Log(logrus.DebugLevel, "Multiple fee policies found")
 		return fmt.Errorf("multiple fee policies found")
 	}
 	feePolicy := feePolicies[0]
-	fp.Log(logrus.DebugLevel, "Fee policy: ", feePolicy)
 
 	//Here we check if the fee collection is already in progress for the public key.
 	feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feeIds)
 	if err != nil {
-		fp.Log(logrus.DebugLevel, "Failed to create fee run: ", err)
 		return fmt.Errorf("failed to create fee run: %w", err)
 	}
-	fp.Log(logrus.DebugLevel, "Fee run created: ", feeRun)
+	fp.logger.Info("Fee run created: ", feeRun)
 
 	//Get vault and check it exists
 
 	vaultFileName := vcommon.GetVaultBackupFilename(ecdsaPublicKey, vtypes.PluginVultisigFees_feee.String())
 	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
 	if err != nil {
-		// TODO some real error handling here
-		fp.Log(logrus.DebugLevel, "Failed to get vault: ", err)
 		return fmt.Errorf("failed to get vault: %w", err)
 	}
 	if vaultContent == nil {
-		// TODO some real error handling here
-		fp.Log(logrus.DebugLevel, "Vault not found")
 		return fmt.Errorf("vault not found")
 	}
 
 	keySignRequests, err := fp.ProposeTransactions(feePolicy)
 	if err != nil {
-		fp.Log(logrus.DebugLevel, "Failed to propose transactions: ", err)
+		return fmt.Errorf("failed to propose transactions: %w", err)
 	}
-	fp.Log(logrus.DebugLevel, "keySignRequest: ", keySignRequests)
 
 	var eg errgroup.Group
 	for _, keySignRequest := range keySignRequests {
@@ -382,7 +338,6 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, ecdsaPublicKey st
 	}
 	err = eg.Wait()
 	if err != nil {
-		fp.logger.WithError(err).Error("eg.Wait")
 		return fmt.Errorf("eg.Wait: %s, %w", err, asynq.SkipRetry)
 	}
 

@@ -30,7 +30,6 @@ type VerifierApi struct {
 }
 
 func NewVerifierApi(url string, logger *logrus.Logger) *VerifierApi {
-	logger.Debug("New Verifier API created with URL: ", url)
 	return &VerifierApi{
 		URL:    url,
 		logger: logger,
