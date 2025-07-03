@@ -25,7 +25,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	logger := logrus.New()
 	sdClient, err := statsd.New(net.JoinHostPort(cfg.Datadog.Host, cfg.Datadog.Port))
 	if err != nil {

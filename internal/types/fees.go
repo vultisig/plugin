@@ -25,12 +25,12 @@ type Fee struct {
 
 // fee table or fee_run_with_totals
 type FeeRun struct {
-	ID          uuid.UUID  `db:"id"`
-	Status      string     `db:"status"`
-	CreatedAt   time.Time  `db:"created_at"`
-	UpdatedAt   time.Time  `db:"updated_at"`
-	TxID        *uuid.UUID `db:"tx_id"`
-	PolicyID    uuid.UUID  `db:"policy_id"`
-	TotalAmount int        `db:"total_amount"`
-	FeeCount    int        `db:"fee_count"`
+	ID          uuid.UUID   `db:"id"`
+	Status      FeeRunState `db:"status"`
+	CreatedAt   time.Time   `db:"created_at"`
+	UpdatedAt   time.Time   `db:"updated_at"`
+	TxID        *uuid.UUID  `db:"tx_id"`
+	PolicyID    uuid.UUID   `db:"policy_id"`
+	TotalAmount int         `db:"total_amount"`
+	FeeCount    int         `db:"fee_count"`
 }

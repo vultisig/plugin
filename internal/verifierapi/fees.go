@@ -69,7 +69,6 @@ func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (FeeHistoryDto, err
 
 	if response.StatusCode != http.StatusOK {
 		v.logger.WithError(err).Error("failed to get plugin policy fees")
-		fmt.Println(response.StatusCode)
 		return FeeHistoryDto{}, fmt.Errorf("failed to get plugin policy fees, status code: %d", response.StatusCode)
 	}
 
@@ -104,7 +103,6 @@ func (v VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (FeeHistoryDto, er
 
 	if response.StatusCode != http.StatusOK {
 		v.logger.WithError(err).Error("failed to get public key fees")
-		fmt.Println(response.StatusCode)
 		return FeeHistoryDto{}, fmt.Errorf("failed to get public key fees, status code: %d", response.StatusCode)
 	}
 
@@ -132,7 +130,6 @@ func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
 
 	if response.StatusCode != http.StatusOK {
 		v.logger.WithError(err).Error("failed to get all public key fees")
-		fmt.Println(response.StatusCode)
 		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, status code: %d", response.StatusCode)
 	}
 
@@ -140,6 +137,7 @@ func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
 	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
 		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to decode all public key fees response: %w", err)
 	}
+	defer response.Body.Close()
 
 	if apiResponse.Error.Message != "" {
 		return map[string]FeeHistoryDto{}, fmt.Errorf("failed to get all public key fees, error: %s, details: %s", apiResponse.Error.Message, apiResponse.Error.DetailedResponse)

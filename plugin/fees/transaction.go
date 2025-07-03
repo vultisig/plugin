@@ -104,7 +104,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			chain,
 			policy.PluginID,
 			policy.ID,
-			token.Address, //TODO check if this is symbol or address
+			token.Address,
 			recipient,
 			fromTime,
 			toTime,

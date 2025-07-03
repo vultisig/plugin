@@ -32,7 +32,6 @@ All key logic related to fees will go here, that includes
 - getting fee information
 */
 
-// TODO do we actually need this?
 type BaseConfig struct {
 	Server   api.ServerConfig `mapstructure:"server" json:"server"`
 	Database struct {
@@ -50,7 +49,7 @@ type BaseConfig struct {
 var _ plugin.Plugin = (*FeePlugin)(nil)
 
 type FeePlugin struct {
-	vaultService     *vault.ManagementService //TODO garry - not sure if this is needed yet. For now a null pointer
+	vaultService     *vault.ManagementService
 	vaultStorage     *vault.BlockStorageImp
 	db               storage.DatabaseStorage
 	rpcClient        *ethclient.Client
@@ -64,7 +63,6 @@ type FeePlugin struct {
 	encryptionSecret string
 }
 
-// TODO garry, this needs work
 func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, txIndexerService *tx_indexer.Service, inspector *asynq.Inspector, client *asynq.Client, feeConfig *FeeConfig, encryptionSecret string) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
@@ -156,7 +154,6 @@ func (fp *FeePlugin) GetPolicyFees(cfg BaseConfig) error {
 	return nil
 }
 
-// TODO garry all
 func (fp *FeePlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	return nil
 }
@@ -207,7 +204,6 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 
 // Collects fee data by ... Should only be called by HandleFeeCollections
 func (fp *FeePlugin) collectFeesByPublicKey(publicKey string) error {
-	// TODO: implement logic
 	fp.Log(logrus.DebugLevel, "Collecting fees by policy: ")
 	feesResponse, err := fp.verifierApi.GetPublicKeysFees(publicKey)
 	if err != nil {
@@ -283,12 +279,6 @@ func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
 		fp.Log(logrus.InfoLevel, "No fees pending collection")
 	}
 
-	return nil
-}
-
-// Collects fee data by ... Should only be called by HandleFeeCollections
-func (fp *FeePlugin) collectFeesByPluginID(pluginId string) error {
-	// TODO: implement logic
 	return nil
 }
 
