@@ -17,7 +17,7 @@ type Policy interface {
 	CreatePolicy(ctx context.Context, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	UpdatePolicy(ctx context.Context, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	DeletePolicy(ctx context.Context, policyID uuid.UUID, signature string) error
-	GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string) ([]vtypes.PluginPolicy, error)
+	GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string, onlyActive bool) ([]vtypes.PluginPolicy, error)
 	GetPluginPolicy(ctx context.Context, policyID uuid.UUID) (vtypes.PluginPolicy, error)
 }
 
@@ -125,8 +125,8 @@ func (s *PolicyService) DeletePolicy(ctx context.Context, policyID uuid.UUID, si
 	return nil
 }
 
-func (s *PolicyService) GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string) ([]vtypes.PluginPolicy, error) {
-	policies, err := s.db.GetAllPluginPolicies(ctx, publicKey, pluginID)
+func (s *PolicyService) GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string, onlyActive bool) ([]vtypes.PluginPolicy, error) {
+	policies, err := s.db.GetAllPluginPolicies(ctx, publicKey, pluginID, onlyActive)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get policies: %w", err)
 	}

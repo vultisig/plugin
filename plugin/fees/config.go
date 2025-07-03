@@ -25,6 +25,7 @@ import (
 	}
 */
 
+// These are properties and parameters specific to the fee plugin config. They should be distinct from system/core config
 type FeeConfig struct {
 	Type             string `mapstructure:"type"`
 	Version          string `mapstructure:"version"`

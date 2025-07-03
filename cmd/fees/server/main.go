@@ -81,7 +81,8 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, feesConfig)
+	// Not passing a txIndexerService as we don't need it for the server. MAYBE.. TO be looked at further.
+	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feesConfig, cfg.Server.EncryptionSecret)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}

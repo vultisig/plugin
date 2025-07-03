@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
@@ -43,6 +41,7 @@ func main() {
 	}
 	logger := logrus.StandardLogger()
 	asynqClient := asynq.NewClient(redisOptions)
+	asynqInspector := asynq.NewInspector(redisOptions)
 
 	srv := asynq.NewServer(
 		redisOptions,
@@ -85,7 +84,7 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, feePluginConfig)
+	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig, cfg.VaultServiceConfig.EncryptionSecret)
 	if err != nil {
 		logger.Fatalf("failed to create DCA plugin,err: %s", err)
 	}
@@ -99,37 +98,6 @@ func main() {
 
 	//Plugin specific functions.
 	mux.HandleFunc(fees.TypeFeeCollection, feePlugin.HandleCollections)
-
-	//Simulate a fee collection run
-	//TODO garry. This is purely for e2e testing. Remove from prod.
-	go func() {
-		logger.Info("Simulating a fee collection run, waiting 0.5 seconds")
-
-		time.Sleep(500 * time.Millisecond)
-		logger.Info("Enqueueing Task")
-
-		payload, err := json.Marshal(fees.FeeCollectionFormat{
-			FeeCollectionType: fees.FeeCollectionTypeByPolicy,
-			Value:             "00000000-0000-0000-0000-000000000001",
-		})
-
-		if err != nil {
-			logger.WithError(err).Error("Failed to marshal fee collection config in demo run")
-			return
-		}
-
-		if err != nil {
-			logger.WithError(err).Error("Failed to marshal fee collection config")
-			return
-		}
-
-		asynqClient.Enqueue(
-			asynq.NewTask(fees.TypeFeeCollection, payload),
-			asynq.MaxRetry(0),
-			asynq.Timeout(2*time.Minute),
-			asynq.Retention(5*time.Minute),
-			asynq.Queue(tasks.QUEUE_NAME))
-	}()
 
 	logger.Info("Starting asynq listener")
 	if err := srv.Run(mux); err != nil {

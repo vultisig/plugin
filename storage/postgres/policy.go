@@ -38,7 +38,8 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id uuid.UUID) (vt
 	return policy, nil
 }
 
-func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey string, pluginID vtypes.PluginID) ([]vtypes.PluginPolicy, error) {
+func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey string, pluginID vtypes.PluginID, onlyActive bool) ([]vtypes.PluginPolicy, error) {
+
 	if p.pool == nil {
 		return []vtypes.PluginPolicy{}, fmt.Errorf("database pool is nil")
 	}
@@ -48,6 +49,10 @@ func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey st
 		FROM plugin_policies
 		WHERE public_key = $1
 		AND plugin_id = $2`
+
+	if onlyActive {
+		query += ` AND active = true`
+	}
 
 	rows, err := p.pool.Query(ctx, query, publicKey, pluginID)
 	if err != nil {

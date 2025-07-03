@@ -120,7 +120,7 @@ func createDummyServer() (*api.Server, vault.Storage, *fees.FeePlugin) {
 		client,
 		inspector,
 		sdClient,
-		&p,
+		nil,
 	)
 
 	return server, vaultStorage, &p

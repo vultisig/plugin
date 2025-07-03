@@ -40,6 +40,8 @@ func ReadConfig(configName string) (*CoreConfig, error) {
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 
+	viper.SetDefault("Server.VaultsFilePath", "vaults")
+
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("fail to reading config file, %w", err)
 	}

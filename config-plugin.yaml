@@ -37,4 +37,9 @@ datadog:
   host: localhost
   port: 8125
 
+vault_service:
+    relay:
+        server: https://api.vultisig.com/router
+    local_party_prefix: "vultisig-fees-feee"
+
 base_config_path: fee_config.json

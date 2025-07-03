@@ -22,6 +22,45 @@ CREATE TYPE "tx_indexer_status_onchain" AS ENUM (
     'FAIL'
 );
 
+CREATE FUNCTION "update_updated_at_column"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+CREATE TABLE "fee" (
+    "id" "uuid" NOT NULL,
+    "fee_run_id" "uuid" NOT NULL,
+    "amount" integer NOT NULL,
+    "created_at" timestamp without time zone DEFAULT "now"()
+);
+
+CREATE TABLE "fee_run" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "status" character varying(50) DEFAULT 'draft'::character varying NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "tx_id" "uuid",
+    "policy_id" "uuid" NOT NULL,
+    CONSTRAINT "fee_run_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['draft'::character varying, 'sent'::character varying, 'completed'::character varying, 'failed'::character varying])::"text"[])))
+);
+
+CREATE VIEW "fee_run_with_totals" AS
+ SELECT "fr"."id",
+    "fr"."status",
+    "fr"."created_at",
+    "fr"."updated_at",
+    "fr"."tx_id",
+    "fr"."policy_id",
+    COALESCE("sum"("fi"."amount"), (0)::bigint) AS "total_amount",
+    "count"("fi"."id") AS "fee_count"
+   FROM ("fee_run" "fr"
+     LEFT JOIN "fee" "fi" ON (("fr"."id" = "fi"."fee_run_id")))
+  GROUP BY "fr"."id", "fr"."status", "fr"."created_at", "fr"."updated_at", "fr"."tx_id", "fr"."policy_id";
+
 CREATE TABLE "plugin_policies" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "public_key" "text" NOT NULL,
@@ -78,6 +117,12 @@ CREATE TABLE "tx_indexer" (
 
 ALTER TABLE ONLY "time_triggers" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."time_triggers_id_seq"'::"regclass");
 
+ALTER TABLE ONLY "fee"
+    ADD CONSTRAINT "fee_pkey" PRIMARY KEY ("id");
+
+ALTER TABLE ONLY "fee_run"
+    ADD CONSTRAINT "fee_run_pkey" PRIMARY KEY ("id");
+
 ALTER TABLE ONLY "plugin_policies"
     ADD CONSTRAINT "plugin_policies_pkey" PRIMARY KEY ("id");
 
@@ -86,6 +131,12 @@ ALTER TABLE ONLY "time_triggers"
 
 ALTER TABLE ONLY "tx_indexer"
     ADD CONSTRAINT "tx_indexer_pkey" PRIMARY KEY ("id");
+
+CREATE INDEX "idx_fee_id_fee_run_id" ON "fee" USING "btree" ("fee_run_id");
+
+CREATE INDEX "idx_fee_run_created_at" ON "fee_run" USING "btree" ("created_at");
+
+CREATE INDEX "idx_fee_run_status" ON "fee_run" USING "btree" ("status");
 
 CREATE INDEX "idx_plugin_policies_active" ON "plugin_policies" USING "btree" ("active");
 
@@ -100,6 +151,17 @@ CREATE INDEX "idx_time_triggers_start_time" ON "time_triggers" USING "btree" ("s
 CREATE INDEX "idx_tx_indexer_key" ON "tx_indexer" USING "btree" ("chain_id", "plugin_id", "policy_id", "token_id", "to_public_key", "created_at");
 
 CREATE INDEX "idx_tx_indexer_status_onchain_lost" ON "tx_indexer" USING "btree" ("status_onchain", "lost");
+
+CREATE TRIGGER "update_fee_run_updated_at" BEFORE UPDATE ON "fee_run" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+ALTER TABLE ONLY "fee"
+    ADD CONSTRAINT "fee_fee_run_id_fkey" FOREIGN KEY ("fee_run_id") REFERENCES "fee_run"("id") ON DELETE CASCADE;
+
+ALTER TABLE ONLY "fee_run"
+    ADD CONSTRAINT "fee_run_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id") ON DELETE CASCADE;
+
+ALTER TABLE ONLY "fee_run"
+    ADD CONSTRAINT "fee_run_tx_id_fkey" FOREIGN KEY ("tx_id") REFERENCES "tx_indexer"("id") ON DELETE SET NULL;
 
 ALTER TABLE ONLY "time_triggers"
     ADD CONSTRAINT "time_triggers_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id");
