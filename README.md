@@ -89,9 +89,9 @@ Vultisigner / VultiServer consists of two components:
 - Docker and Docker Compose
 - MinIO client (mc)
 
-## 1. Start Infrastructure Services
+## 1. Start Services
 
-First, start the required infrastructure services using Docker Compose:
+First, start the services using Docker Compose, it has both db/infra and backend services:
 
 ```
 # create shared network in docker
@@ -101,6 +101,15 @@ make up
 # stop running service with docker compose
 make down
 ```
+
+To debug Docker containers in GoLand with breakpoints, [refer to this article](https://www.jetbrains.com/help/go/attach-to-running-go-processes-with-debugger.html).
+
+For convenient usage of debug breakpoints in GoLand, you can start only infra/db with Docker, and backend services outside Docker. Configs shared in `.run` directory, all envs already configured correctly. It will run:
+- Payroll Server;
+- Payroll Worker;
+- Tx Indexer Worker;
+
+![goland-run.png](readme-static/goland-run.png)
 
 ## 2. Access MinIO
 
