@@ -121,7 +121,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 
 		nonce, err := fp.nonceManager.GetNextNonce(ethAddress)
 		if err != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.nonceManager.GetNextNonce: %w", err)
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.nonceManager.GetNextNonce: %w", err)
 		}
 
 		tx, e := plugincommon.GenUnsignedTx(
@@ -136,7 +136,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		)
 
 		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.genUnsignedTx: %w", e)
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.genUnsignedTx: %w", e)
 		}
 
 		txHex := hex.EncodeToString(tx)
@@ -151,7 +151,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			ProposedTxHex: txHex,
 		})
 		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("fp.tx_indexer.CreateTx: %w", e)
 		}
 
 		// Create signing request
@@ -220,7 +220,7 @@ func (fp *FeePlugin) IsAlreadyProposed(
 	if errors.Is(err, storage.ErrNoTx) {
 		return false, nil
 	}
-	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
+	return false, fmt.Errorf("fp.txIndexerService.GetTxInTimeRange: %w", err)
 }
 
 func (fp *FeePlugin) initSign(
@@ -230,7 +230,6 @@ func (fp *FeePlugin) initSign(
 ) error {
 	buf, e := json.Marshal(req)
 	if e != nil {
-		fp.logger.WithError(e).Error("json.Marshal")
 		return fmt.Errorf("json.Marshal: %w", e)
 	}
 
@@ -242,8 +241,7 @@ func (fp *FeePlugin) initSign(
 		asynq.Queue(tasks.QUEUE_NAME),
 	)
 	if e != nil {
-		fp.logger.WithError(e).Error("p.client.Enqueue")
-		return fmt.Errorf("p.client.Enqueue: %w", e)
+		return fmt.Errorf("fp.client.Enqueue: %w", e)
 	}
 
 	for {
@@ -253,8 +251,7 @@ func (fp *FeePlugin) initSign(
 		case <-time.After(3 * time.Second):
 			taskInfo, er := fp.asynqInspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
 			if er != nil {
-				fp.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
-				return fmt.Errorf("p.inspector.GetTaskInfo: %w", er)
+				return fmt.Errorf("fp.inspector.GetTaskInfo: %w", er)
 			}
 			if taskInfo.State != asynq.TaskStateCompleted {
 				continue
@@ -267,7 +264,6 @@ func (fp *FeePlugin) initSign(
 			var res map[string]tss.KeysignResponse
 			er = json.Unmarshal(taskInfo.Result, &res)
 			if er != nil {
-				fp.logger.WithError(er).Error("json.Unmarshal(taskInfo.Result, &res)")
 				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
 			}
 
@@ -278,8 +274,7 @@ func (fp *FeePlugin) initSign(
 
 			er = fp.SigningComplete(ctx, sig, req, pluginPolicy)
 			if er != nil {
-				fp.logger.WithError(er).Error("p.SigningComplete")
-				return fmt.Errorf("p.SigningComplete: %w", er)
+				return fmt.Errorf("fp.SigningComplete: %w", er)
 			}
 
 			fp.logger.WithField("public_key", req.PublicKey).
