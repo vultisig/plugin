@@ -6,9 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-/*
-Verifier API Response types
-*/
+// APIResponse is a generic response type for the Verifier API.
 type APIResponse[T any] struct {
 	Data      T             `json:"data,omitempty"`
 	Error     ErrorResponse `json:"error"`
@@ -22,8 +20,7 @@ type ErrorResponse struct {
 	DetailedResponse string `json:"details,omitempty"`
 }
 
-//Verifier API type
-
+// VerifierApi is a client for interacting with the Verifier API.
 type VerifierApi struct {
 	URL    string
 	logger *logrus.Logger
