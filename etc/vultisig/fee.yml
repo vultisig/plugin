@@ -1,3 +1,7 @@
 type: fee
-version: 0.0.1
-rpc_url: https://eth.llamarpc.com
+version: 1.0.0
+rpc_url: https://ethereum.publicnode.com/
+collector_whitelist_addresses:
+    - 0x7d760c17d798a7A9a4c4AcAf311A02dC95972503
+    - 0x5BB06B9C5e4f7624Df7100Badb2F5AA1C86d8498
+collector_address: 0x7d760c17d798a7A9a4c4AcAf311A02dC95972503

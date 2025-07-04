@@ -10,14 +10,11 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	rtypes "github.com/vultisig/recipes/types"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
-	"github.com/vultisig/verifier/vault_config"
 
-	"github.com/vultisig/plugin/api"
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
 	plugincommon "github.com/vultisig/plugin/plugin/common"
@@ -31,20 +28,6 @@ All key logic related to fees will go here, that includes
 - proposing a fee transaction
 - getting fee information
 */
-
-type BaseConfig struct {
-	Server   api.ServerConfig `mapstructure:"server" json:"server"`
-	Database struct {
-		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
-	} `mapstructure:"database" json:"database,omitempty"`
-	BaseConfigPath string                    `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
-	Redis          storage.RedisConfig       `mapstructure:"redis" json:"redis,omitempty"`
-	BlockStorage   vault_config.BlockStorage `mapstructure:"block_storage" json:"block_storage,omitempty"`
-	Datadog        struct {
-		Host string `mapstructure:"host" json:"host,omitempty"`
-		Port string `mapstructure:"port" json:"port,omitempty"`
-	} `mapstructure:"datadog" json:"datadog"`
-}
 
 var _ plugin.Plugin = (*FeePlugin)(nil)
 
@@ -63,7 +46,16 @@ type FeePlugin struct {
 	encryptionSecret string
 }
 
-func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseConfigPath string, vaultStorage *vault.BlockStorageImp, txIndexerService *tx_indexer.Service, inspector *asynq.Inspector, client *asynq.Client, feeConfig *FeeConfig, encryptionSecret string) (*FeePlugin, error) {
+func NewFeePlugin(db storage.DatabaseStorage,
+	logger logrus.FieldLogger,
+	baseConfigPath string,
+	vaultStorage *vault.BlockStorageImp,
+	txIndexerService *tx_indexer.Service,
+	inspector *asynq.Inspector,
+	client *asynq.Client,
+	feeConfig *FeeConfig,
+	encryptionSecret string,
+	verifierUrl string) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -81,7 +73,11 @@ func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseCon
 		return nil, fmt.Errorf("vault storage cannot be nil")
 	}
 
-	verifierApi := verifierapi.NewVerifierApi(feeConfig.VerifierUrl, logger.(*logrus.Logger))
+	if verifierUrl == "" {
+		return nil, fmt.Errorf("verifier url cannot be empty")
+	}
+
+	verifierApi := verifierapi.NewVerifierApi(verifierUrl, logger.(*logrus.Logger))
 	if verifierApi == nil {
 		return nil, fmt.Errorf("failed to create verifier api")
 	}
@@ -101,54 +97,6 @@ func NewFeePlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, baseCon
 	}, nil
 }
 
-func (fp FeePlugin) GetRecipeSpecification() rtypes.RecipeSchema {
-	return rtypes.RecipeSchema{
-		Version:         1, // Schema version
-		ScheduleVersion: 1, // Schedule specification version
-		PluginId:        string(vtypes.PluginVultisigFees_feee.String()),
-		PluginName:      "Fee Plugin",
-		PluginVersion:   1,
-		SupportedResources: []*rtypes.ResourcePattern{
-			{
-				ResourcePath: &rtypes.ResourcePath{
-					ChainId:    "ethereum",
-					ProtocolId: "erc20",
-					FunctionId: "transfer",
-					Full:       "ethereum.erc20.transfer",
-				},
-				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-					{
-						ParameterName: "recipient",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						},
-						Required: true,
-					},
-					{
-						ParameterName: "amount",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_UNSPECIFIED,
-						},
-						Required: true,
-					},
-				},
-				Required: true,
-			},
-		},
-		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: 1,
-			SupportedChains:    []string{"ethereum"},
-		},
-	}
-}
-
-func (fp *FeePlugin) GetPolicyFees(cfg BaseConfig) error {
-	return nil
-}
-
-func (fp *FeePlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
-	return nil
-}
 func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
 	return nil
 }

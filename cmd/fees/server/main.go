@@ -73,18 +73,14 @@ func main() {
 	}
 
 	//base config path
-	feesConfig, err := fees.NewFeeConfig(
-		fees.WithVerifierUrl(cfg.Server.VerifierUrl),
-	)
-
+	feePluginConfig, err := fees.NewFeeConfig(fees.WithFileConfig(cfg.BaseConfigPath))
 	if err != nil {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	// Not passing a txIndexerService as we don't need it for the server. MAYBE.. TO be looked at further.
-	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feesConfig, cfg.Server.EncryptionSecret)
+	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feePluginConfig, cfg.Server.EncryptionSecret, cfg.Server.VerifierUrl)
 	if err != nil {
-		logger.Fatalf("failed to create DCA plugin,err: %s", err)
+		logger.Fatalf("failed to create fee plugin,err: %s", err)
 	}
 	server := api.NewServer(
 		cfg.Server,
