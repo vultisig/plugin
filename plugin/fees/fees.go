@@ -14,13 +14,13 @@ import (
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
 	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/verifier/vault"
-	"golang.org/x/sync/errgroup"
 )
 
 /*
@@ -104,8 +104,12 @@ func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignR
 	return nil
 }
 
-// HANDLER FUNCTIONS
-
+/*
+The handler of the asynq job. Fees can be initialized and collected in 3 ways:
+- By public key (queries the db for a single fee_policy and then kicks off the fee collection)
+- By policy id (queries the db for a fee_policy matching that id and then kicks off the fee collection)
+- All (queries the db for all fee_policies and then kicks off the fee collection for each policy)
+*/
 func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) error {
 	fp.logger.Info("Starting Fee Collection Job")
 
@@ -118,152 +122,124 @@ func (fp *FeePlugin) HandleCollections(ctx context.Context, task *asynq.Task) er
 			return fmt.Errorf("fp.HandleCollections, failed to unmarshall asynq task payload, %w", err)
 		}
 	}
-
 	switch feeCollectionFormat.FeeCollectionType {
 	case FeeCollectionTypeByPublicKey:
 		fp.logger.Info("Collecting fees by public key")
-		return fp.collectFeesByPublicKey(feeCollectionFormat.Value)
+		return fp.collectFeesByPublicKey(ctx, feeCollectionFormat.Value)
 	case FeeCollectionTypeByPolicy:
 		fp.logger.Info("Collecting fees by policy")
-		return fp.collectFeesByPolicy(feeCollectionFormat.Value)
-	case FeeCollectionTypeByPluginID:
-		fp.logger.Info("Collecting fees by plugin id")
+		return fp.collectFeesByPolicyId(ctx, feeCollectionFormat.Value)
 	case FeeCollectionTypeAll:
-		fp.logger.Info("Collecting fees by all")
-		return fp.collectAllFees()
+		fp.logger.Info("Collecting all fees")
+		return fp.collectAllFees(ctx)
 	default:
 		return fmt.Errorf("invalid fee collection type")
 	}
-
-	return nil
 }
 
-// SWITCHED LOGIC TO HANDLE DIFFERENT FEE COLLECTION TYPES. These functions should be called by the public function "HandleFeeCollections"
-
-// Collects fee data by ... Should only be called by HandleFeeCollections
-func (fp *FeePlugin) collectFeesByPublicKey(publicKey string) error {
-	feesResponse, err := fp.verifierApi.GetPublicKeysFees(publicKey)
+func (fp *FeePlugin) collectFeesByPublicKey(ctx context.Context, publicKey string) error {
+	// Get the fee policy from the database
+	feePolicies, err := fp.db.GetAllPluginPolicies(ctx, publicKey, vtypes.PluginVultisigFees_feee, true)
 	if err != nil {
-		return fmt.Errorf("failed to get plugin policy fees: %w", err)
+		return fmt.Errorf("failed to get plugin policy: %w", err)
 	}
-
-	if feesResponse.FeesPendingCollection > 0 {
-		fp.logger.Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
-
-		feesToCollect := []uuid.UUID{}
-		checkAmount := 0
-		for _, fee := range feesResponse.Fees {
-			if !fee.Collected {
-				feesToCollect = append(feesToCollect, fee.ID)
-				checkAmount += fee.Amount
-			}
-		}
-		if checkAmount != feesResponse.FeesPendingCollection {
-			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
-		}
-
-		fp.logger.Info("Fees to collect: ", feesToCollect)
-
-	} else {
-		fp.logger.Info("No fees pending collection")
+	if len(feePolicies) == 0 {
+		return fmt.Errorf("no fee policy found for public key: %s", publicKey)
 	}
-
-	return nil
+	if len(feePolicies) > 1 {
+		return fmt.Errorf("multiple fee policies found for public key: %s", publicKey)
+	}
+	return fp.executeFeeCollection(ctx, feePolicies[0])
 }
 
-// Collects fee data by ... Should only be called by HandleFeeCollections
-func (fp *FeePlugin) collectFeesByPolicy(policyIdString string) error {
-
-	policyId, err := uuid.Parse(policyIdString)
+func (fp *FeePlugin) collectFeesByPolicyId(ctx context.Context, policyId string) error {
+	policyIdUuid, err := uuid.Parse(policyId)
 	if err != nil {
 		return fmt.Errorf("failed to parse policy id: %w", err)
 	}
-	feesResponse, err := fp.verifierApi.GetPluginPolicyFees(policyId)
+	policy, err := fp.db.GetPluginPolicy(ctx, policyIdUuid)
 	if err != nil {
-		return fmt.Errorf("failed to get plugin policy fees: %w", err)
+		return fmt.Errorf("failed to get plugin policy: %w", err)
 	}
-
-	if feesResponse.FeesPendingCollection > 0 {
-		fp.logger.Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
-
-		feesToCollect := []uuid.UUID{}
-		checkAmount := 0
-		for _, fee := range feesResponse.Fees {
-			if !fee.Collected {
-				feesToCollect = append(feesToCollect, fee.ID)
-				checkAmount += fee.Amount
-			}
-		}
-		if checkAmount != feesResponse.FeesPendingCollection {
-			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
-		}
-
-	} else {
-		fp.logger.Info("No fees pending collection")
-	}
-
-	return nil
+	return fp.executeFeeCollection(ctx, policy)
 }
 
-// Collects fee data by ... Should only be called by HandleFeeCollections
-func (fp *FeePlugin) collectAllFees() error {
-	ctx := context.Background()
-	feesResponse, err := fp.verifierApi.GetAllPublicKeysFees()
-	if err != nil {
-		return fmt.Errorf("failed to get plugin policy fees: %w", err)
-	}
-
-	for publicKey, feeHistory := range feesResponse {
-		//TODO just for testing
-
-		if feeHistory.FeesPendingCollection > 0 {
-
-			fp.logger.Info("Fees pending collection: ", feeHistory.FeesPendingCollection)
-
-			checkAmount := 0
-			for _, fee := range feeHistory.Fees {
-				if !fee.Collected {
-					checkAmount += fee.Amount
-				}
-			}
-			if checkAmount != feeHistory.FeesPendingCollection {
-				return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
-			}
-
-			fp.executeFeeCollection(ctx, publicKey, feeHistory.Fees)
-
-		} else {
-			fp.logger.Info("No fees pending collection for public key: ", publicKey)
-		}
-	}
-
-	return nil
-}
-
-func (fp *FeePlugin) executeFeeCollection(ctx context.Context, ecdsaPublicKey string, feeIds []verifierapi.FeeDto) error {
-
-	//Get fee policy document
-	feePolicies, err := fp.db.GetAllPluginPolicies(ctx, ecdsaPublicKey, vtypes.PluginVultisigFees_feee, true)
+func (fp *FeePlugin) collectAllFees(ctx context.Context) error {
+	fp.logger.Info("Collecting all fees")
+	feePolicies, err := fp.db.GetAllPluginPolicies(ctx, "", vtypes.PluginVultisigFees_feee, true)
 	if err != nil {
 		return fmt.Errorf("failed to get fee policies: %w", err)
 	}
-	if len(feePolicies) == 0 {
-		return fmt.Errorf("no fee policies found")
-	} else if len(feePolicies) > 1 {
-		return fmt.Errorf("multiple fee policies found")
-	}
-	feePolicy := feePolicies[0]
 
-	//Here we check if the fee collection is already in progress for the public key.
-	feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feeIds)
+	var eg errgroup.Group
+	for _, feePolicy := range feePolicies {
+		feePolicy := feePolicy // Capture by value
+		eg.Go(func() error {
+			return fp.executeFeeCollection(ctx, feePolicy)
+		})
+	}
+	return eg.Wait()
+}
+
+/*
+This function is the main function that collects fees. It is called by
+- collectFeesByPublicKey,
+- collectFeesByPolicyId
+- collectAllFees
+It does the following:
+- Gets the list of fees from the verifier
+- If there are fees to collect, it creates a fee run, errors if already being collected.
+- It gets a vault and proposes the transactions
+- It initializes the signing
+*/
+func (fp *FeePlugin) executeFeeCollection(ctx context.Context, feePolicy vtypes.PluginPolicy) error {
+
+	// Get list of fees from the verifier connected to the fee policy
+	feesResponse, err := fp.verifierApi.GetPublicKeysFees(feePolicy.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get plugin policy fees: %w", err)
+	}
+
+	// Early return if no fees to collect
+	if feesResponse.FeesPendingCollection <= 0 {
+		fp.logger.WithField("publicKey", feePolicy.PublicKey).Info("No fees pending collection")
+		return nil
+	}
+
+	// If fees are greater than 0, we need to collect them
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
+
+	// Get list of fee ids to be collected in this batch
+	// Verify that the sum of the fees is equal to the fees pending collection
+	feesToCollect := make([]uuid.UUID, 0, len(feesResponse.Fees))
+	checkAmount := 0
+	for _, fee := range feesResponse.Fees {
+		if !fee.Collected {
+			feesToCollect = append(feesToCollect, fee.ID)
+			checkAmount += fee.Amount
+		}
+	}
+	if checkAmount != feesResponse.FeesPendingCollection {
+		return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
+	}
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+		"amount":    checkAmount,
+	}).Info("Collecting fee ids: ", feesToCollect)
+
+	//Here we check if the fee collection is already in progress for any of the specific fee ids
+	feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feesResponse.Fees)
 	if err != nil {
 		return fmt.Errorf("failed to create fee run: %w", err)
 	}
-	fp.logger.Info("Fee run created: ", feeRun)
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Fee run created with id: ", feeRun.ID)
 
-	//Get vault and check it exists
-
-	vaultFileName := vcommon.GetVaultBackupFilename(ecdsaPublicKey, vtypes.PluginVultisigFees_feee.String())
+	// Get a vault and sign the transactions
+	vaultFileName := vcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
 	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
 	if err != nil {
 		return fmt.Errorf("failed to get vault: %w", err)
@@ -272,21 +248,17 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, ecdsaPublicKey st
 		return fmt.Errorf("vault not found")
 	}
 
+	// Propose the transactions
 	keySignRequests, err := fp.ProposeTransactions(feePolicy)
 	if err != nil {
 		return fmt.Errorf("failed to propose transactions: %w", err)
 	}
 
-	var eg errgroup.Group
 	for _, keySignRequest := range keySignRequests {
 		req := keySignRequest
-		eg.Go(func() error {
-			return fp.initSign(ctx, req, feePolicy)
-		})
-	}
-	err = eg.Wait()
-	if err != nil {
-		return fmt.Errorf("eg.Wait: %s, %w", err, asynq.SkipRetry)
+		if err := fp.initSign(ctx, req, feePolicy); err != nil {
+			return fmt.Errorf("failed to init sign: %w", err)
+		}
 	}
 
 	return nil
