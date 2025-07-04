@@ -92,26 +92,22 @@ func (v VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, e
 
 func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
 	url := "/fees/all"
-	v.logger.Debug("Getting all public key fees")
-	v.logger.Debug("URL: ", url)
 	response, err := v.get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all public key fees: %w", err)
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get all public key fees, status code: %d", response.StatusCode)
-	}
-
-	var apiResponse APIResponse[map[string]FeeHistoryDto]
-	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode all public key fees response: %w", err)
 	}
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			v.logger.WithError(err).Error("Failed to close response body")
 		}
 	}()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get all public key fees, status code: %d", response.StatusCode)
+	}
+	var apiResponse APIResponse[map[string]FeeHistoryDto]
+	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode all public key fees response: %w", err)
+	}
 
 	if apiResponse.Error.Message != "" {
 		return nil, fmt.Errorf("failed to get all public key fees, error: %s, details: %s", apiResponse.Error.Message, apiResponse.Error.DetailedResponse)
