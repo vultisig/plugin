@@ -14,6 +14,7 @@ import (
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
@@ -144,7 +145,7 @@ func (fp *FeePlugin) collectFeesByPublicKey(ctx context.Context, publicKey strin
 	}
 	if len(feePolicies) == 0 {
 		return fmt.Errorf("no fee policy found for public key: %s", publicKey)
-		}
+	}
 	if len(feePolicies) > 1 {
 		return fmt.Errorf("multiple fee policies found for public key: %s", publicKey)
 	}
@@ -169,10 +170,15 @@ func (fp *FeePlugin) collectAllFees(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get fee policies: %w", err)
 	}
+
+	var eg errgroup.Group
 	for _, feePolicy := range feePolicies {
-		return fp.executeFeeCollection(ctx, feePolicy)
+		feePolicy := feePolicy // Capture by value
+		eg.Go(func() error {
+			return fp.executeFeeCollection(ctx, feePolicy)
+		})
 	}
-	return nil
+	return eg.Wait()
 }
 
 /*
@@ -218,33 +224,33 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, feePolicy vtypes.
 			"amount":    checkAmount,
 		}).Info("Collecting fee ids: ", feesToCollect)
 
-	//Here we check if the fee collection is already in progress for the public key.
+		//Here we check if the fee collection is already in progress for any of the specific fee ids
 		feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feesResponse.Fees)
-	if err != nil {
-		return fmt.Errorf("failed to create fee run: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("failed to create fee run: %w", err)
+		}
 		fp.logger.WithFields(logrus.Fields{
 			"publicKey": feePolicy.PublicKey,
 		}).Info("Fee run created with id: ", feeRun.ID)
 
 		// Get a vault and sign the transactions
 		vaultFileName := vcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
-	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
-	if err != nil {
-		return fmt.Errorf("failed to get vault: %w", err)
-	}
-	if vaultContent == nil {
-		return fmt.Errorf("vault not found")
-	}
+		vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
+		if err != nil {
+			return fmt.Errorf("failed to get vault: %w", err)
+		}
+		if vaultContent == nil {
+			return fmt.Errorf("vault not found")
+		}
 
 		// Propose the transactions
-	keySignRequests, err := fp.ProposeTransactions(feePolicy)
-	if err != nil {
-		return fmt.Errorf("failed to propose transactions: %w", err)
-	}
+		keySignRequests, err := fp.ProposeTransactions(feePolicy)
+		if err != nil {
+			return fmt.Errorf("failed to propose transactions: %w", err)
+		}
 
-	for _, keySignRequest := range keySignRequests {
-		req := keySignRequest
+		for _, keySignRequest := range keySignRequests {
+			req := keySignRequest
 			if err := fp.initSign(ctx, req, feePolicy); err != nil {
 				return fmt.Errorf("failed to init sign: %w", err)
 			}
