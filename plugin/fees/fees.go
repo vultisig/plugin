@@ -200,64 +200,65 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, feePolicy vtypes.
 		return fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
 
+	// Early return if no fees to collect
+	if feesResponse.FeesPendingCollection <= 0 {
+		fp.logger.WithField("publicKey", feePolicy.PublicKey).Info("No fees pending collection")
+		return nil
+	}
+
 	// If fees are greater than 0, we need to collect them
-	if feesResponse.FeesPendingCollection > 0 {
-		fp.logger.WithFields(logrus.Fields{
-			"publicKey": feePolicy.PublicKey,
-		}).Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
 
-		// Get list of fee ids to be collected in this batch
-		// Verify that the sum of the fees is equal to the fees pending collection
-		feesToCollect := []uuid.UUID{}
-		checkAmount := 0
-		for _, fee := range feesResponse.Fees {
-			if !fee.Collected {
-				feesToCollect = append(feesToCollect, fee.ID)
-				checkAmount += fee.Amount
-			}
+	// Get list of fee ids to be collected in this batch
+	// Verify that the sum of the fees is equal to the fees pending collection
+	feesToCollect := make([]uuid.UUID, 0, len(feesResponse.Fees))
+	checkAmount := 0
+	for _, fee := range feesResponse.Fees {
+		if !fee.Collected {
+			feesToCollect = append(feesToCollect, fee.ID)
+			checkAmount += fee.Amount
 		}
-		if checkAmount != feesResponse.FeesPendingCollection {
-			return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
-		}
-		fp.logger.WithFields(logrus.Fields{
-			"publicKey": feePolicy.PublicKey,
-			"amount":    checkAmount,
-		}).Info("Collecting fee ids: ", feesToCollect)
+	}
+	if checkAmount != feesResponse.FeesPendingCollection {
+		return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
+	}
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+		"amount":    checkAmount,
+	}).Info("Collecting fee ids: ", feesToCollect)
 
-		//Here we check if the fee collection is already in progress for any of the specific fee ids
-		feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feesResponse.Fees)
-		if err != nil {
-			return fmt.Errorf("failed to create fee run: %w", err)
-		}
-		fp.logger.WithFields(logrus.Fields{
-			"publicKey": feePolicy.PublicKey,
-		}).Info("Fee run created with id: ", feeRun.ID)
+	//Here we check if the fee collection is already in progress for any of the specific fee ids
+	feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feesResponse.Fees)
+	if err != nil {
+		return fmt.Errorf("failed to create fee run: %w", err)
+	}
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Fee run created with id: ", feeRun.ID)
 
-		// Get a vault and sign the transactions
-		vaultFileName := vcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
-		vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
-		if err != nil {
-			return fmt.Errorf("failed to get vault: %w", err)
-		}
-		if vaultContent == nil {
-			return fmt.Errorf("vault not found")
-		}
+	// Get a vault and sign the transactions
+	vaultFileName := vcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
+	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
+	if err != nil {
+		return fmt.Errorf("failed to get vault: %w", err)
+	}
+	if vaultContent == nil {
+		return fmt.Errorf("vault not found")
+	}
 
-		// Propose the transactions
-		keySignRequests, err := fp.ProposeTransactions(feePolicy)
-		if err != nil {
-			return fmt.Errorf("failed to propose transactions: %w", err)
-		}
+	// Propose the transactions
+	keySignRequests, err := fp.ProposeTransactions(feePolicy)
+	if err != nil {
+		return fmt.Errorf("failed to propose transactions: %w", err)
+	}
 
-		for _, keySignRequest := range keySignRequests {
-			req := keySignRequest
-			if err := fp.initSign(ctx, req, feePolicy); err != nil {
-				return fmt.Errorf("failed to init sign: %w", err)
-			}
+	for _, keySignRequest := range keySignRequests {
+		req := keySignRequest
+		if err := fp.initSign(ctx, req, feePolicy); err != nil {
+			return fmt.Errorf("failed to init sign: %w", err)
 		}
-
-	} else {
-		fp.logger.Info("No fees pending collection")
 	}
 
 	return nil
