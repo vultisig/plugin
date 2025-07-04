@@ -29,6 +29,8 @@ services:
       interval: 1s
       timeout: 5s
       retries: 3
+    volumes:
+      - redis_payroll:/data
 
   redis-fees:
     image: redis:latest
@@ -41,6 +43,8 @@ services:
       interval: 1s
       timeout: 5s
       retries: 3
+    volumes:
+      - redis_fees:/data
 
   asynqmon:
     platform: linux/amd64
@@ -156,6 +160,8 @@ services:
 volumes:
   db_data:
   minio_data: 
+  redis_payroll:
+  redis_fees:
 networks:
   shared_network:
     external: true
