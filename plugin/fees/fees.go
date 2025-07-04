@@ -105,7 +105,7 @@ func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignR
 }
 
 /*
-The handler of the asynq job. Fees can initialized and collected in 3 ways:
+The handler of the asynq job. Fees can be initialized and collected in 3 ways:
 - By public key (queries the db for a single fee_policy and then kicks off the fee collection)
 - By policy id (queries the db for a fee_policy matching that id and then kicks off the fee collection)
 - All (queries the db for all fee_policies and then kicks off the fee collection for each policy)
