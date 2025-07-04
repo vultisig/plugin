@@ -1,11 +1,27 @@
 # adjust to point to your local go-wrappers repo
 DYLD_LIBRARY=../go-wrappers/includes/darwin/:$LD_LIBRARY_PATH
+DYLD_LIBRARY_PATH=../go-wrappers/includes/darwin/:$LD_LIBRARY_PATH
+
+
+.PHONY: up up-dev down down-dev build build-dev dump-schema
 
 up:
 	@docker compose up -d --remove-orphans;
 
+up-dev:
+	@docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up -d --remove-orphans;
+
 down:
 	@docker compose down
+
+down-dev:
+	@docker compose -f docker-compose.yaml -f docker-compose.dev.yaml down;
+
+build:
+	@docker compose build;
+
+build-dev:
+	@docker compose -f docker-compose.yaml -f docker-compose.dev.yaml build;
 
 
 # Dump database schema

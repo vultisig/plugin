@@ -2,15 +2,16 @@
     "server": {
         "host": "localhost",
         "port": 8080,
-        "encryption_secret": "test123"
+        "encryption_secret": "test123",
+        "verifier_url": "http://host.docker.internal:8080"
     },
     "database": {
-        "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable"
+        "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-fee?sslmode=disable"
     },
     "base_config_path": "../../../etc/vultisig",
     "redis": {
-        "host": "localhost",
-        "port": "6378",
+        "host": "redis-fees",
+        "port": "6379",
         "password": "password"
     },
     "block_storage": {
@@ -18,7 +19,7 @@
         "region": "us-east-1",
         "access_key": "minioadmin",
         "secret": "minioadmin",
-        "bucket": "vultisig-payroll"
+        "bucket": "vultisig-fee"
     },
     "datadog": {
         "host": "localhost",

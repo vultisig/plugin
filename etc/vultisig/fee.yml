@@ -1,0 +1,3 @@
+type: fee
+version: 0.0.1
+rpc_url: https://eth.llamarpc.com

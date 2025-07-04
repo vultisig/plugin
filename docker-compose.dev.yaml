@@ -1,0 +1,37 @@
+services:
+  fee-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.Fee.worker.dev
+    volumes:
+      - ./cmd:/app/cmd
+      - ./plugin:/app/plugin
+      - ./internal:/app/internal
+      - ./api:/app/api
+      - ./storage:/app/storage
+      - ./common:/app/common
+      - ./pkg:/app/pkg
+      - ./service:/app/service
+      - ./fee.worker.example.json:/app/config.json
+
+  fee-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.Fee.server.dev
+    volumes:
+      - ./cmd:/app/cmd
+      - ./plugin:/app/plugin
+      - ./internal:/app/internal
+      - ./api:/app/api
+      - ./storage:/app/storage
+      - ./common:/app/common
+      - ./pkg:/app/pkg
+      - ./service:/app/service
+      - ./fee.server.example.json:/app/config.json
+
+volumes:
+  db_data:
+  minio_data: 
+networks:
+  shared_network:
+    external: true
