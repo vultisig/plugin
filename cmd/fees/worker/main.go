@@ -82,14 +82,14 @@ func main() {
 		panic(fmt.Errorf("failed to create vault service: %w", err))
 	}
 
-	feePluginConfig, err := fees.NewFeeConfig(fees.WithVerifierUrl(cfg.Server.VerifierUrl))
+	feePluginConfig, err := fees.NewFeeConfig(fees.WithFileConfig(cfg.BaseConfigPath))
 	if err != nil {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig, cfg.VaultServiceConfig.EncryptionSecret)
+	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig, cfg.VaultServiceConfig.EncryptionSecret, cfg.Server.VerifierUrl)
 	if err != nil {
-		logger.Fatalf("failed to create DCA plugin,err: %s", err)
+		logger.Fatalf("failed to create fee plugin,err: %s", err)
 	}
 
 	mux := asynq.NewServeMux()

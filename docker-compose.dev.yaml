@@ -13,6 +13,7 @@ services:
       - ./pkg:/app/pkg
       - ./service:/app/service
       - ./fee.worker.example.json:/app/config.json
+      - ./etc/vultisig/fee.yml:/etc/vultisig/fee.yml
 
   fee-server:
     build:
@@ -28,6 +29,7 @@ services:
       - ./pkg:/app/pkg
       - ./service:/app/service
       - ./fee.server.example.json:/app/config.json
+      - ./etc/vultisig/fee.yml:/etc/vultisig/fee.yml
 
 volumes:
   db_data:

@@ -1,6 +1,6 @@
 package fees
 
-const PLUGIN_TYPE = "fees"
+const PLUGIN_TYPE = "fee"
 
 // Task Definitions
 const TypeFeeCollection = "fees:collection"

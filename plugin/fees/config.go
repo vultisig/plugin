@@ -3,6 +3,7 @@ package fees
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -27,20 +28,12 @@ import (
 
 // These are properties and parameters specific to the fee plugin config. They should be distinct from system/core config
 type FeeConfig struct {
-	Type             string `mapstructure:"type"`
-	Version          string `mapstructure:"version"`
-	RpcURL           string `mapstructure:"rpc_url"`           // URL for the RPC endpoint to interact with the ethereum/evm blockchain
-	USDCAddress      string `mapstructure:"usdc_address"`      // If a non-ethereum chain is used, this is the address of the USDC token contract on that chain
-	VerifierUrl      string `mapstructure:"verifier_url"`      // The url of the verifier (i.e. the counter party to sign transactions).
-	CollectorAddress string `mapstructure:"collector_address"` // The address of the collector of the fees.
-	Gas              struct {
-		LimitMultiplier int `mapstructure:"limit_multiplier"`
-		PriceMultiplier int `mapstructure:"price_multiplier"`
-	} `mapstructure:"gas"`
-	Monitoring struct {
-		TimeoutMinutes       int `mapstructure:"timeout_minutes"`
-		CheckIntervalSeconds int `mapstructure:"check_interval_seconds"`
-	} `mapstructure:"monitoring"`
+	Type                        string   `mapstructure:"type"`
+	Version                     string   `mapstructure:"version"`
+	RpcURL                      string   `mapstructure:"rpc_url"`                       // URL for the RPC endpoint to interact with the ethereum/evm blockchain
+	CollectorWhitelistAddresses []string `mapstructure:"collector_whitelist_addresses"` // A list of whitelisted addresses for which fee transactions are collected against. These can include previous addresses. Fee plugins with a recipient address that is not in this list will not be processed.
+	CollectorAddress            string   `mapstructure:"collector_address"`             // This address is what is used for new policies. Fee policies created with a different address will be rejected.
+	MaxFeeAmount                uint64   `mapstructure:"max_fee_amount"`                // Policies that are created/submitted which do not have this amount will be rejected.
 }
 
 type ConfigOption func(*FeeConfig) error
@@ -48,69 +41,45 @@ type ConfigOption func(*FeeConfig) error
 func withDefaults(c *FeeConfig) {
 	c.Type = PLUGIN_TYPE
 	c.Version = "1.0.0"
-	c.RpcURL = "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
-	c.USDCAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-	c.VerifierUrl = ""
-	c.Gas.LimitMultiplier = 1
-	c.Gas.PriceMultiplier = 1
-	c.Monitoring.TimeoutMinutes = 30
-	c.Monitoring.CheckIntervalSeconds = 60
+	c.RpcURL = "https://ethereum.publicnode.com/"
+	c.CollectorWhitelistAddresses = []string{}
+	c.CollectorAddress = ""
+	c.MaxFeeAmount = 500e6 // 500 USDC
 }
 
-func WithEthConfig(rpcUrl string, usdcAddress string) ConfigOption {
+func WithEthConfig(rpcUrl string) ConfigOption {
 	return func(c *FeeConfig) error {
 		c.RpcURL = rpcUrl
-		c.USDCAddress = usdcAddress
-		return nil
-	}
-}
-
-func WithVerifierUrl(verifierUrl string) ConfigOption {
-	return func(c *FeeConfig) error {
-		c.VerifierUrl = verifierUrl
 		return nil
 	}
 }
 
 func WithCollectorAddress(collectorAddress string) ConfigOption {
-	// TODO garry. Verify address whitelisted. Verify address is valid.
 	return func(c *FeeConfig) error {
 		c.CollectorAddress = collectorAddress
 		return nil
 	}
 }
 
-func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
-	c := &FeeConfig{}
-	withDefaults(c)
-	for _, fn := range fns {
-		if err := fn(c); err != nil {
-			return nil, err
-		}
+func WithCollectorWhitelistAddresses(collectorWhitelistAddresses []string) ConfigOption {
+	return func(c *FeeConfig) error {
+		c.CollectorWhitelistAddresses = collectorWhitelistAddresses
+		return nil
 	}
+}
 
-	// Validate configuration
-	if c.Type != PLUGIN_TYPE {
-		return c, fmt.Errorf("invalid plugin type: %s", c.Type)
+func WithMaxFeeAmount(maxFeeAmount uint64) ConfigOption {
+	return func(c *FeeConfig) error {
+		c.MaxFeeAmount = maxFeeAmount
+		return nil
 	}
-	if c.RpcURL == "" {
-		return c, errors.New("rpc_url is required")
-	}
-	if c.Gas.LimitMultiplier <= 0 {
-		return c, errors.New("gas limit multiplier must be positive")
-	}
-	if c.VerifierUrl == "" {
-		return c, errors.New("verifier_url is required")
-	}
-
-	return c, nil
 }
 
 func WithFileConfig(basePath string) ConfigOption {
 	return func(c *FeeConfig) error {
 
 		v := viper.New()
-		v.SetConfigName("fees")
+		v.SetConfigName("fee")
 
 		// Add config paths in order of precedence
 		if basePath != "" {
@@ -133,6 +102,40 @@ func WithFileConfig(basePath string) ConfigOption {
 		}
 		return nil
 	}
+}
+
+func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
+	c := &FeeConfig{}
+	withDefaults(c)
+	for _, fn := range fns {
+		if err := fn(c); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate configuration
+	if c.Type != PLUGIN_TYPE {
+		return c, fmt.Errorf("invalid plugin type: %s", c.Type)
+	}
+	if c.RpcURL == "" {
+		return c, errors.New("rpc_url is required")
+	}
+	// Collector address cannot be empty
+	if c.CollectorAddress == "" {
+		return c, errors.New("collector_address is required")
+	}
+
+	// There must be at least one collector whitelist address
+	if len(c.CollectorWhitelistAddresses) == 0 {
+		return c, errors.New("collector_whitelist_addresses is required")
+	}
+
+	// Collector address must be in the whitelist
+	if !slices.Contains(c.CollectorWhitelistAddresses, c.CollectorAddress) {
+		return c, fmt.Errorf("collector_address must be in the whitelist: %s, whitelist: %v", c.CollectorAddress, c.CollectorWhitelistAddresses)
+	}
+
+	return c, nil
 }
 
 /* Fee collection types
