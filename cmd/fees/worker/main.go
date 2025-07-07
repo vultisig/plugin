@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
@@ -40,6 +41,10 @@ func main() {
 		DB:       cfg.Redis.DB,
 	}
 	logger := logrus.StandardLogger()
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: time.RFC3339,
+	})
 	asynqClient := asynq.NewClient(redisOptions)
 	asynqInspector := asynq.NewInspector(redisOptions)
 
