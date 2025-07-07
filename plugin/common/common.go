@@ -44,7 +44,7 @@ func GenUnsignedTx(
 			nonce,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("p.evmMakeUnsignedTransfer: %v", err)
+			return nil, fmt.Errorf("plugincommon.evmMakeUnsignedTransfer: %v", err)
 		}
 		return tx, nil
 	default:
@@ -100,7 +100,7 @@ func EvmMakeUnsignedTransfer(
 		nonce,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("p.evmEstimateTx: %v", err)
+		return nil, fmt.Errorf("plugincommon.evmEstimateTx: %v", err)
 	}
 
 	bytes, err := EvmEncodeUnsignedDynamicFeeTx(
@@ -148,7 +148,7 @@ func EvmEstimateTx(
 	eg.Go(func() error {
 		r, e := rpcClient.SuggestGasTipCap(ctx)
 		if e != nil {
-			return fmt.Errorf("p.rpcClient.SuggestGasTipCap: %v", e)
+			return fmt.Errorf("plugincommon.rpcClient.SuggestGasTipCap: %v", e)
 		}
 		gasTipCap = r
 		return nil
@@ -158,7 +158,7 @@ func EvmEstimateTx(
 	eg.Go(func() error {
 		feeHistory, e := rpcClient.FeeHistory(ctx, 1, nil, nil)
 		if e != nil {
-			return fmt.Errorf("p.rpcClient.FeeHistory: %v", e)
+			return fmt.Errorf("plugincommon.rpcClient.FeeHistory: %v", e)
 		}
 		if len(feeHistory.BaseFee) == 0 {
 			return fmt.Errorf("feeHistory.BaseFee is empty")
@@ -197,9 +197,9 @@ func EvmEstimateTx(
 				From:                 from.Hex(),
 				To:                   to.Hex(),
 				Gas:                  "0x" + strconv.FormatUint(gasLimit, 16),
-				MaxPriorityFeePerGas: "0x" + gcommon.Bytes2Hex(gasTipCap.Bytes()),
-				MaxFeePerGas:         "0x" + gcommon.Bytes2Hex(maxFeePerGas.Bytes()),
-				Value:                "0x" + gcommon.Bytes2Hex(value.Bytes()),
+			MaxPriorityFeePerGas: "0x" + gasTipCap.Text(16),
+			MaxFeePerGas:         "0x" + maxFeePerGas.Text(16),
+			Value:                "0x" + value.Text(16),
 				Data:                 "0x" + gcommon.Bytes2Hex(data),
 			},
 			"latest",

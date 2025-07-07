@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ import (
 	"github.com/vultisig/plugin/internal/tasks"
 	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/recipes/chain"
+	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	rtypes "github.com/vultisig/recipes/types"
 	rutil "github.com/vultisig/recipes/util"
@@ -24,6 +26,8 @@ import (
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
+
+	gcommon "github.com/ethereum/go-ethereum/common"
 )
 
 func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
@@ -136,7 +140,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		)
 
 		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.genUnsignedTx: %w", e)
+			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.GenUnsignedTx: %w", e)
 		}
 
 		txHex := hex.EncodeToString(tx)
@@ -227,6 +231,7 @@ func (fp *FeePlugin) initSign(
 	ctx context.Context,
 	req vtypes.PluginKeysignRequest,
 	pluginPolicy vtypes.PluginPolicy,
+	runId uuid.UUID,
 ) error {
 	buf, e := json.Marshal(req)
 	if e != nil {
@@ -242,6 +247,20 @@ func (fp *FeePlugin) initSign(
 	)
 	if e != nil {
 		return fmt.Errorf("fp.client.Enqueue: %w", e)
+	}
+
+	if runId != uuid.Nil {
+		if len(req.Messages) != 1 {
+			return fmt.Errorf("multiple messages in key sign request, expected 1")
+		}
+		txId, err := uuid.Parse(req.Messages[0].TxIndexerID)
+		if err != nil {
+			return fmt.Errorf("failed to parse tx indexer id: %w", err)
+		}
+		_, err = fp.db.Pool().Exec(ctx, "UPDATE fee_run SET status = 'sent', tx_id = $1 WHERE id = $2", txId, runId)
+		if err != nil {
+			return fmt.Errorf("failed to update fee run: %w", err)
+		}
 	}
 
 	for {
@@ -282,4 +301,69 @@ func (fp *FeePlugin) initSign(
 			return nil
 		}
 	}
+}
+
+func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
+	// First validate the plugin policy itself
+	err := fp.ValidatePluginPolicy(policy)
+	if err != nil {
+		return fmt.Errorf("failed to validate plugin policy: %v", err)
+	}
+
+	// Get the recipe from the policy for transaction validation
+	recipe, err := policy.GetRecipe()
+	if err != nil {
+		return fmt.Errorf("failed to get recipe from policy: %v", err)
+	}
+
+	// Create a recipe engine for evaluating transactions
+	eng := engine.NewEngine()
+
+	// Validate each proposed transaction
+	for _, tx := range txs {
+		for _, keysignMessage := range tx.Messages {
+			// Get the chain for the transaction
+			messageChain, err := chain.GetChain(strings.ToLower(keysignMessage.Chain.String()))
+			if err != nil {
+				return fmt.Errorf("failed to get chain: %w", err)
+			}
+
+			// Parse the transaction to validate its structure
+			decodedTx, err := messageChain.ParseTransaction(keysignMessage.Message)
+			if err != nil {
+				return fmt.Errorf("failed to parse transaction: %w", err)
+			}
+
+			// Evaluate if the transaction is allowed by the policy
+			transactionAllowed, _, err := eng.Evaluate(recipe, messageChain, decodedTx)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate transaction: %w", err)
+			}
+
+			if !transactionAllowed {
+				return fmt.Errorf("transaction %s on %s not allowed by policy", keysignMessage.Hash, keysignMessage.Chain)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
+	// Broadcast the signed transaction to the Ethereum network
+	tx, err := fp.eth.Send(
+		ctx,
+		gcommon.FromHex(signRequest.Transaction),
+		gcommon.Hex2Bytes(signature.R),
+		gcommon.Hex2Bytes(signature.S),
+		gcommon.Hex2Bytes(signature.RecoveryID),
+	)
+	if err != nil {
+		fp.logger.WithError(err).WithField("tx_hex", signRequest.Transaction).Error("fp.eth.Send")
+		return fmt.Errorf("fp.eth.Send(tx_hex=%s): %w", signRequest.Transaction, err)
+	}
+
+	// Log successful transaction broadcast
+	fp.logger.WithField("hash", tx.Hash().Hex()).Info("fee collection transaction successfully broadcasted")
+	return nil
 }
