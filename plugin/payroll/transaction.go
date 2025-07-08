@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/recipes/chain"
 	reth "github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
@@ -21,6 +18,10 @@ import (
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/plugin/internal/tasks"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
@@ -58,7 +59,7 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task)
 		return fmt.Errorf("failed to get plugin policy: %s, %w", err, asynq.SkipRetry)
 	}
 
-	reqs, err := p.ProposeTransactions(pluginPolicy)
+	reqs, err := p.ProposeTransactions(*pluginPolicy)
 	if err != nil {
 		p.logger.WithError(err).Error("p.ProposeTransactions")
 		return fmt.Errorf("p.ProposeTransactions: %s, %w", err, asynq.SkipRetry)
@@ -68,7 +69,7 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task)
 	for _, _req := range reqs {
 		req := _req
 		eg.Go(func() error {
-			return p.initSign(ctx, req, pluginPolicy)
+			return p.initSign(ctx, req, *pluginPolicy)
 		})
 	}
 	err = eg.Wait()

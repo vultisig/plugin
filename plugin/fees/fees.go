@@ -16,11 +16,12 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/vultisig/verifier/vault"
+
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
 	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
-	"github.com/vultisig/verifier/vault"
 )
 
 /*
@@ -161,7 +162,7 @@ func (fp *FeePlugin) collectFeesByPolicyId(ctx context.Context, policyId string)
 	if err != nil {
 		return fmt.Errorf("failed to get plugin policy: %w", err)
 	}
-	return fp.executeFeeCollection(ctx, policy)
+	return fp.executeFeeCollection(ctx, *policy)
 }
 
 func (fp *FeePlugin) collectAllFees(ctx context.Context) error {
@@ -229,7 +230,7 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, feePolicy vtypes.
 		"amount":    checkAmount,
 	}).Info("Collecting fee ids: ", feesToCollect)
 
-	//Here we check if the fee collection is already in progress for any of the specific fee ids
+	// Here we check if the fee collection is already in progress for any of the specific fee ids
 	feeRun, err := fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, feesResponse.Fees)
 	if err != nil {
 		return fmt.Errorf("failed to create fee run: %w", err)

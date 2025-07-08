@@ -11,9 +11,9 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 )
 
-func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id uuid.UUID) (vtypes.PluginPolicy, error) {
+func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id uuid.UUID) (*vtypes.PluginPolicy, error) {
 	if p.pool == nil {
-		return vtypes.PluginPolicy{}, fmt.Errorf("database pool is nil")
+		return nil, fmt.Errorf("database pool is nil")
 	}
 	var policy vtypes.PluginPolicy
 	query := `
@@ -33,9 +33,9 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id uuid.UUID) (vt
 	)
 
 	if err != nil {
-		return vtypes.PluginPolicy{}, fmt.Errorf("failed to get policy: %w", err)
+		return nil, fmt.Errorf("failed to get policy: %w", err)
 	}
-	return policy, nil
+	return &policy, nil
 }
 
 func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey string, pluginID vtypes.PluginID, onlyActive bool) ([]vtypes.PluginPolicy, error) {
