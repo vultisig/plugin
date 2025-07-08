@@ -44,7 +44,7 @@ func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, 
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %s", err)
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	var run types.FeeRun
