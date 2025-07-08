@@ -38,7 +38,7 @@ func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, 
 	for _, fee := range fees {
 		_, err = tx.Exec(ctx, `insert into fee (id, fee_run_id, amount) values ($1, $2, $3)`, fee.ID, runId, fee.Amount)
 		if err != nil {
-			return nil, fmt.Errorf("failed to insert fee: %s", err)
+			return nil, fmt.Errorf("failed to insert fee: %w", err)
 		}
 	}
 
