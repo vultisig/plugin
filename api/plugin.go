@@ -59,7 +59,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("policy plugin ID mismatch")
 	}
 
-	if err := s.plugin.ValidateProposedTransactions(policy, []vtypes.PluginKeysignRequest{req}); err != nil {
+	if err := s.plugin.ValidateProposedTransactions(*policy, []vtypes.PluginKeysignRequest{req}); err != nil {
 		return fmt.Errorf("failed to validate transaction proposal: %w", err)
 	}
 
@@ -261,7 +261,7 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	// This is because we have different signature stored in the database.
 	policy.Signature = reqBody.Signature
 
-	if !s.verifyPolicySignature(policy) {
+	if !s.verifyPolicySignature(*policy) {
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))
 	}
 
