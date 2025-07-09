@@ -44,7 +44,7 @@ func GenUnsignedTx(
 			nonce,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("plugincommon.evmMakeUnsignedTransfer: %v", err)
+			return nil, err
 		}
 		return tx, nil
 	default:
@@ -77,12 +77,12 @@ func EvmMakeUnsignedTransfer(
 	} else {
 		parsedABI, err := abi.JSON(strings.NewReader(Erc20ABI))
 		if err != nil {
-			return nil, fmt.Errorf("abi.JSON(strings.NewReader(erc20ABI)): %v", err)
+			return nil, fmt.Errorf("error parsing erc20 abi: %v", err)
 		}
 
 		d, err := parsedABI.Pack("transfer", to, amount)
 		if err != nil {
-			return nil, fmt.Errorf("parsedABI.Pack: %v", err)
+			return nil, fmt.Errorf("error packing transfer: %v", err)
 		}
 		value = big.NewInt(0)
 		data = d
@@ -100,7 +100,7 @@ func EvmMakeUnsignedTransfer(
 		nonce,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("plugincommon.evmEstimateTx: %v", err)
+		return nil, err
 	}
 
 	bytes, err := EvmEncodeUnsignedDynamicFeeTx(
@@ -138,7 +138,7 @@ func EvmEstimateTx(
 			Value: value,
 		})
 		if e != nil {
-			return fmt.Errorf("p.rpcClient.EstimateGas: %v", e)
+			return fmt.Errorf("estimateGas failed with error: %v", e)
 		}
 		gasLimit = r
 		return nil
@@ -146,9 +146,9 @@ func EvmEstimateTx(
 
 	var gasTipCap *big.Int
 	eg.Go(func() error {
-		r, e := rpcClient.SuggestGasTipCap(ctx)
-		if e != nil {
-			return fmt.Errorf("plugincommon.rpcClient.SuggestGasTipCap: %v", e)
+		r, err := rpcClient.SuggestGasTipCap(ctx)
+		if err != nil {
+			return err
 		}
 		gasTipCap = r
 		return nil
@@ -156,9 +156,9 @@ func EvmEstimateTx(
 
 	var baseFee *big.Int
 	eg.Go(func() error {
-		feeHistory, e := rpcClient.FeeHistory(ctx, 1, nil, nil)
-		if e != nil {
-			return fmt.Errorf("plugincommon.rpcClient.FeeHistory: %v", e)
+		feeHistory, err := rpcClient.FeeHistory(ctx, 1, nil, nil)
+		if err != nil {
+			return err
 		}
 		if len(feeHistory.BaseFee) == 0 {
 			return fmt.Errorf("feeHistory.BaseFee is empty")
@@ -169,7 +169,7 @@ func EvmEstimateTx(
 
 	err := eg.Wait()
 	if err != nil {
-		return 0, 0, nil, nil, nil, fmt.Errorf("eg.Wait: %v", err)
+		return 0, 0, nil, nil, nil, err
 	}
 
 	maxFeePerGas := new(big.Int).Add(gasTipCap, baseFee)
@@ -206,7 +206,7 @@ func EvmEstimateTx(
 		},
 	)
 	if err != nil {
-		return 0, 0, nil, nil, nil, fmt.Errorf("p.rpcClient.Client().CallContext: %v", err)
+		return 0, 0, nil, nil, nil, err
 	}
 
 	return nonce, gasLimit, gasTipCap, maxFeePerGas, createAccessListRes.AccessList, nil
@@ -234,7 +234,7 @@ func EvmEncodeUnsignedDynamicFeeTx(
 		AccessList: accessList,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("rlp.EncodeToBytes: %v", err)
+		return nil, fmt.Errorf("error encoding unsigned dynamic fee tx: %v", err)
 	}
 
 	res := append([]byte{gtypes.DynamicFeeTxType}, bytes...)

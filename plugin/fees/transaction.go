@@ -120,7 +120,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 				"chain_id":  chain,
 				"token_id":  token.Address,
 			}).Info("transaction already proposed, skipping")
-			return []vtypes.PluginKeysignRequest{}, nil
+			return nil, nil
 		}
 
 		nonce, err := fp.nonceManager.GetNextNonce(ethAddress)
@@ -155,7 +155,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			ProposedTxHex: txHex,
 		})
 		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("fp.tx_indexer.CreateTx: %w", e)
+			return nil, fmt.Errorf("error creating tx indexed transaction: %w", e)
 		}
 
 		// Create signing request
@@ -203,7 +203,7 @@ func (fp *FeePlugin) IsAlreadyProposed(
 		interval,
 	)
 	if err != nil {
-		return false, fmt.Errorf("scheduler.NewIntervalSchedule: %w", err)
+		return false, fmt.Errorf("failed to create interval schedule: %w", err)
 	}
 
 	fromTime, toTime := sched.ToRangeFrom(time.Now())
@@ -224,7 +224,7 @@ func (fp *FeePlugin) IsAlreadyProposed(
 	if errors.Is(err, storage.ErrNoTx) {
 		return false, nil
 	}
-	return false, fmt.Errorf("fp.txIndexerService.GetTxInTimeRange: %w", err)
+	return false, fmt.Errorf("failed to get tx in time range: %w", err)
 }
 
 func (fp *FeePlugin) initSign(
@@ -235,7 +235,7 @@ func (fp *FeePlugin) initSign(
 ) error {
 	buf, e := json.Marshal(req)
 	if e != nil {
-		return fmt.Errorf("json.Marshal: %w", e)
+		return fmt.Errorf("failed to marshal key sign request: %w", e)
 	}
 
 	task, e := fp.asynqClient.Enqueue(
@@ -246,7 +246,7 @@ func (fp *FeePlugin) initSign(
 		asynq.Queue(tasks.QUEUE_NAME),
 	)
 	if e != nil {
-		return fmt.Errorf("fp.client.Enqueue: %w", e)
+		return fmt.Errorf("failed to enqueue key sign task: %w", e)
 	}
 
 	if runId != uuid.Nil {
@@ -270,7 +270,7 @@ func (fp *FeePlugin) initSign(
 		case <-time.After(3 * time.Second):
 			taskInfo, er := fp.asynqInspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
 			if er != nil {
-				return fmt.Errorf("fp.inspector.GetTaskInfo: %w", er)
+				return fmt.Errorf("failed to get task info: %w", er)
 			}
 			if taskInfo.State != asynq.TaskStateCompleted {
 				continue
@@ -283,7 +283,7 @@ func (fp *FeePlugin) initSign(
 			var res map[string]tss.KeysignResponse
 			er = json.Unmarshal(taskInfo.Result, &res)
 			if er != nil {
-				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
+				return fmt.Errorf("failed to unmarshal task result: %w", er)
 			}
 
 			var sig tss.KeysignResponse
@@ -293,7 +293,7 @@ func (fp *FeePlugin) initSign(
 
 			er = fp.SigningComplete(ctx, sig, req, pluginPolicy)
 			if er != nil {
-				return fmt.Errorf("fp.SigningComplete: %w", er)
+				return fmt.Errorf("failed to sign and broadcast transaction: %w", er)
 			}
 
 			fp.logger.WithField("public_key", req.PublicKey).
@@ -360,7 +360,7 @@ func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignR
 	)
 	if err != nil {
 		fp.logger.WithError(err).WithField("tx_hex", signRequest.Transaction).Error("fp.eth.Send")
-		return fmt.Errorf("fp.eth.Send(tx_hex=%s): %w", signRequest.Transaction, err)
+		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 
 	// Log successful transaction broadcast
