@@ -16,10 +16,10 @@ import (
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
-	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
+	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/address"
@@ -58,6 +58,8 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 	ethchain := echain.(*reth.Ethereum)
 	chain := vcommon.Ethereum
 	txs := []vtypes.PluginKeysignRequest{}
+	chainID, err := chain.EvmID()
+	sdk := evm.NewSDK(chainID, fp.rpcClient, fp.rpcClient.Client())
 
 	// This should only return one rule, but in case there are more/fewer rules, we'll loop through them all and error if it's the case.
 	for _, rule := range recipe.Rules {
@@ -123,24 +125,13 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			return nil, nil
 		}
 
-		nonce, err := fp.nonceManager.GetNextNonce(ethAddress)
+		tx, err := sdk.MakeAnyTransfer(ctx,
+			gcommon.HexToAddress(ethAddress),
+			gcommon.HexToAddress(recipient),
+			gcommon.HexToAddress(token.Address),
+			big.NewInt(int64(amount)))
 		if err != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.nonceManager.GetNextNonce: %w", err)
-		}
-
-		tx, e := plugincommon.GenUnsignedTx(
-			ctx,
-			chain,
-			ethAddress,
-			token.Address,
-			fmt.Sprint(amount),
-			recipient,
-			fp.rpcClient,
-			nonce,
-		)
-
-		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.GenUnsignedTx: %w", e)
+			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
 		}
 
 		txHex := hex.EncodeToString(tx)
