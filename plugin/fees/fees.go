@@ -22,7 +22,6 @@ import (
 	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
-	"github.com/vultisig/verifier/vault"
 )
 
 /*
