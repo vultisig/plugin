@@ -188,6 +188,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		policy.ID = uuid.New()
 	}
 
+	// TODO: @webpiratt: if recipe mock uncommented in verifer, comment sig validation for local debug
 	if !s.verifyPolicySignature(policy) {
 		s.logger.Error("invalid policy signature")
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))

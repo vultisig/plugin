@@ -6,15 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/vultisig/recipes/chain"
-	reth "github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
-	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
@@ -187,6 +183,19 @@ func (p *PayrollPlugin) IsAlreadyProposed(
 	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
 }
 
+func getTokenID(rule *rtypes.Rule) (string, error) {
+	if rule == nil {
+		return "", fmt.Errorf("rule is nil")
+	}
+
+	for _, constraint := range rule.GetParameterConstraints() {
+		if constraint.ParameterName == "token" {
+			return constraint.GetConstraint().GetFixedValue(), nil
+		}
+	}
+	return evm.ZeroAddress.Hex(), nil
+}
+
 func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	ctx := context.Background()
 
@@ -210,13 +219,6 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
 
-	echain, err := chain.GetChain("ethereum")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ethereum chain: %v", err)
-	}
-
-	ethchain := echain.(*reth.Ethereum)
-
 	chain := vcommon.Ethereum
 
 	schedule := recipe.Schedule
@@ -228,20 +230,9 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	var eg errgroup.Group
 
 	for _, rule := range recipe.Rules {
-		resourcePath, err := rutil.ParseResource(rule.Resource)
+		tokenID, err := getTokenID(rule)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse resource: %v", err)
-		}
-
-		var tokenID string
-		if strings.ToLower(resourcePath.ProtocolId) == "eth" {
-			tokenID = evm.ZeroAddress.Hex()
-		} else {
-			token, found := ethchain.GetToken(resourcePath.ProtocolId)
-			if !found {
-				return nil, fmt.Errorf("failed to get token: %v", resourcePath.ProtocolId)
-			}
-			tokenID = token.Address
+			return nil, fmt.Errorf("getTokenID: %v", err)
 		}
 
 		recipient, amountStr, err := RuleToRecipientAndAmount(rule)
@@ -393,7 +384,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 						Required: true,
 					},
 					{
-						ParameterName: "token",
+						ParameterName: "token", // ERC20/TRC20/etc contract address
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 						},
@@ -410,7 +401,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
 				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
 				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
 			},
-			MaxScheduledExecutions: 100, // Reasonable limit for payroll runs
+			MaxScheduledExecutions: -1, // infinite
 		},
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
@@ -455,7 +446,7 @@ func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
 		return "", "", fmt.Errorf("no parameter constraints found")
 	}
 
-	if len(rule.ParameterConstraints) > 2 {
+	if len(rule.ParameterConstraints) > 3 {
 		return "", "", fmt.Errorf("too many parameter constraints found")
 	}
 
