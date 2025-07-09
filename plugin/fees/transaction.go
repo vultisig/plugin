@@ -20,7 +20,6 @@ import (
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
-	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/address"
@@ -59,8 +58,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 	ethchain := echain.(*reth.Ethereum)
 	chain := vcommon.Ethereum
 	txs := []vtypes.PluginKeysignRequest{}
-	chainID, err := chain.EvmID()
-	sdk := evm.NewSDK(chainID, fp.rpcClient, fp.rpcClient.Client())
 
 	// This should only return one rule, but in case there are more/fewer rules, we'll loop through them all and error if it's the case.
 	for _, rule := range recipe.Rules {
@@ -126,7 +123,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			return nil, nil
 		}
 
-		tx, err := sdk.MakeAnyTransfer(ctx,
+		tx, err := fp.eth.MakeAnyTransfer(ctx,
 			gcommon.HexToAddress(ethAddress),
 			gcommon.HexToAddress(recipient),
 			gcommon.HexToAddress(token.Address),
