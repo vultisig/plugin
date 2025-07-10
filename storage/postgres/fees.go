@@ -55,3 +55,11 @@ func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, 
 
 	return &run, nil
 }
+
+func (p *PostgresBackend) SetFeeRunSent(ctx context.Context, runId uuid.UUID, txId uuid.UUID) error {
+	_, err := p.pool.Exec(ctx, `update fee_run set status = $1, tx_id = $2 where id = $3`, types.FeeRunStateSent, txId, runId)
+	if err != nil {
+		return fmt.Errorf("failed to update fee run: %w", err)
+	}
+	return nil
+}

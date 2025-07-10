@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,8 +17,8 @@ import (
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
-	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/recipes/chain"
+	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	rtypes "github.com/vultisig/recipes/types"
 	rutil "github.com/vultisig/recipes/util"
@@ -24,6 +26,8 @@ import (
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
+
+	gcommon "github.com/ethereum/go-ethereum/common"
 )
 
 func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
@@ -116,27 +120,16 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 				"chain_id":  chain,
 				"token_id":  token.Address,
 			}).Info("transaction already proposed, skipping")
-			return []vtypes.PluginKeysignRequest{}, nil
+			return nil, nil
 		}
 
-		nonce, err := fp.nonceManager.GetNextNonce(ethAddress)
+		tx, err := fp.eth.MakeAnyTransfer(ctx,
+			gcommon.HexToAddress(ethAddress),
+			gcommon.HexToAddress(recipient),
+			gcommon.HexToAddress(token.Address),
+			big.NewInt(int64(amount)))
 		if err != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.nonceManager.GetNextNonce: %w", err)
-		}
-
-		tx, e := plugincommon.GenUnsignedTx(
-			ctx,
-			chain,
-			ethAddress,
-			token.Address,
-			fmt.Sprint(amount),
-			recipient,
-			fp.rpcClient,
-			nonce,
-		)
-
-		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("plugincommon.genUnsignedTx: %w", e)
+			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
 		}
 
 		txHex := hex.EncodeToString(tx)
@@ -151,7 +144,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			ProposedTxHex: txHex,
 		})
 		if e != nil {
-			return []vtypes.PluginKeysignRequest{}, fmt.Errorf("fp.tx_indexer.CreateTx: %w", e)
+			return nil, fmt.Errorf("error creating tx indexed transaction: %w", e)
 		}
 
 		// Create signing request
@@ -199,7 +192,7 @@ func (fp *FeePlugin) IsAlreadyProposed(
 		interval,
 	)
 	if err != nil {
-		return false, fmt.Errorf("scheduler.NewIntervalSchedule: %w", err)
+		return false, fmt.Errorf("failed to create interval schedule: %w", err)
 	}
 
 	fromTime, toTime := sched.ToRangeFrom(time.Now())
@@ -220,17 +213,18 @@ func (fp *FeePlugin) IsAlreadyProposed(
 	if errors.Is(err, storage.ErrNoTx) {
 		return false, nil
 	}
-	return false, fmt.Errorf("fp.txIndexerService.GetTxInTimeRange: %w", err)
+	return false, fmt.Errorf("failed to get tx in time range: %w", err)
 }
 
 func (fp *FeePlugin) initSign(
 	ctx context.Context,
 	req vtypes.PluginKeysignRequest,
 	pluginPolicy vtypes.PluginPolicy,
+	runId uuid.UUID,
 ) error {
 	buf, e := json.Marshal(req)
 	if e != nil {
-		return fmt.Errorf("json.Marshal: %w", e)
+		return fmt.Errorf("failed to marshal key sign request: %w", e)
 	}
 
 	task, e := fp.asynqClient.Enqueue(
@@ -241,7 +235,21 @@ func (fp *FeePlugin) initSign(
 		asynq.Queue(tasks.QUEUE_NAME),
 	)
 	if e != nil {
-		return fmt.Errorf("fp.client.Enqueue: %w", e)
+		return fmt.Errorf("failed to enqueue key sign task: %w", e)
+	}
+
+	if runId != uuid.Nil {
+		if len(req.Messages) != 1 {
+			return fmt.Errorf("multiple messages in key sign request, expected 1")
+		}
+		txId, err := uuid.Parse(req.Messages[0].TxIndexerID)
+		if err != nil {
+			return fmt.Errorf("failed to parse tx indexer id: %w", err)
+		}
+		err = fp.db.SetFeeRunSent(ctx, runId, txId)
+		if err != nil {
+			return fmt.Errorf("failed to update fee run: %w", err)
+		}
 	}
 
 	for {
@@ -251,7 +259,7 @@ func (fp *FeePlugin) initSign(
 		case <-time.After(3 * time.Second):
 			taskInfo, er := fp.asynqInspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
 			if er != nil {
-				return fmt.Errorf("fp.inspector.GetTaskInfo: %w", er)
+				return fmt.Errorf("failed to get task info: %w", er)
 			}
 			if taskInfo.State != asynq.TaskStateCompleted {
 				continue
@@ -264,7 +272,7 @@ func (fp *FeePlugin) initSign(
 			var res map[string]tss.KeysignResponse
 			er = json.Unmarshal(taskInfo.Result, &res)
 			if er != nil {
-				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
+				return fmt.Errorf("failed to unmarshal task result: %w", er)
 			}
 
 			var sig tss.KeysignResponse
@@ -274,7 +282,7 @@ func (fp *FeePlugin) initSign(
 
 			er = fp.SigningComplete(ctx, sig, req, pluginPolicy)
 			if er != nil {
-				return fmt.Errorf("fp.SigningComplete: %w", er)
+				return fmt.Errorf("failed to sign and broadcast transaction: %w", er)
 			}
 
 			fp.logger.WithField("public_key", req.PublicKey).
@@ -282,4 +290,69 @@ func (fp *FeePlugin) initSign(
 			return nil
 		}
 	}
+}
+
+func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
+	// First validate the plugin policy itself
+	err := fp.ValidatePluginPolicy(policy)
+	if err != nil {
+		return fmt.Errorf("failed to validate plugin policy: %v", err)
+	}
+
+	// Get the recipe from the policy for transaction validation
+	recipe, err := policy.GetRecipe()
+	if err != nil {
+		return fmt.Errorf("failed to get recipe from policy: %v", err)
+	}
+
+	// Create a recipe engine for evaluating transactions
+	eng := engine.NewEngine()
+
+	// Validate each proposed transaction
+	for _, tx := range txs {
+		for _, keysignMessage := range tx.Messages {
+			// Get the chain for the transaction
+			messageChain, err := chain.GetChain(strings.ToLower(keysignMessage.Chain.String()))
+			if err != nil {
+				return fmt.Errorf("failed to get chain: %w", err)
+			}
+
+			// Parse the transaction to validate its structure
+			decodedTx, err := messageChain.ParseTransaction(keysignMessage.Message)
+			if err != nil {
+				return fmt.Errorf("failed to parse transaction: %w", err)
+			}
+
+			// Evaluate if the transaction is allowed by the policy
+			transactionAllowed, _, err := eng.Evaluate(recipe, messageChain, decodedTx)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate transaction: %w", err)
+			}
+
+			if !transactionAllowed {
+				return fmt.Errorf("transaction %s on %s not allowed by policy", keysignMessage.Hash, keysignMessage.Chain)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
+	// Broadcast the signed transaction to the Ethereum network
+	tx, err := fp.eth.Send(
+		ctx,
+		gcommon.FromHex(signRequest.Transaction),
+		gcommon.Hex2Bytes(signature.R),
+		gcommon.Hex2Bytes(signature.S),
+		gcommon.Hex2Bytes(signature.RecoveryID),
+	)
+	if err != nil {
+		fp.logger.WithError(err).WithField("tx_hex", signRequest.Transaction).Error("fp.eth.Send")
+		return fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	// Log successful transaction broadcast
+	fp.logger.WithField("hash", tx.Hash().Hex()).Info("fee collection transaction successfully broadcasted")
+	return nil
 }

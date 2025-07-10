@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/mobile-tss-lib/tss"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
@@ -20,8 +19,8 @@ import (
 
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
-	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
+	"github.com/vultisig/recipes/sdk/evm"
 )
 
 /*
@@ -36,12 +35,11 @@ type FeePlugin struct {
 	vaultService     *vault.ManagementService
 	vaultStorage     *vault.BlockStorageImp
 	db               storage.DatabaseStorage
-	rpcClient        *ethclient.Client
+	eth              *evm.SDK
 	logger           logrus.FieldLogger
 	verifierApi      *verifierapi.VerifierApi
 	config           *FeeConfig
 	txIndexerService *tx_indexer.Service
-	nonceManager     *plugincommon.NonceManager
 	asynqInspector   *asynq.Inspector
 	asynqClient      *asynq.Client
 	encryptionSecret string
@@ -66,6 +64,12 @@ func NewFeePlugin(db storage.DatabaseStorage,
 		return nil, err
 	}
 
+	// Initialize the Ethereum SDK for transaction broadcasting
+	ethEvmChainID, err := vcommon.Ethereum.EvmID()
+	if err != nil {
+		return nil, fmt.Errorf("vcommon.Ethereum.EvmID: %w", err)
+	}
+
 	if _, ok := logger.(*logrus.Logger); !ok {
 		return nil, fmt.Errorf("logger must be *logrus.Logger, got %T", logger)
 	}
@@ -85,7 +89,7 @@ func NewFeePlugin(db storage.DatabaseStorage,
 
 	return &FeePlugin{
 		db:               db,
-		rpcClient:        rpcClient,
+		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
 		logger:           logger.WithField("plugin", "fees"),
 		config:           feeConfig,
 		verifierApi:      verifierApi,
@@ -93,20 +97,12 @@ func NewFeePlugin(db storage.DatabaseStorage,
 		txIndexerService: txIndexerService,
 		asynqInspector:   inspector,
 		asynqClient:      client,
-		nonceManager:     plugincommon.NewNonceManager(rpcClient),
 		encryptionSecret: encryptionSecret,
 	}, nil
 }
 
-func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
-	return nil
-}
-func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
-	return nil
-}
-
 /*
-The handler of the asynq job. Fees can be initialized and collected in 3 ways:
+The handler of the asynq job. Fees can initialized and collected in 3 ways:
 - By public key (queries the db for a single fee_policy and then kicks off the fee collection)
 - By policy id (queries the db for a fee_policy matching that id and then kicks off the fee collection)
 - All (queries the db for all fee_policies and then kicks off the fee collection for each policy)
@@ -257,7 +253,7 @@ func (fp *FeePlugin) executeFeeCollection(ctx context.Context, feePolicy vtypes.
 
 	for _, keySignRequest := range keySignRequests {
 		req := keySignRequest
-		if err := fp.initSign(ctx, req, feePolicy); err != nil {
+		if err := fp.initSign(ctx, req, feePolicy, feeRun.ID); err != nil {
 			return fmt.Errorf("failed to init sign: %w", err)
 		}
 	}
