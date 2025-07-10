@@ -31,6 +31,7 @@ type DatabaseStorage interface {
 	GetTriggerStatus(ctx context.Context, policyID uuid.UUID) (types.TimeTriggerStatus, error)
 
 	CreateFeeRun(ctx context.Context, policyId uuid.UUID, state types.FeeRunState, fees []verifierapi.FeeDto) (*types.FeeRun, error)
+	SetFeeRunSent(ctx context.Context, runId uuid.UUID, txId uuid.UUID) error
 
 	Pool() *pgxpool.Pool
 }

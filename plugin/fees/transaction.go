@@ -246,7 +246,7 @@ func (fp *FeePlugin) initSign(
 		if err != nil {
 			return fmt.Errorf("failed to parse tx indexer id: %w", err)
 		}
-		_, err = fp.db.Pool().Exec(ctx, "UPDATE fee_run SET status = 'sent', tx_id = $1 WHERE id = $2", txId, runId)
+		err = fp.db.SetFeeRunSent(ctx, runId, txId)
 		if err != nil {
 			return fmt.Errorf("failed to update fee run: %w", err)
 		}

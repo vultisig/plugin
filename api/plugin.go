@@ -180,7 +180,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	// We re-init plugin as verification server doesn't have plugin defined
 
 	if err := s.plugin.ValidatePluginPolicy(policy); err != nil {
-		s.logger.WithError(err).Error("failed to validate plugin policy: ", err)
+		s.logger.WithError(err).Error("failed to validate plugin policy")
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("failed to validate policy"))
 	}
 

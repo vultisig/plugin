@@ -19,7 +19,6 @@ import (
 
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
-	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
 )
@@ -36,13 +35,11 @@ type FeePlugin struct {
 	vaultService     *vault.ManagementService
 	vaultStorage     *vault.BlockStorageImp
 	db               storage.DatabaseStorage
-	rpcClient        *ethclient.Client
 	eth              *evm.SDK
 	logger           logrus.FieldLogger
 	verifierApi      *verifierapi.VerifierApi
 	config           *FeeConfig
 	txIndexerService *tx_indexer.Service
-	nonceManager     *plugincommon.NonceManager
 	asynqInspector   *asynq.Inspector
 	asynqClient      *asynq.Client
 	encryptionSecret string
@@ -92,7 +89,6 @@ func NewFeePlugin(db storage.DatabaseStorage,
 
 	return &FeePlugin{
 		db:               db,
-		rpcClient:        rpcClient,
 		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
 		logger:           logger.WithField("plugin", "fees"),
 		config:           feeConfig,
@@ -101,7 +97,6 @@ func NewFeePlugin(db storage.DatabaseStorage,
 		txIndexerService: txIndexerService,
 		asynqInspector:   inspector,
 		asynqClient:      client,
-		nonceManager:     plugincommon.NewNonceManager(rpcClient),
 		encryptionSecret: encryptionSecret,
 	}, nil
 }
