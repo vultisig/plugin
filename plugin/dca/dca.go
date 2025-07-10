@@ -774,8 +774,8 @@ func (p *DCAPlugin) completePolicy(ctx context.Context, policy vtypes.PluginPoli
 	return nil
 }
 
-func (p *DCAPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
-	return rtypes.RecipeSchema{
+func (p *DCAPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
 		PluginId:        string(vtypes.PluginVultisigDCA_0000),
