@@ -101,6 +101,26 @@ func (p *PayrollPlugin) validateAmount(pc *rtypes.ParameterConstraint) error {
 	return nil
 }
 
+func (p *PayrollPlugin) validateToken(pc *rtypes.ParameterConstraint) error {
+	if pc == nil {
+		return fmt.Errorf("token parameter constraint is nil")
+	}
+	if pc.ParameterName != "token" {
+		return fmt.Errorf("expected token parameter, got: %s", pc.ParameterName)
+	}
+	if pc.Constraint == nil {
+		return fmt.Errorf("token constraint is nil")
+	}
+	if !pc.Constraint.Required {
+		return fmt.Errorf("token constraint is required, but not set")
+	}
+	if pc.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+		return fmt.Errorf("token constraint must be fixed, got: %s", pc.Constraint.Type)
+	}
+
+	return nil
+}
+
 func (p *PayrollPlugin) validateSchedule(schedule *rtypes.Schedule) error {
 	if schedule == nil {
 		return fmt.Errorf("schedule is nil")
@@ -137,6 +157,7 @@ func (p *PayrollPlugin) checkRule(rule *rtypes.Rule) error {
 				return fmt.Errorf("amount validation failed: %w", err)
 			}
 			seenAmount = true
+		case "token":
 		default:
 			return fmt.Errorf("unknown parameter: %s", pc.ParameterName)
 		}
