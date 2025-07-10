@@ -7,7 +7,6 @@ require (
 	github.com/eager7/dogd v0.0.0-20200427085516-2caf59f59dbb
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/go-playground/validator/v10 v10.26.0
-	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.25.1
 	github.com/jackc/pgx/v5 v5.7.4
@@ -17,11 +16,14 @@ require (
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
+	github.com/stretchr/testify v1.10.0
 	github.com/vultisig/commondata v0.0.0-20250430024109-a2492623ef05
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250627044941-5f6e07d5d22f
-	github.com/vultisig/verifier v0.0.0-20250701180729-848563b4ed33
+	github.com/vultisig/recipes v0.0.0-20250710152947-d15b238437ae
+	github.com/vultisig/verifier v0.0.0-20250710201755-2a994bd24c91
 	github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9
+	golang.org/x/sync v0.12.0
+	google.golang.org/protobuf v1.36.6
 )
 
 require (
@@ -85,6 +87,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/golang/glog v1.2.4 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -127,7 +130,7 @@ require (
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/supranational/blst v0.3.14 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
 	github.com/tendermint/go-amino v0.16.0 // indirect
@@ -136,11 +139,9 @@ require (
 	github.com/vultisig/go-wrappers v0.0.0-20250403041248-86911e8aa33f // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
-	golang.org/x/sync v0.12.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250106144421-5f5ef82da422 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
 	google.golang.org/grpc v1.71.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect

@@ -352,8 +352,8 @@ func (p *PayrollPlugin) SigningComplete(
 	return nil
 }
 
-func (p *PayrollPlugin) GetRecipeSpecification() rtypes.RecipeSchema {
-	return rtypes.RecipeSchema{
+func (p *PayrollPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
 		PluginId:        string(vtypes.PluginVultisigPayroll_0000),

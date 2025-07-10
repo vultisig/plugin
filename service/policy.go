@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ func NewPolicyService(db storage.DatabaseStorage, scheduler *scheduler.Scheduler
 }
 
 func (s *PolicyService) handleRollback(ctx context.Context, tx pgx.Tx) {
-	if err := tx.Rollback(ctx); err != nil {
+	if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 		s.logger.WithError(err).Error("failed to rollback transaction")
 	}
 }
