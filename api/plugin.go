@@ -8,11 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
@@ -22,7 +20,6 @@ import (
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
-	"github.com/vultisig/plugin/internal/tasks"
 )
 
 type ErrorResponse struct {
@@ -33,95 +30,6 @@ func NewErrorResponse(message string) ErrorResponse {
 	return ErrorResponse{
 		Message: message,
 	}
-}
-
-func (s *Server) SignPluginMessages(c echo.Context) error {
-	s.logger.Debug("PLUGIN SERVER: SIGN MESSAGES")
-
-	var req vtypes.PluginKeysignRequest
-	if err := c.Bind(&req); err != nil {
-		return fmt.Errorf("fail to parse request, err: %w", err)
-	}
-
-	// Plugin-specific validations
-	if len(req.Messages) != 1 {
-		return fmt.Errorf("plugin signing requires exactly one message hash, current: %d", len(req.Messages))
-	}
-
-	// Get policy from database
-	policy, err := s.db.GetPluginPolicy(c.Request().Context(), req.PolicyID)
-	if err != nil {
-		return fmt.Errorf("failed to get policy from database: %w", err)
-	}
-
-	// Validate policy matches plugin
-	if policy.PluginID.String() != req.PluginID {
-		return fmt.Errorf("policy plugin ID mismatch")
-	}
-
-	if err := s.plugin.ValidateProposedTransactions(*policy, []vtypes.PluginKeysignRequest{req}); err != nil {
-		return fmt.Errorf("failed to validate transaction proposal: %w", err)
-	}
-
-	// Validate message hash matches transaction
-	txHash, err := calculateTransactionHash(req.Transaction)
-	if err != nil {
-		return fmt.Errorf("fail to calculate transaction hash: %w", err)
-	}
-	if txHash != req.Messages[0].Hash {
-		return fmt.Errorf("message hash does not match transaction hash. expected %s, got %s", txHash, req.Messages[0])
-	}
-
-	// Reuse existing signing logic
-	result, err := s.redis.Get(c.Request().Context(), req.SessionID)
-	if err == nil && result != "" {
-		return c.NoContent(http.StatusOK)
-	}
-
-	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 30*time.Minute); err != nil {
-		s.logger.Errorf("fail to set session, err: %v", err)
-	}
-
-	filePathName := vcommon.GetVaultBackupFilename(req.PublicKey, policy.PluginID.String())
-	content, err := s.vaultStorage.GetVault(filePathName)
-	if err != nil {
-		wrappedErr := fmt.Errorf("fail to read file, err: %w", err)
-		s.logger.Infof("fail to read file in SignPluginMessages, err: %v", err)
-		s.logger.Error(wrappedErr)
-		return wrappedErr
-	}
-
-	_, err = vcommon.DecryptVaultFromBackup(s.cfg.EncryptionSecret, content)
-	if err != nil {
-		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
-	}
-
-	req.Parties = []string{common.PluginPartyID, common.VerifierPartyID}
-
-	buf, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("fail to marshal to json, err: %w", err)
-	}
-
-	// TODO: check if this is relevant
-	// check that tx is done only once per period
-	// (by @webpiratt: period depends on particular dca/payroll strategy (monthly/daily tx send, etc),
-	// maybe consider to add some additional metadata there to enable tx replay protection correctly)
-	// should we also copy the db to the vultiserver, so that it can be used by the vultiserver (and use scheduler.go)? or query the blockchain?
-
-	s.logger.Debug("PLUGIN SERVER: KEYSIGN TASK")
-
-	ti, err := s.client.EnqueueContext(c.Request().Context(),
-		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
-		asynq.MaxRetry(0),
-		asynq.Timeout(2*time.Minute),
-		asynq.Retention(5*time.Minute),
-		asynq.Queue(tasks.QUEUE_NAME))
-	if err != nil {
-		return fmt.Errorf("fail to enqueue keysign task: %w", err)
-	}
-
-	return c.JSON(http.StatusOK, ti.ID)
 }
 
 func (s *Server) GetPluginPolicyById(c echo.Context) error {
@@ -188,7 +96,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		policy.ID = uuid.New()
 	}
 
-	// TODO: @webpiratt: if recipe mock uncommented in verifer, comment sig validation for local debug
 	if !s.verifyPolicySignature(policy) {
 		s.logger.Error("invalid policy signature")
 		return c.JSON(http.StatusForbidden, NewErrorResponse("Invalid policy signature"))

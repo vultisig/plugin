@@ -10,12 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// TODO: remove once the plugin installation is implemented (resharding)
-const (
-	PluginPartyID   = "Rado's MacBook Pro-FD0"
-	VerifierPartyID = "Server-58253"
-)
-
 func GetSortingCondition(sort string) (string, string) {
 	// Default sorting column
 	orderBy := "created_at"

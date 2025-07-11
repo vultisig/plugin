@@ -81,7 +81,15 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create postgres backend: %w", err))
 	}
-	p, err := payroll.NewPayrollPlugin(postgressDB, vaultStorage, cfg.BaseConfigPath, txIndexerService, client, inspector, cfg.VaultServiceConfig.EncryptionSecret)
+	p, err := payroll.NewPayrollPlugin(
+		postgressDB,
+		vaultStorage,
+		cfg.BaseConfigPath,
+		txIndexerService,
+		client,
+		inspector,
+		cfg.VaultServiceConfig.EncryptionSecret,
+	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))
 	}

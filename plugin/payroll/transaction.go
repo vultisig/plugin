@@ -88,6 +88,12 @@ func (p *PayrollPlugin) initSign(
 		return fmt.Errorf("json.Marshal: %w", e)
 	}
 
+	_, e = p.verifier.Sign(ctx, req)
+	if e != nil {
+		p.logger.WithError(e).Error("failed to make Sign request with verifier")
+		return fmt.Errorf("p.verifier.Sign: %w", e)
+	}
+
 	task, e := p.client.Enqueue(
 		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
 		asynq.MaxRetry(0),
@@ -229,96 +235,106 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	)
 	var eg errgroup.Group
 
-	for _, rule := range recipe.Rules {
+	for _, _rule := range recipe.Rules {
+		rule := _rule
+
 		tokenID, err := getTokenID(rule)
 		if err != nil {
 			return nil, fmt.Errorf("getTokenID: %v", err)
 		}
 
-		recipient, amountStr, err := RuleToRecipientAndAmount(rule)
+		recipients, amountStr, err := RuleToRecipientsAndAmount(rule)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get recipient and amount: %v", err)
+			return nil, fmt.Errorf("failed to get recipients and amount: %v", err)
 		}
 
-		eg.Go(func() error {
-			isAlreadyProposed, e := p.IsAlreadyProposed(
-				ctx,
-				schedule.Frequency,
-				schedule.StartTime.AsTime(),
-				int(schedule.Interval),
-				chain,
-				policy.PluginID,
-				policy.ID,
-				tokenID,
-				recipient,
-			)
-			if e != nil {
-				return fmt.Errorf("p.IsAlreadyProposed: %w", e)
-			}
-			if isAlreadyProposed {
-				p.logger.WithFields(logrus.Fields{
-					"recipient": recipient,
-					"amount":    amountStr,
-					"chain_id":  chain,
-					"token_id":  tokenID,
-				}).Info("transaction already proposed, skipping")
-				return nil
-			}
+		for _, _recipient := range recipients {
+			recipient := _recipient
 
-			tx, e := p.genUnsignedTx(
-				ctx,
-				chain,
-				ethAddress,
-				tokenID,
-				amountStr,
-				recipient,
-			)
-			if e != nil {
-				return fmt.Errorf("p.genUnsignedTx: %w", e)
-			}
+			eg.Go(func() error {
+				isAlreadyProposed, e := p.IsAlreadyProposed(
+					ctx,
+					schedule.Frequency,
+					schedule.StartTime.AsTime(),
+					int(schedule.Interval),
+					chain,
+					policy.PluginID,
+					policy.ID,
+					tokenID,
+					recipient,
+				)
+				if e != nil {
+					return fmt.Errorf("p.IsAlreadyProposed: %w", e)
+				}
+				if isAlreadyProposed {
+					p.logger.WithFields(logrus.Fields{
+						"recipient": recipient,
+						"amount":    amountStr,
+						"chain_id":  chain,
+						"token_id":  tokenID,
+					}).Info("transaction already proposed, skipping")
+					return nil
+				}
 
-			txHex := gcommon.Bytes2Hex(tx)
+				tx, e := p.genUnsignedTx(
+					ctx,
+					chain,
+					ethAddress,
+					tokenID,
+					amountStr,
+					recipient,
+				)
+				if e != nil {
+					return fmt.Errorf("p.genUnsignedTx: %w", e)
+				}
 
-			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
-				PluginID:      policy.PluginID,
-				PolicyID:      policy.ID,
-				ChainID:       chain,
-				TokenID:       tokenID,
-				FromPublicKey: policy.PublicKey,
-				ToPublicKey:   recipient,
-				ProposedTxHex: txHex,
-			})
-			if e != nil {
-				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
-			}
+				txHex := gcommon.Bytes2Hex(tx)
 
-			// Create signing request
-			signRequest := vtypes.PluginKeysignRequest{
-				KeysignRequest: vtypes.KeysignRequest{
-					PublicKey: policy.PublicKey,
-					Messages: []vtypes.KeysignMessage{
-						{
-							TxIndexerID: txToTrack.ID.String(),
-							Message:     txHex,
-							Chain:       vcommon.Ethereum,
-							// Doesn't make sense to compute hash with empty V,R,S,
-							// not on-chain hash without signature
-							Hash: txHex,
+				txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+					PluginID:      policy.PluginID,
+					PolicyID:      policy.ID,
+					ChainID:       chain,
+					TokenID:       tokenID,
+					FromPublicKey: policy.PublicKey,
+					ToPublicKey:   recipient,
+					ProposedTxHex: txHex,
+				})
+				if e != nil {
+					return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+				}
+
+				// Create signing request
+				signRequest := vtypes.PluginKeysignRequest{
+					KeysignRequest: vtypes.KeysignRequest{
+						PublicKey: policy.PublicKey,
+						Messages: []vtypes.KeysignMessage{
+							{
+								TxIndexerID: txToTrack.ID.String(),
+								Message:     txHex,
+								Chain:       vcommon.Ethereum,
+								// Doesn't make sense to compute hash with empty V,R,S,
+								// not on-chain hash without signature
+								Hash: txHex,
+							},
 						},
+						SessionID: uuid.New().String(),
+						Parties: []string{
+							"verifier",
+							vtypes.PluginVultisigPayroll_0000.String(),
+						},
+						HexEncryptionKey: hexEncryptionKey,
+						PolicyID:         policy.ID,
+						PluginID:         policy.PluginID.String(),
 					},
-					SessionID:        uuid.New().String(),
-					HexEncryptionKey: hexEncryptionKey,
-					PolicyID:         policy.ID,
-					PluginID:         policy.PluginID.String(),
-				},
-				Transaction: txHex,
-			}
+					Transaction: txHex,
+				}
 
-			mu.Lock()
-			txs = append(txs, signRequest)
-			mu.Unlock()
-			return nil
-		})
+				mu.Lock()
+				txs = append(txs, signRequest)
+				mu.Unlock()
+				return nil
+			})
+		}
 	}
 
 	err = eg.Wait()
@@ -438,31 +454,35 @@ func (p *PayrollPlugin) genUnsignedTx(
 	return nil, fmt.Errorf("unsupported chain: %s", chain)
 }
 
-func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
-	var recipient string
+func RuleToRecipientsAndAmount(rule *rtypes.Rule) ([]string, string, error) {
+	var recipients []string
 	var amountStr string
 
 	if len(rule.ParameterConstraints) == 0 {
-		return "", "", fmt.Errorf("no parameter constraints found")
+		return nil, "", fmt.Errorf("no parameter constraints found")
 	}
 
 	if len(rule.ParameterConstraints) > 3 {
-		return "", "", fmt.Errorf("too many parameter constraints found")
+		return nil, "", fmt.Errorf("too many parameter constraints found")
 	}
 
 	for _, constraint := range rule.ParameterConstraints {
 		if constraint.ParameterName == "recipient" {
+			switch constraint.Constraint.Type {
+			case rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED:
+				recipients = []string{constraint.Constraint.GetFixedValue()}
+			case rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST:
+				recipients = constraint.Constraint.GetWhitelistValues().GetValues()
+			}
 			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-				return "", "", fmt.Errorf("recipient constraint is not a fixed value")
+				return nil, "", fmt.Errorf("recipient constraint is not a fixed value")
 			}
 
-			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
-			recipient = fixedValue.FixedValue
 		}
 
 		if constraint.ParameterName == "amount" {
 			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-				return "", "", fmt.Errorf("amount constraint is not a fixed value")
+				return nil, "", fmt.Errorf("amount constraint is not a fixed value")
 			}
 
 			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
@@ -470,5 +490,5 @@ func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
 		}
 	}
 
-	return recipient, amountStr, nil
+	return recipients, amountStr, nil
 }

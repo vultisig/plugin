@@ -54,7 +54,7 @@ func NewFeePlugin(db storage.DatabaseStorage,
 	client *asynq.Client,
 	feeConfig *FeeConfig,
 	encryptionSecret string,
-	verifierUrl string) (*FeePlugin, error) {
+	verifierUrl, verifierToken string) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -82,7 +82,11 @@ func NewFeePlugin(db storage.DatabaseStorage,
 		return nil, fmt.Errorf("verifier url cannot be empty")
 	}
 
-	verifierApi := verifierapi.NewVerifierApi(verifierUrl, logger.(*logrus.Logger))
+	verifierApi := verifierapi.NewVerifierApi(
+		verifierUrl,
+		verifierToken,
+		logger.(*logrus.Logger),
+	)
 	if verifierApi == nil {
 		return nil, fmt.Errorf("failed to create verifier api")
 	}

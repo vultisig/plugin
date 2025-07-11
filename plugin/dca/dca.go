@@ -26,7 +26,6 @@ import (
 
 	rtypes "github.com/vultisig/recipes/types"
 
-	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
 	"github.com/vultisig/plugin/pkg/uniswap"
 	"github.com/vultisig/plugin/storage"
@@ -342,11 +341,9 @@ func (p *DCAPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Pl
 				},
 				SessionID:        uuid.New().String(),
 				HexEncryptionKey: hexEncryptionKey,
-				Parties: []string{
-					common.PluginPartyID,
-					common.VerifierPartyID},
-				PluginID: policy.PluginID.String(),
-				PolicyID: policy.ID,
+				Parties:          []string{},
+				PluginID:         policy.PluginID.String(),
+				PolicyID:         policy.ID,
 			},
 			Transaction:     hex.EncodeToString(data.RlpTxBytes),
 			TransactionType: data.Type,

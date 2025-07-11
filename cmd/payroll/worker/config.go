@@ -13,6 +13,7 @@ import (
 
 type PayrollWorkerConfig struct {
 	Redis              storage.RedisConfig       `mapstructure:"redis" json:"redis,omitempty"`
+	Verifier           verifier                  `mapstructure:"verifier" json:"verifier"`
 	BlockStorage       vault_config.BlockStorage `mapstructure:"block_storage" json:"block_storage,omitempty"`
 	VaultServiceConfig vault_config.Config       `mapstructure:"vault_service" json:"vault_service,omitempty"`
 	Datadog            struct {
@@ -23,6 +24,11 @@ type PayrollWorkerConfig struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
 	BaseConfigPath string `mapstructure:"base_file_path" json:"base_file_path,omitempty"`
+}
+
+type verifier struct {
+	URL   string `mapstructure:"url" json:"url"`
+	Token string `mapstructure:"token" json:"token"`
 }
 
 func GetConfigure() (*PayrollWorkerConfig, error) {

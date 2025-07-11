@@ -92,7 +92,19 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(postgressDB, logger, cfg.BaseConfigPath, vaultStorage, txIndexerService, asynqInspector, asynqClient, feePluginConfig, cfg.VaultServiceConfig.EncryptionSecret, cfg.Server.VerifierUrl)
+	feePlugin, err := fees.NewFeePlugin(
+		postgressDB,
+		logger,
+		cfg.BaseConfigPath,
+		vaultStorage,
+		txIndexerService,
+		asynqInspector,
+		asynqClient,
+		feePluginConfig,
+		cfg.VaultServiceConfig.EncryptionSecret,
+		cfg.Server.VerifierUrl,
+		"", // TODO: for Garry: if you need to co-sign messages with verifier, you can set the token here
+	)
 	if err != nil {
 		logger.Fatalf("failed to create fee plugin,err: %s", err)
 	}

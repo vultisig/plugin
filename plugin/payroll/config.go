@@ -1,7 +1,6 @@
 package payroll
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -9,17 +8,23 @@ import (
 )
 
 type PluginConfig struct {
-	Type    string `mapstructure:"type"`
-	Version string `mapstructure:"version"`
-	RpcURL  string `mapstructure:"rpc_url"`
-	Gas     struct {
-		LimitMultiplier int `mapstructure:"limit_multiplier"`
-		PriceMultiplier int `mapstructure:"price_multiplier"`
-	} `mapstructure:"gas"`
-	Monitoring struct {
-		TimeoutMinutes       int `mapstructure:"timeout_minutes"`
-		CheckIntervalSeconds int `mapstructure:"check_interval_seconds"`
-	} `mapstructure:"monitoring"`
+	Type     string   `mapstructure:"type"`
+	Version  string   `mapstructure:"version"`
+	Rpc      rpc      `mapstructure:"rpc"`
+	Verifier verifier `mapstructure:"verifier"`
+}
+
+type rpc struct {
+	Ethereum rpcItem `mapstructure:"ethereum"`
+}
+
+type rpcItem struct {
+	URL string `mapstructure:"url"`
+}
+
+type verifier struct {
+	URL   string `mapstructure:"url"`
+	Token string `mapstructure:"token"`
 }
 
 func loadPluginConfig(basePath string) (*PluginConfig, error) {
@@ -50,12 +55,6 @@ func loadPluginConfig(basePath string) (*PluginConfig, error) {
 	// Validate configuration
 	if config.Type != PLUGIN_TYPE {
 		return nil, fmt.Errorf("invalid plugin type: %s", config.Type)
-	}
-	if config.RpcURL == "" {
-		return nil, errors.New("rpc_url is required")
-	}
-	if config.Gas.LimitMultiplier <= 0 {
-		return nil, errors.New("gas limit multiplier must be positive")
 	}
 
 	return &config, nil

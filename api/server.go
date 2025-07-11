@@ -101,7 +101,6 @@ func (s *Server) StartServer() error {
 	e.Validator = &vv.VultisigValidator{Validator: validator.New()}
 
 	e.GET("/ping", s.Ping)
-	e.POST("/signFromPlugin", s.SignPluginMessages)
 
 	grp := e.Group("/vault")
 	grp.POST("/reshare", s.ReshareVault)

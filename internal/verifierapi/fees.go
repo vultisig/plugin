@@ -27,7 +27,7 @@ type FeeHistoryDto struct {
 }
 
 // TODO add auth
-func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (*FeeHistoryDto, error) {
+func (v *VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (*FeeHistoryDto, error) {
 	url := fmt.Sprintf("/fees/policy/%s", policyId.String())
 	response, err := v.get(url)
 	if err != nil {
@@ -59,7 +59,7 @@ func (v VerifierApi) GetPluginPolicyFees(policyId uuid.UUID) (*FeeHistoryDto, er
 }
 
 // TODO add auth
-func (v VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, error) {
+func (v *VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, error) {
 	url := fmt.Sprintf("/fees/publickey/%s", ecdsaPublicKey)
 	response, err := v.get(url)
 	if err != nil {
@@ -90,7 +90,7 @@ func (v VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, e
 	return &feeHistory.Data, nil
 }
 
-func (v VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
+func (v *VerifierApi) GetAllPublicKeysFees() (map[string]FeeHistoryDto, error) {
 	url := "/fees/all"
 	response, err := v.get(url)
 	if err != nil {

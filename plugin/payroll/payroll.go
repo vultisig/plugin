@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/verifierapi"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/common"
@@ -18,6 +19,7 @@ var _ plugin.Plugin = (*PayrollPlugin)(nil)
 
 type PayrollPlugin struct {
 	db               storage.DatabaseStorage
+	verifier         *verifierapi.VerifierApi
 	eth              *evm.SDK
 	logger           logrus.FieldLogger
 	config           *PluginConfig
@@ -45,7 +47,7 @@ func NewPayrollPlugin(
 		return nil, fmt.Errorf("failed to load plugin config: %w", err)
 	}
 
-	rpcClient, err := ethclient.Dial(cfg.RpcURL)
+	rpcClient, err := ethclient.Dial(cfg.Rpc.Ethereum.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +58,12 @@ func NewPayrollPlugin(
 	}
 
 	return &PayrollPlugin{
-		db:               db,
+		db: db,
+		verifier: verifierapi.NewVerifierApi(
+			cfg.Verifier.URL,
+			cfg.Verifier.Token,
+			logrus.WithField("plugin", "payroll").Logger,
+		),
 		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
 		logger:           logrus.WithField("plugin", "payroll"),
 		config:           cfg,
