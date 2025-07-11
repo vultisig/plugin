@@ -474,9 +474,6 @@ func RuleToRecipientsAndAmount(rule *rtypes.Rule) ([]string, string, error) {
 			case rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST:
 				recipients = constraint.Constraint.GetWhitelistValues().GetValues()
 			}
-			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-				return nil, "", fmt.Errorf("recipient constraint is not a fixed value")
-			}
 
 		}
 
