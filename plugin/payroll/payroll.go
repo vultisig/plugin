@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/plugin/internal/verifierapi"
+	"github.com/vultisig/plugin/internal/keysign"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/common"
@@ -19,57 +19,44 @@ var _ plugin.Plugin = (*PayrollPlugin)(nil)
 
 type PayrollPlugin struct {
 	db               storage.DatabaseStorage
-	verifier         *verifierapi.VerifierApi
+	signer           *keysign.Signer
 	eth              *evm.SDK
 	logger           logrus.FieldLogger
-	config           *PluginConfig
 	txIndexerService *tx_indexer.Service
 	client           *asynq.Client
-	inspector        *asynq.Inspector
 	vaultStorage     vault.Storage
 	encryptionSecret string
 }
 
 func NewPayrollPlugin(
 	db storage.DatabaseStorage,
+	signer *keysign.Signer,
 	vaultStorage vault.Storage,
-	baseConfigPath string,
+	ethRpc *ethclient.Client,
 	txIndexerService *tx_indexer.Service,
 	client *asynq.Client,
-	inspector *asynq.Inspector,
 	encryptionSecret string,
 ) (*PayrollPlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
-	cfg, err := loadPluginConfig(baseConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load plugin config: %w", err)
-	}
 
-	rpcClient, err := ethclient.Dial(cfg.Rpc.Ethereum.URL)
-	if err != nil {
-		return nil, err
-	}
-
-	ethEvmChainID, err := common.Ethereum.EvmID()
-	if err != nil {
-		return nil, fmt.Errorf("common.Ethereum.EvmID: %w", err)
+	var eth *evm.SDK
+	if ethRpc != nil {
+		ethEvmChainID, err := common.Ethereum.EvmID()
+		if err != nil {
+			return nil, fmt.Errorf("common.Ethereum.EvmID: %w", err)
+		}
+		eth = evm.NewSDK(ethEvmChainID, ethRpc, ethRpc.Client())
 	}
 
 	return &PayrollPlugin{
-		db: db,
-		verifier: verifierapi.NewVerifierApi(
-			cfg.Verifier.URL,
-			cfg.Verifier.Token,
-			logrus.WithField("plugin", "payroll").Logger,
-		),
-		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
+		db:               db,
+		signer:           signer,
+		eth:              eth,
 		logger:           logrus.WithField("plugin", "payroll"),
-		config:           cfg,
 		txIndexerService: txIndexerService,
 		client:           client,
-		inspector:        inspector,
 		vaultStorage:     vaultStorage,
 		encryptionSecret: encryptionSecret,
 	}, nil

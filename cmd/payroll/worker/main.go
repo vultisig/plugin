@@ -5,11 +5,14 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/keysign"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/vultiserver/relay"
 
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
@@ -43,7 +46,6 @@ func main() {
 
 	logger := logrus.StandardLogger()
 	client := asynq.NewClient(redisOptions)
-	inspector := asynq.NewInspector(redisOptions)
 	srv := asynq.NewServer(
 		redisOptions,
 		asynq.Config{
@@ -77,17 +79,35 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create vault service: %w", err))
 	}
+
 	postgressDB, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
 	if err != nil {
 		panic(fmt.Errorf("failed to create postgres backend: %w", err))
 	}
+
+	rpcClient, err := ethclient.Dial(cfg.Rpc.Ethereum.URL)
+	if err != nil {
+		panic(fmt.Errorf("failed to create eth client: %w", err))
+	}
+
 	p, err := payroll.NewPayrollPlugin(
 		postgressDB,
+		keysign.NewSigner(
+			logger.WithField("pkg", "keysign.Signer").Logger,
+			relay.NewRelayClient(cfg.VaultServiceConfig.Relay.Server),
+			[]keysign.Emitter{
+				keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.Token),
+				keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			},
+			[]string{
+				cfg.Verifier.PartyPrefix,
+				cfg.VaultServiceConfig.LocalPartyPrefix,
+			},
+		),
 		vaultStorage,
-		cfg.BaseConfigPath,
+		rpcClient,
 		txIndexerService,
 		client,
-		inspector,
 		cfg.VaultServiceConfig.EncryptionSecret,
 	)
 	if err != nil {

@@ -1,4 +1,14 @@
 {
+    "verifier": {
+      "url": "http://localhost:8080",
+      "token": "localhost-apikey",
+      "party_prefix": "verifier"
+    },
+    "rpc": {
+      "ethereum": {
+        "url": "https://eth.llamarpc.com"
+      }
+    },
     "vault_service": {
         "relay": {
             "server": "https://api.vultisig.com/router"
@@ -23,7 +33,6 @@
         "host": "localhost",
         "port": 8125
     },
-    "base_file_path": "../../../etc/vultisig",
     "database": {
         "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable"
     }

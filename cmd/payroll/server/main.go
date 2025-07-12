@@ -73,11 +73,11 @@ func main() {
 	}
 	p, err := payroll.NewPayrollPlugin(
 		db,
+		nil, // not used by server
 		vaultStorage,
-		cfg.BaseConfigPath,
+		nil,
 		txIndexerService,
 		client,
-		inspector,
 		cfg.Server.EncryptionSecret,
 	)
 	if err != nil {

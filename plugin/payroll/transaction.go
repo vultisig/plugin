@@ -15,14 +15,12 @@ import (
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
-
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/scheduler"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
@@ -82,71 +80,30 @@ func (p *PayrollPlugin) initSign(
 	req vtypes.PluginKeysignRequest,
 	pluginPolicy vtypes.PluginPolicy,
 ) error {
-	buf, e := json.Marshal(req)
-	if e != nil {
-		p.logger.WithError(e).Error("json.Marshal")
-		return fmt.Errorf("json.Marshal: %w", e)
+	sigs, err := p.signer.Sign(ctx, req)
+	if err != nil {
+		p.logger.WithError(err).Error("Keysign failed")
+		return fmt.Errorf("p.signer.Sign: %w", err)
 	}
 
-	_, e = p.verifier.Sign(ctx, req)
-	if e != nil {
-		p.logger.WithError(e).Error("failed to make Sign request with verifier")
-		return fmt.Errorf("p.verifier.Sign: %w", e)
+	// one message for evm
+	sig, ok := sigs[req.Messages[0].Hash]
+	if !ok {
+		// if no err above, sig always must be there by this key, just double check
+		p.logger.WithField("hash", req.Messages[0].Hash).
+			Error("signature not found in the response")
+		return fmt.Errorf("signature not found for hash: %s", req.Messages[0].Hash)
 	}
 
-	task, e := p.client.Enqueue(
-		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
-		asynq.MaxRetry(0),
-		asynq.Timeout(5*time.Minute),
-		asynq.Retention(10*time.Minute),
-		asynq.Queue(tasks.QUEUE_NAME),
-	)
-	if e != nil {
-		p.logger.WithError(e).Error("p.client.Enqueue")
-		return fmt.Errorf("p.client.Enqueue: %w", e)
+	err = p.SigningComplete(ctx, sig, req, pluginPolicy)
+	if err != nil {
+		p.logger.WithError(err).Error("failed to complete signing process (broadcast tx)")
+		return fmt.Errorf("p.SigningComplete: %w", err)
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-			taskInfo, er := p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
-			if er != nil {
-				p.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
-				return fmt.Errorf("p.inspector.GetTaskInfo: %w", er)
-			}
-			if taskInfo.State != asynq.TaskStateCompleted {
-				continue
-			}
-			if taskInfo.Result == nil {
-				p.logger.Info("taskInfo.Result is nil, skipping")
-				return nil
-			}
-
-			var res map[string]tss.KeysignResponse
-			er = json.Unmarshal(taskInfo.Result, &res)
-			if er != nil {
-				p.logger.WithError(er).Error("json.Unmarshal(taskInfo.Result, &res)")
-				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
-			}
-
-			var sig tss.KeysignResponse
-			for _, v := range res { // one sig for evm (map with 1 key)
-				sig = v
-			}
-
-			er = p.SigningComplete(ctx, sig, req, pluginPolicy)
-			if er != nil {
-				p.logger.WithError(er).Error("p.SigningComplete")
-				return fmt.Errorf("p.SigningComplete: %w", er)
-			}
-
-			p.logger.WithField("public_key", req.PublicKey).
-				Info("successfully signed and broadcasted")
-			return nil
-		}
-	}
+	p.logger.WithField("public_key", req.PublicKey).
+		Info("successfully signed and broadcasted")
+	return nil
 }
 
 func (p *PayrollPlugin) IsAlreadyProposed(
@@ -317,11 +274,8 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 								Hash: txHex,
 							},
 						},
-						SessionID: uuid.New().String(),
-						Parties: []string{
-							"verifier",
-							vtypes.PluginVultisigPayroll_0000.String(),
-						},
+						SessionID:        uuid.New().String(),
+						Parties:          []string{},
 						HexEncryptionKey: hexEncryptionKey,
 						PolicyID:         policy.ID,
 						PluginID:         policy.PluginID.String(),

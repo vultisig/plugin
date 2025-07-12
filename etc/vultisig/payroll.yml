@@ -1,8 +1,0 @@
-type: payroll
-version: 0.0.1
-rpc:
-  ethereum:
-    url: https://eth.llamarpc.com
-verifier:
-  url: http://localhost:8080
-  token: localhost-apikey
