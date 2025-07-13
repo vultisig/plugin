@@ -22,7 +22,6 @@ type MigrationOptions struct {
 }
 
 func NewPostgresBackend(dsn string, opts *MigrationOptions) (*PostgresBackend, error) {
-	logrus.Info("Connecting to database with DSN: ", dsn)
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
