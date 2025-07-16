@@ -20,6 +20,8 @@ import (
 	"github.com/vultisig/plugin/storage/postgres"
 )
 
+// Don't scale payroll.worker, it has scheduler which must be single instance running
+// Consider moving scheduler to separate worker
 func main() {
 	ctx := context.Background()
 
@@ -90,7 +92,7 @@ func main() {
 		panic(fmt.Errorf("failed to create eth client: %w", err))
 	}
 
-	p, err := payroll.NewPayrollPlugin(
+	p, err := payroll.NewPlugin(
 		postgressDB,
 		keysign.NewSigner(
 			logger.WithField("pkg", "keysign.Signer").Logger,
@@ -109,6 +111,7 @@ func main() {
 		txIndexerService,
 		client,
 		cfg.VaultServiceConfig.EncryptionSecret,
+		cfg.VaultServiceConfig.Relay.EncryptionSecret,
 	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))

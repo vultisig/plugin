@@ -10,7 +10,7 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 )
 
-func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
+func (p *Plugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
 		return fmt.Errorf("failed to validate plugin policy: %v", err)
@@ -49,6 +49,6 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 	return nil
 }
 
-func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+func (p *Plugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	return plugin.ValidatePluginPolicy(policyDoc, p.GetRecipeSpecification())
 }

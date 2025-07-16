@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/relay"
 )
@@ -64,6 +65,16 @@ func (s *Signer) Sign(
 
 	var messageIDs []string
 	for _, message := range req.Messages {
+		wireMsg, er := common.EncryptGCM(message.Message, req.HexEncryptionKey)
+		if er != nil {
+			return nil, fmt.Errorf("common.EncryptGCM: %w", er)
+		}
+
+		er = s.relay.UploadSetupMessage(req.SessionID, message.Hash, wireMsg)
+		if er != nil {
+			return nil, fmt.Errorf("s.relay.UploadSetupMessage: %w", er)
+		}
+
 		messageIDs = append(messageIDs, message.Hash)
 	}
 
@@ -182,4 +193,8 @@ func filterIDsByPrefixes(fullIDs, prefixes []string) []string {
 	}
 
 	return result
+}
+
+func idsSlice(ids []string) []byte {
+	return []byte(strings.Join(ids, "\x00"))
 }

@@ -11,11 +11,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/tasks"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/storage"
 )

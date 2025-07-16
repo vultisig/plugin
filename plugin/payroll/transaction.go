@@ -2,6 +2,8 @@ package payroll
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
+	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
@@ -29,12 +33,7 @@ import (
 	"github.com/vultisig/plugin/internal/types"
 )
 
-// TODO: remove once the plugin installation is implemented
-const (
-	hexEncryptionKey = "hexencryptionkey"
-)
-
-func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
+func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
 	ctx, cancel := context.WithTimeout(c, 5*time.Minute)
 	defer cancel()
 
@@ -75,7 +74,7 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task)
 	return nil
 }
 
-func (p *PayrollPlugin) initSign(
+func (p *Plugin) initSign(
 	ctx context.Context,
 	req vtypes.PluginKeysignRequest,
 	pluginPolicy vtypes.PluginPolicy,
@@ -86,13 +85,15 @@ func (p *PayrollPlugin) initSign(
 		return fmt.Errorf("p.signer.Sign: %w", err)
 	}
 
-	// one message for evm
-	sig, ok := sigs[req.Messages[0].Hash]
-	if !ok {
-		// if no err above, sig always must be there by this key, just double check
-		p.logger.WithField("hash", req.Messages[0].Hash).
-			Error("signature not found in the response")
-		return fmt.Errorf("signature not found for hash: %s", req.Messages[0].Hash)
+	if len(sigs) != 1 {
+		p.logger.
+			WithField("sigs_count", len(sigs)).
+			Error("expected only 1 message+sig per request for evm")
+		return fmt.Errorf("p.signer.Sign: %w", err)
+	}
+	var sig tss.KeysignResponse
+	for _, s := range sigs {
+		sig = s
 	}
 
 	err = p.SigningComplete(ctx, sig, req, pluginPolicy)
@@ -106,7 +107,7 @@ func (p *PayrollPlugin) initSign(
 	return nil
 }
 
-func (p *PayrollPlugin) IsAlreadyProposed(
+func (p *Plugin) IsAlreadyProposed(
 	ctx context.Context,
 	frequency rtypes.ScheduleFrequency,
 	startTime time.Time,
@@ -159,7 +160,7 @@ func getTokenID(rule *rtypes.Rule) (string, error) {
 	return evm.ZeroAddress.Hex(), nil
 }
 
-func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	ctx := context.Background()
 
 	err := p.ValidatePluginPolicy(policy)
@@ -167,7 +168,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
-	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, p.encryptionSecret)
+	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, p.vaultEncryptionSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
 	}
@@ -183,6 +184,10 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	}
 
 	chain := vcommon.Ethereum
+	ethEvmID, err := chain.EvmID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %v", chain, err)
+	}
 
 	schedule := recipe.Schedule
 
@@ -247,6 +252,12 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 
 				txHex := gcommon.Bytes2Hex(tx)
 
+				txData, e := ethereum.DecodeUnsignedPayload(tx)
+				if e != nil {
+					return fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
+				}
+				txHashToSign := etypes.LatestSignerForChainID(ethEvmID).Hash(etypes.NewTx(txData))
+
 				txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
 					PluginID:      policy.PluginID,
 					PolicyID:      policy.ID,
@@ -260,23 +271,24 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 					return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
 				}
 
+				msgHash := sha256.Sum256(txHashToSign.Bytes())
+
 				// Create signing request
 				signRequest := vtypes.PluginKeysignRequest{
 					KeysignRequest: vtypes.KeysignRequest{
 						PublicKey: policy.PublicKey,
 						Messages: []vtypes.KeysignMessage{
 							{
-								TxIndexerID: txToTrack.ID.String(),
-								Message:     txHex,
-								Chain:       vcommon.Ethereum,
-								// Doesn't make sense to compute hash with empty V,R,S,
-								// not on-chain hash without signature
-								Hash: txHex,
+								TxIndexerID:  txToTrack.ID.String(),
+								Message:      txHashToSign.Hex(),
+								Chain:        chain,
+								Hash:         hex.EncodeToString(msgHash[:]),
+								HashFunction: vtypes.HashFunction_SHA256,
 							},
 						},
 						SessionID:        uuid.New().String(),
 						Parties:          []string{},
-						HexEncryptionKey: hexEncryptionKey,
+						HexEncryptionKey: p.relayEncryptionSecret,
 						PolicyID:         policy.ID,
 						PluginID:         policy.PluginID.String(),
 					},
@@ -300,7 +312,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	return txs, nil
 }
 
-func (p *PayrollPlugin) SigningComplete(
+func (p *Plugin) SigningComplete(
 	ctx context.Context,
 	signature tss.KeysignResponse,
 	signRequest vtypes.PluginKeysignRequest,
@@ -322,7 +334,7 @@ func (p *PayrollPlugin) SigningComplete(
 	return nil
 }
 
-func (p *PayrollPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+func (p *Plugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
@@ -380,7 +392,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 	}
 }
 
-func (p *PayrollPlugin) genUnsignedTx(
+func (p *Plugin) genUnsignedTx(
 	ctx context.Context,
 	chain vcommon.Chain,
 	senderAddress, tokenID, amount, to string,

@@ -1,6 +1,7 @@
 package payroll
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -15,28 +16,30 @@ import (
 	"github.com/vultisig/verifier/vault"
 )
 
-var _ plugin.Plugin = (*PayrollPlugin)(nil)
+var _ plugin.Plugin = (*Plugin)(nil)
 
-type PayrollPlugin struct {
-	db               storage.DatabaseStorage
-	signer           *keysign.Signer
-	eth              *evm.SDK
-	logger           logrus.FieldLogger
-	txIndexerService *tx_indexer.Service
-	client           *asynq.Client
-	vaultStorage     vault.Storage
-	encryptionSecret string
+type Plugin struct {
+	db                    storage.DatabaseStorage
+	signer                *keysign.Signer
+	eth                   *evm.SDK
+	logger                logrus.FieldLogger
+	txIndexerService      *tx_indexer.Service
+	client                *asynq.Client
+	vaultStorage          vault.Storage
+	vaultEncryptionSecret string
+	relayEncryptionSecret string
 }
 
-func NewPayrollPlugin(
+func NewPlugin(
 	db storage.DatabaseStorage,
 	signer *keysign.Signer,
 	vaultStorage vault.Storage,
 	ethRpc *ethclient.Client,
 	txIndexerService *tx_indexer.Service,
 	client *asynq.Client,
-	encryptionSecret string,
-) (*PayrollPlugin, error) {
+	vaultEncryptionSecret,
+	relayEncryptionSecret string,
+) (*Plugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -50,14 +53,15 @@ func NewPayrollPlugin(
 		eth = evm.NewSDK(ethEvmChainID, ethRpc, ethRpc.Client())
 	}
 
-	return &PayrollPlugin{
-		db:               db,
-		signer:           signer,
-		eth:              eth,
-		logger:           logrus.WithField("plugin", "payroll"),
-		txIndexerService: txIndexerService,
-		client:           client,
-		vaultStorage:     vaultStorage,
-		encryptionSecret: encryptionSecret,
+	return &Plugin{
+		db:                    db,
+		signer:                signer,
+		eth:                   eth,
+		logger:                logrus.WithField("plugin", "payroll"),
+		txIndexerService:      txIndexerService,
+		client:                client,
+		vaultStorage:          vaultStorage,
+		vaultEncryptionSecret: vaultEncryptionSecret,
+		relayEncryptionSecret: hex.EncodeToString([]byte(relayEncryptionSecret)),
 	}, nil
 }

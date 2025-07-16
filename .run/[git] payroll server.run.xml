@@ -4,7 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <envs>
       <env name="BASE_CONFIG_PATH" value="etc/vultisig" />
-      <env name="DATABASE_DSN" value="postgres://myuser:mypassword@localhost:5431/vultisig-plugin?sslmode=disable" />
+      <env name="DATABASE_DSN" value="postgres://myuser:mypassword@localhost:5431/vultisig-payroll?sslmode=disable" />
       <env name="SERVER_PORT" value="8081" />
       <env name="VS_CONFIG_NAME" value="payroll.server.example" />
     </envs>
