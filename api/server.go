@@ -14,8 +14,8 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
+	plugincommon "github.com/vultisig/plugin/plugin/common"
 	vcommon "github.com/vultisig/verifier/common"
-	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/verifier/vault"
 
@@ -37,7 +37,7 @@ type Server struct {
 	sdClient      *statsd.Client
 	scheduler     *scheduler.SchedulerService
 	policyService service.Policy
-	plugin        plugin.Plugin
+	plugin        plugincommon.Plugin
 	logger        *logrus.Logger
 	mode          string
 }
@@ -52,7 +52,7 @@ func NewServer(
 	client *asynq.Client,
 	inspector *asynq.Inspector,
 	sdClient *statsd.Client,
-	p plugin.Plugin,
+	p plugincommon.Plugin,
 ) *Server {
 	logger := logrus.WithField("service", "plugin").Logger
 	schedulerService, err := scheduler.NewSchedulerService(

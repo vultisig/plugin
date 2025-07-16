@@ -179,7 +179,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 
 	// We re-init plugin as verification server doesn't have plugin defined
 
-	if err := s.plugin.ValidatePluginPolicy(policy); err != nil {
+	if err := s.plugin.ValidateCreatePluginPolicy(policy); err != nil {
 		s.logger.WithError(err).Error("failed to validate plugin policy")
 		return c.JSON(http.StatusBadRequest, NewErrorResponse("failed to validate policy"))
 	}
@@ -209,7 +209,7 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
 
-	if err := s.plugin.ValidatePluginPolicy(policy); err != nil {
+	if err := s.plugin.ValidateUpdatePluginPolicy(policy); err != nil {
 		s.logger.WithError(err).
 			WithField("plugin_id", policy.PluginID).
 			WithField("policy_id", policy.ID).
@@ -257,6 +257,13 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 			WithField("policy_id", policyID).
 			Error("Failed to get plugin policy")
 		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to get policy"))
+	}
+
+	if err := s.plugin.ValidateDeletePluginPolicy(*policy); err != nil {
+		s.logger.WithError(err).
+			WithField("policy_id", policyID).
+			Error("Failed to validate plugin policy")
+		return c.JSON(http.StatusBadRequest, NewErrorResponse("failed to validate policy"))
 	}
 
 	// This is because we have different signature stored in the database.

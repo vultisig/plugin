@@ -10,7 +10,6 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	vcommon "github.com/vultisig/verifier/common"
-	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
 	"golang.org/x/sync/errgroup"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
+	"github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
 )
@@ -29,7 +29,7 @@ All key logic related to fees will go here, that includes
 - getting fee information
 */
 
-var _ plugin.Plugin = (*FeePlugin)(nil)
+var _ common.Plugin = (*FeePlugin)(nil)
 
 type FeePlugin struct {
 	vaultService     *vault.ManagementService

@@ -6,15 +6,15 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
-	"github.com/vultisig/verifier/common"
-	"github.com/vultisig/verifier/plugin"
+	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/vault"
 )
 
-var _ plugin.Plugin = (*PayrollPlugin)(nil)
+var _ common.Plugin = (*PayrollPlugin)(nil)
 
 type PayrollPlugin struct {
 	db               storage.DatabaseStorage
@@ -50,7 +50,7 @@ func NewPayrollPlugin(
 		return nil, err
 	}
 
-	ethEvmChainID, err := common.Ethereum.EvmID()
+	ethEvmChainID, err := vcommon.Ethereum.EvmID()
 	if err != nil {
 		return nil, fmt.Errorf("common.Ethereum.EvmID: %w", err)
 	}

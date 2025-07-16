@@ -21,7 +21,6 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
-	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
 
 	rtypes "github.com/vultisig/recipes/types"
@@ -29,6 +28,7 @@ import (
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
 	"github.com/vultisig/plugin/pkg/uniswap"
+	plugincommon "github.com/vultisig/plugin/plugin/common"
 	"github.com/vultisig/plugin/storage"
 )
 
@@ -47,7 +47,7 @@ var (
 	ErrCompletedPolicy = errors.New("policy completed all swaps")
 )
 
-var _ plugin.Plugin = (*DCAPlugin)(nil)
+var _ plugincommon.Plugin = (*DCAPlugin)(nil)
 
 type DCAPlugin struct {
 	uniswapClient *uniswap.Client
@@ -229,6 +229,16 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	}
 
 	return nil
+}
+
+func (p *DCAPlugin) ValidateCreatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return p.ValidatePluginPolicy(policyDoc)
+}
+func (p *DCAPlugin) ValidateUpdatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return p.ValidatePluginPolicy(policyDoc)
+}
+func (p *DCAPlugin) ValidateDeletePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return p.ValidatePluginPolicy(policyDoc)
 }
 
 func validateInterval(intervalStr string, frequency string) error {

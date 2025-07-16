@@ -19,6 +19,18 @@ func (fp *FeePlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	return plugin.ValidatePluginPolicy(policyDoc, fp.GetRecipeSpecification())
 }
 
+func (fp *FeePlugin) ValidateUpdatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return plugin.ValidatePluginPolicy(policyDoc, fp.GetRecipeSpecification())
+}
+
+func (fp *FeePlugin) ValidateCreatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return plugin.ValidatePluginPolicy(policyDoc, fp.GetRecipeSpecification())
+}
+
+func (fp *FeePlugin) ValidateDeletePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return plugin.ValidatePluginPolicy(policyDoc, fp.GetRecipeSpecification())
+}
+
 func (fp *FeePlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version

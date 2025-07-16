@@ -52,3 +52,15 @@ func (p *PayrollPlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy,
 func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	return plugin.ValidatePluginPolicy(policyDoc, p.GetRecipeSpecification())
 }
+
+func (p *PayrollPlugin) ValidateCreatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return p.ValidatePluginPolicy(policyDoc)
+}
+
+func (p *PayrollPlugin) ValidateUpdatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return p.ValidatePluginPolicy(policyDoc)
+}
+
+func (p *PayrollPlugin) ValidateDeletePluginPolicy(policyDoc vtypes.PluginPolicy) error {
+	return p.ValidatePluginPolicy(policyDoc)
+}
