@@ -747,6 +747,8 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20250710152947-d15b238437ae h1:Per1QtZamO2PiQLxzTJP5SNjg6INtn83IG0c0585/s8=
 github.com/vultisig/recipes v0.0.0-20250710152947-d15b238437ae/go.mod h1:Ci29kT+x5vPxLCRvIrbVNzM+JIMjDbVvvaLTzli5kYQ=
+github.com/vultisig/recipes v0.0.0-20250712091142-6c982b6f1005 h1:bjCLUPWFfL/m0uAOOpLZQvZjaZRX/WK1gGiw2RO3jkA=
+github.com/vultisig/recipes v0.0.0-20250712091142-6c982b6f1005/go.mod h1:Ci29kT+x5vPxLCRvIrbVNzM+JIMjDbVvvaLTzli5kYQ=
 github.com/vultisig/verifier v0.0.0-20250701180729-848563b4ed33 h1:PUeuOyOphzJq/NhCOwMJjqm8YC2U5v55jQtg7Fuf5t4=
 github.com/vultisig/verifier v0.0.0-20250701180729-848563b4ed33/go.mod h1:dLmQBnF5F0auFkGtCMHOCqkUwdTRL6fWm3H4yfHfsVU=
 github.com/vultisig/verifier v0.0.0-20250710201755-2a994bd24c91 h1:P9er37oz5iGogJOB5SoWAFVoLajR7rCl/kKvqU8Hkf4=
