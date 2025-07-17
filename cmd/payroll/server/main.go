@@ -79,7 +79,6 @@ func main() {
 		txIndexerService,
 		client,
 		cfg.Server.EncryptionSecret,
-		"",
 	)
 	if err != nil {
 		logger.Fatalf("failed to create payroll plugin,err: %s", err)

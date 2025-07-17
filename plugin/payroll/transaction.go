@@ -3,7 +3,7 @@ package payroll
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -200,14 +200,14 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 	for _, _rule := range recipe.Rules {
 		rule := _rule
 
-		tokenID, err := getTokenID(rule)
-		if err != nil {
-			return nil, fmt.Errorf("getTokenID: %v", err)
+		tokenID, er := getTokenID(rule)
+		if er != nil {
+			return nil, fmt.Errorf("getTokenID: %v", er)
 		}
 
-		recipients, amountStr, err := RuleToRecipientsAndAmount(rule)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get recipients and amount: %v", err)
+		recipients, amountStr, er := RuleToRecipientsAndAmount(rule)
+		if er != nil {
+			return nil, fmt.Errorf("failed to get recipients and amount: %v", er)
 		}
 
 		for _, _recipient := range recipients {
@@ -280,17 +280,14 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 						Messages: []vtypes.KeysignMessage{
 							{
 								TxIndexerID:  txToTrack.ID.String(),
-								Message:      txHashToSign.Hex(),
+								Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
 								Chain:        chain,
-								Hash:         hex.EncodeToString(msgHash[:]),
+								Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 								HashFunction: vtypes.HashFunction_SHA256,
 							},
 						},
-						SessionID:        uuid.New().String(),
-						Parties:          []string{},
-						HexEncryptionKey: p.relayEncryptionSecret,
-						PolicyID:         policy.ID,
-						PluginID:         policy.PluginID.String(),
+						PolicyID: policy.ID,
+						PluginID: policy.PluginID.String(),
 					},
 					Transaction: txHex,
 				}

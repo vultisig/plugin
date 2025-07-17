@@ -2,18 +2,17 @@ package keysign
 
 import (
 	"context"
-	"encoding/base64"
+	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/types"
-	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/vultiserver/relay"
 )
 
@@ -26,12 +25,10 @@ type Emitter interface {
 }
 
 type Signer struct {
-	logger                *logrus.Logger
-	relay                 *relay.Client
-	emitters              []Emitter
-	partiesPrefixes       []string
-	storage               vault.Storage
-	vaultEncryptionSecret string
+	logger          *logrus.Logger
+	relay           *relay.Client
+	emitters        []Emitter
+	partiesPrefixes []string
 }
 
 func NewSigner(
@@ -39,8 +36,6 @@ func NewSigner(
 	relay *relay.Client,
 	emitters []Emitter,
 	partiesPrefixesRaw []string,
-	storage vault.Storage,
-	vaultEncryptionSecret string,
 ) *Signer {
 	var partiesPrefixes []string
 	for _, prefix := range partiesPrefixesRaw {
@@ -48,61 +43,42 @@ func NewSigner(
 	}
 
 	return &Signer{
-		logger:                logger,
-		relay:                 relay,
-		emitters:              emitters,
-		partiesPrefixes:       partiesPrefixes,
-		storage:               storage,
-		vaultEncryptionSecret: vaultEncryptionSecret,
+		logger:          logger,
+		relay:           relay,
+		emitters:        emitters,
+		partiesPrefixes: partiesPrefixes,
 	}
 }
 
-func (s *Signer) getVault(publicKey, pluginID string) (*vaultType.Vault, error) {
-	content, err := s.storage.GetVault(common.GetVaultBackupFilename(publicKey, pluginID))
+func (s *Signer) genIDs(req types.PluginKeysignRequest) (types.PluginKeysignRequest, error) {
+	// single place to generate, to avoid misusage/empty in plugin implementation
+
+	if req.SessionID != "" {
+		return types.PluginKeysignRequest{}, errors.New("SessionID must be empty")
+	}
+	req.SessionID = uuid.New().String()
+
+	if req.HexEncryptionKey != "" {
+		return types.PluginKeysignRequest{}, errors.New("HexEncryptionKey must be empty")
+	}
+	rnd, err := uuid.New().MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("s.storage.GetVault: %w", err)
+		return types.PluginKeysignRequest{}, fmt.Errorf("uuid.New.MarshalBinary: %w", err)
 	}
+	req.HexEncryptionKey = hex.EncodeToString(rnd)
 
-	vlt, err := common.DecryptVaultFromBackup(s.vaultEncryptionSecret, content)
-	if err != nil {
-		return nil, fmt.Errorf("common.DecryptVaultFromBackup: %w", err)
-	}
-	if vlt == nil {
-		return nil, fmt.Errorf("vault is nil for publicKey: %s, pluginID: %s", publicKey, pluginID)
-	}
-	return vlt, nil
-}
-
-func (s *Signer) getKeyshareHandle(vlt *vaultType.Vault, isEdDSA bool) (vault.Handle, error) {
-	if vlt == nil {
-		return 0, fmt.Errorf("vault is nil")
-	}
-
-	publicKey := vlt.PublicKeyEcdsa
-	if isEdDSA {
-		publicKey = vlt.PublicKeyEddsa
-	}
-
-	for _, keyshare := range vlt.KeyShares {
-		if keyshare.PublicKey == publicKey {
-			bytes, err := base64.StdEncoding.DecodeString(keyshare.Keyshare)
-			if err != nil {
-				return 0, fmt.Errorf("base64.StdEncoding.DecodeString: %w", err)
-			}
-			handle, err := vault.NewMPCWrapperImp(isEdDSA).KeyshareFromBytes(bytes)
-			if err != nil {
-				return 0, fmt.Errorf("vault.NewMPCWrapperImp.KeyshareFromBytes: %w", err)
-			}
-			return handle, nil
-		}
-	}
-	return 0, fmt.Errorf("keyshare not found for publicKey: %s", publicKey)
+	return req, nil
 }
 
 func (s *Signer) Sign(
 	ctx context.Context,
-	req types.PluginKeysignRequest,
+	reqRaw types.PluginKeysignRequest,
 ) (map[string]tss.KeysignResponse, error) {
+	req, err := s.genIDs(reqRaw)
+	if err != nil {
+		return nil, fmt.Errorf("s.genIDs: %w", err)
+	}
+
 	for _, emitter := range s.emitters {
 		err := emitter.Sign(ctx, req)
 		if err != nil {
@@ -115,58 +91,12 @@ func (s *Signer) Sign(
 		return nil, fmt.Errorf("s.waitPartiesAndStart: %w", err)
 	}
 
-	vlt, err := s.getVault(req.PublicKey, req.PluginID)
-	if err != nil {
-		return nil, fmt.Errorf("s.getVault: %w", err)
+	var messages []string
+	for _, msg := range req.Messages {
+		messages = append(messages, msg.Message)
 	}
 
-	var messageIDs []string
-	for _, message := range req.Messages {
-		handle, er := s.getKeyshareHandle(vlt, message.Chain.IsEdDSA())
-		if er != nil {
-			return nil, fmt.Errorf("s.getKeyshareHandle: %w", er)
-		}
-
-		mpc := vault.NewMPCWrapperImp(message.Chain.IsEdDSA())
-
-		id, er := mpc.KeyshareKeyID(handle)
-		if er != nil {
-			return nil, fmt.Errorf("mpc.KeyshareKeyID: %w", er)
-		}
-
-		// message.Message is payload to sign (not message.Hash)
-		// it actually both hashes but could be different,
-		// message.Hash is unencrypted and only used as key for relay communication,
-		// and key in resulting map[hash]sig
-		hashToSign, er := hex.DecodeString(strings.TrimPrefix(message.Message, "0x"))
-		if er != nil {
-			return nil, fmt.Errorf("hex.DecodeString: %w", er)
-		}
-
-		setupMsg, er := mpc.SignSetupMsgNew(
-			id,
-			[]byte(message.Chain.GetDerivePath()),
-			hashToSign,
-			idsSlice(partyIDs),
-		)
-		if er != nil {
-			return nil, fmt.Errorf("mpc.SignSetupMsgNew: %w", er)
-		}
-
-		wireMsg, er := common.EncryptGCM(base64.StdEncoding.EncodeToString(setupMsg), req.HexEncryptionKey)
-		if er != nil {
-			return nil, fmt.Errorf("common.EncryptGCM: %w", er)
-		}
-
-		er = s.relay.UploadSetupMessage(req.SessionID, message.Hash, wireMsg)
-		if er != nil {
-			return nil, fmt.Errorf("s.relay.UploadSetupMessage: %w", er)
-		}
-
-		messageIDs = append(messageIDs, message.Hash)
-	}
-
-	res, err := s.waitResult(ctx, req.SessionID, partyIDs, messageIDs)
+	res, err := s.waitResult(ctx, req.SessionID, partyIDs, req)
 	if err != nil {
 		return nil, fmt.Errorf("s.waitResult: %w", err)
 	}
@@ -176,7 +106,8 @@ func (s *Signer) Sign(
 func (s *Signer) waitResult(
 	ctx context.Context,
 	sessionID string,
-	partyIDs, messageIDs []string,
+	partyIDs []string,
+	req types.PluginKeysignRequest,
 ) (map[string]tss.KeysignResponse, error) {
 	for {
 		select {
@@ -195,8 +126,11 @@ func (s *Signer) waitResult(
 				continue
 			}
 
-			sigs := make(map[string]tss.KeysignResponse, len(messageIDs))
-			for _, messageID := range messageIDs {
+			sigs := make(map[string]tss.KeysignResponse, len(req.Messages))
+			for _, msg := range req.Messages {
+				md5Hash := md5.Sum([]byte(msg.Message))
+				messageID := hex.EncodeToString(md5Hash[:])
+
 				sig, completeErr := s.relay.CheckKeysignComplete(sessionID, messageID)
 				if completeErr != nil {
 					s.logger.WithFields(logrus.Fields{
@@ -213,7 +147,7 @@ func (s *Signer) waitResult(
 						sessionID,
 					)
 				}
-				sigs[messageID] = *sig
+				sigs[msg.Hash] = *sig
 			}
 			return sigs, nil
 		}
@@ -285,8 +219,4 @@ func filterIDsByPrefixes(fullIDs, prefixes []string) []string {
 	}
 
 	return result
-}
-
-func idsSlice(ids []string) []byte {
-	return []byte(strings.Join(ids, "\x00"))
 }

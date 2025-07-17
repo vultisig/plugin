@@ -105,15 +105,12 @@ func main() {
 				cfg.Verifier.PartyPrefix,
 				cfg.VaultServiceConfig.LocalPartyPrefix,
 			},
-			vaultStorage,
-			cfg.VaultServiceConfig.EncryptionSecret,
 		),
 		vaultStorage,
 		rpcClient,
 		txIndexerService,
 		client,
 		cfg.VaultServiceConfig.EncryptionSecret,
-		cfg.VaultServiceConfig.Relay.EncryptionSecret,
 	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))

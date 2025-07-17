@@ -1,7 +1,6 @@
 package payroll
 
 import (
-	"encoding/hex"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -27,7 +26,6 @@ type Plugin struct {
 	client                *asynq.Client
 	vaultStorage          vault.Storage
 	vaultEncryptionSecret string
-	relayEncryptionSecret string
 }
 
 func NewPlugin(
@@ -37,8 +35,7 @@ func NewPlugin(
 	ethRpc *ethclient.Client,
 	txIndexerService *tx_indexer.Service,
 	client *asynq.Client,
-	vaultEncryptionSecret,
-	relayEncryptionSecret string,
+	vaultEncryptionSecret string,
 ) (*Plugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
@@ -62,6 +59,5 @@ func NewPlugin(
 		client:                client,
 		vaultStorage:          vaultStorage,
 		vaultEncryptionSecret: vaultEncryptionSecret,
-		relayEncryptionSecret: hex.EncodeToString([]byte(relayEncryptionSecret)),
 	}, nil
 }

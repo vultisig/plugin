@@ -11,12 +11,12 @@
     },
     "vault_service": {
         "relay": {
-            "server": "https://api.vultisig.com/router",
-            "encryption_secret": "test456"
+            "server": "https://api.vultisig.com/router"
         },
         "local_party_prefix": "payroll-plugin-0000",
         "queue_email_task": false,
-        "encryption_secret": "test123"
+        "encryption_secret": "test123",
+        "do_setup_msg": true
     },
     "redis": {
         "host": "localhost",
