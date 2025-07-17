@@ -2,14 +2,18 @@ package keysign
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/types"
+	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/vultiserver/relay"
 )
 
@@ -22,10 +26,12 @@ type Emitter interface {
 }
 
 type Signer struct {
-	logger          *logrus.Logger
-	relay           *relay.Client
-	emitters        []Emitter
-	partiesPrefixes []string
+	logger                *logrus.Logger
+	relay                 *relay.Client
+	emitters              []Emitter
+	partiesPrefixes       []string
+	storage               vault.Storage
+	vaultEncryptionSecret string
 }
 
 func NewSigner(
@@ -33,6 +39,8 @@ func NewSigner(
 	relay *relay.Client,
 	emitters []Emitter,
 	partiesPrefixesRaw []string,
+	storage vault.Storage,
+	vaultEncryptionSecret string,
 ) *Signer {
 	var partiesPrefixes []string
 	for _, prefix := range partiesPrefixesRaw {
@@ -40,11 +48,55 @@ func NewSigner(
 	}
 
 	return &Signer{
-		logger:          logger,
-		relay:           relay,
-		emitters:        emitters,
-		partiesPrefixes: partiesPrefixes,
+		logger:                logger,
+		relay:                 relay,
+		emitters:              emitters,
+		partiesPrefixes:       partiesPrefixes,
+		storage:               storage,
+		vaultEncryptionSecret: vaultEncryptionSecret,
 	}
+}
+
+func (s *Signer) getVault(publicKey, pluginID string) (*vaultType.Vault, error) {
+	content, err := s.storage.GetVault(common.GetVaultBackupFilename(publicKey, pluginID))
+	if err != nil {
+		return nil, fmt.Errorf("s.storage.GetVault: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(s.vaultEncryptionSecret, content)
+	if err != nil {
+		return nil, fmt.Errorf("common.DecryptVaultFromBackup: %w", err)
+	}
+	if vlt == nil {
+		return nil, fmt.Errorf("vault is nil for publicKey: %s, pluginID: %s", publicKey, pluginID)
+	}
+	return vlt, nil
+}
+
+func (s *Signer) getKeyshareHandle(vlt *vaultType.Vault, isEdDSA bool) (vault.Handle, error) {
+	if vlt == nil {
+		return 0, fmt.Errorf("vault is nil")
+	}
+
+	publicKey := vlt.PublicKeyEcdsa
+	if isEdDSA {
+		publicKey = vlt.PublicKeyEddsa
+	}
+
+	for _, keyshare := range vlt.KeyShares {
+		if keyshare.PublicKey == publicKey {
+			bytes, err := base64.StdEncoding.DecodeString(keyshare.Keyshare)
+			if err != nil {
+				return 0, fmt.Errorf("base64.StdEncoding.DecodeString: %w", err)
+			}
+			handle, err := vault.NewMPCWrapperImp(isEdDSA).KeyshareFromBytes(bytes)
+			if err != nil {
+				return 0, fmt.Errorf("vault.NewMPCWrapperImp.KeyshareFromBytes: %w", err)
+			}
+			return handle, nil
+		}
+	}
+	return 0, fmt.Errorf("keyshare not found for publicKey: %s", publicKey)
 }
 
 func (s *Signer) Sign(
@@ -63,9 +115,45 @@ func (s *Signer) Sign(
 		return nil, fmt.Errorf("s.waitPartiesAndStart: %w", err)
 	}
 
+	vlt, err := s.getVault(req.PublicKey, req.PluginID)
+	if err != nil {
+		return nil, fmt.Errorf("s.getVault: %w", err)
+	}
+
 	var messageIDs []string
 	for _, message := range req.Messages {
-		wireMsg, er := common.EncryptGCM(message.Message, req.HexEncryptionKey)
+		handle, er := s.getKeyshareHandle(vlt, message.Chain.IsEdDSA())
+		if er != nil {
+			return nil, fmt.Errorf("s.getKeyshareHandle: %w", er)
+		}
+
+		mpc := vault.NewMPCWrapperImp(message.Chain.IsEdDSA())
+
+		id, er := mpc.KeyshareKeyID(handle)
+		if er != nil {
+			return nil, fmt.Errorf("mpc.KeyshareKeyID: %w", er)
+		}
+
+		// message.Message is payload to sign (not message.Hash)
+		// it actually both hashes but could be different,
+		// message.Hash is unencrypted and only used as key for relay communication,
+		// and key in resulting map[hash]sig
+		hashToSign, er := hex.DecodeString(strings.TrimPrefix(message.Message, "0x"))
+		if er != nil {
+			return nil, fmt.Errorf("hex.DecodeString: %w", er)
+		}
+
+		setupMsg, er := mpc.SignSetupMsgNew(
+			id,
+			[]byte(message.Chain.GetDerivePath()),
+			hashToSign,
+			idsSlice(partyIDs),
+		)
+		if er != nil {
+			return nil, fmt.Errorf("mpc.SignSetupMsgNew: %w", er)
+		}
+
+		wireMsg, er := common.EncryptGCM(base64.StdEncoding.EncodeToString(setupMsg), req.HexEncryptionKey)
 		if er != nil {
 			return nil, fmt.Errorf("common.EncryptGCM: %w", er)
 		}
@@ -132,7 +220,11 @@ func (s *Signer) waitResult(
 	}
 }
 
-func (s *Signer) waitPartiesAndStart(ctx context.Context, sessionID string, partiesPrefixes []string) ([]string, error) {
+func (s *Signer) waitPartiesAndStart(
+	ctx context.Context,
+	sessionID string,
+	partiesPrefixes []string,
+) ([]string, error) {
 	for {
 		select {
 		case <-ctx.Done():

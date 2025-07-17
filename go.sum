@@ -785,6 +785,8 @@ github.com/vultisig/verifier v0.0.0-20250716195951-be68922d78c1 h1:9vLdskv8xglMQ
 github.com/vultisig/verifier v0.0.0-20250716195951-be68922d78c1/go.mod h1:Qjt7mLLM992hDnjOYSrSuykAULeJUFMbD6o071EExRU=
 github.com/vultisig/verifier v0.0.0-20250716212522-51c2f2fca02c h1:v6gAHmTMU5WebZhLUybcxdQ52UMkXFmEVllFEKOvYy0=
 github.com/vultisig/verifier v0.0.0-20250716212522-51c2f2fca02c/go.mod h1:Qjt7mLLM992hDnjOYSrSuykAULeJUFMbD6o071EExRU=
+github.com/vultisig/verifier v0.0.0-20250717093634-8c975d24a1ce h1:B7nlC2YpgbzHtv3/0Kaa/SbkSOLMj8NNw/J/3/tK2bs=
+github.com/vultisig/verifier v0.0.0-20250717093634-8c975d24a1ce/go.mod h1:Qjt7mLLM992hDnjOYSrSuykAULeJUFMbD6o071EExRU=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9 h1:pZhGN8q8+gPB1JJjVDC1hDg8qn6Tbj0XBJymgTQ8qQg=
 github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b h1:Ed2DOWo8fA0KG6e36rzUmGpxcOQjmWTbxWyvUbI5by8=

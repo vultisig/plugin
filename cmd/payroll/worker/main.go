@@ -105,6 +105,8 @@ func main() {
 				cfg.Verifier.PartyPrefix,
 				cfg.VaultServiceConfig.LocalPartyPrefix,
 			},
+			vaultStorage,
+			cfg.VaultServiceConfig.EncryptionSecret,
 		),
 		vaultStorage,
 		rpcClient,
