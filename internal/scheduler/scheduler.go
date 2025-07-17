@@ -184,6 +184,19 @@ func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy vtypes.
 	return s.db.CreateTimeTriggerTx(ctx, dbTx, *trigger)
 }
 
+func (s *SchedulerService) GetScheduleFromPolicy(policy vtypes.PluginPolicy) (*rtypes.Schedule, error) {
+	recipe, err := base64.StdEncoding.DecodeString(policy.Recipe)
+	if err != nil {
+		return nil, fmt.Errorf("base64.StdEncoding.DecodeString: %w", err)
+	}
+
+	var p rtypes.Policy
+	if err := proto.Unmarshal(recipe, &p); err != nil {
+		return nil, fmt.Errorf("failed to parse policy schedule: %w", err)
+	}
+	return p.Schedule, nil
+}
+
 func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*types.TimeTrigger, error) {
 	recipe, err := base64.StdEncoding.DecodeString(policy.Recipe)
 	if err != nil {
