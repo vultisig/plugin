@@ -21,7 +21,6 @@ import (
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	rtypes "github.com/vultisig/recipes/types"
-	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
@@ -39,6 +38,15 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
 	}
 
+	// ERC20 USDC Token List
+	var usdc *reth.Token = &reth.Token{
+		ChainId:  1,
+		Address:  fp.config.UsdcAddress,
+		Name:     "USD Coin",
+		Symbol:   "USDC",
+		Decimals: 6,
+	}
+
 	// Get the ethereum derived addresses from the vaults master public key
 	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
 	if err != nil {
@@ -50,12 +58,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
-	echain, err := chain.GetChain("ethereum")
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ethereum chain: %v", err)
-	}
-	ethchain := echain.(*reth.Ethereum)
 	chain := vcommon.Ethereum
 	txs := []vtypes.PluginKeysignRequest{}
 
@@ -64,8 +67,8 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 
 		// This section of code goes through the rules in the fee policy. It looks for the recipient of the fee collection policy and extracts it. If other data is found throws an error as they're unsupported rules.
 		var recipient string // The address specified in the fee policy.
-		switch rule.Id {
-		case "allow-usdc-transfer-to-collector":
+		switch rule.Resource {
+		case "ethereum.usdc.transfer":
 			for _, constraint := range rule.ParameterConstraints {
 				if constraint.ParameterName == "recipient" {
 					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
@@ -80,16 +83,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		}
 		if recipient == "" {
 			return nil, fmt.Errorf("recipient is not set in policy")
-		}
-
-		// This section of code is used to get the token address for the fee collection (just eth usdc for now)
-		resourcePath, err := rutil.ParseResource(rule.Resource)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse resource: %v", err)
-		}
-		token, found := ethchain.GetToken(resourcePath.ProtocolId)
-		if !found {
-			return nil, fmt.Errorf("failed to get token: %v", resourcePath.ProtocolId)
 		}
 
 		// Here we call the verifier api to get a list of fees that have the same public key as the signed policy document.
@@ -108,7 +101,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			chain,
 			policy.PluginID,
 			policy.ID,
-			token.Address,
+			usdc.Address,
 			recipient,
 			fromTime,
 			toTime,
@@ -118,7 +111,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 				"recipient": recipient,
 				"amount":    amount,
 				"chain_id":  chain,
-				"token_id":  token.Address,
+				"token_id":  usdc.Address,
 			}).Info("transaction already proposed, skipping")
 			return nil, nil
 		}
@@ -126,7 +119,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		tx, err := fp.eth.MakeAnyTransfer(ctx,
 			gcommon.HexToAddress(ethAddress),
 			gcommon.HexToAddress(recipient),
-			gcommon.HexToAddress(token.Address),
+			gcommon.HexToAddress(usdc.Address),
 			big.NewInt(int64(amount)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
@@ -138,7 +131,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			PluginID:      policy.PluginID,
 			PolicyID:      policy.ID,
 			ChainID:       chain,
-			TokenID:       token.Address,
+			TokenID:       usdc.Address,
 			FromPublicKey: policy.PublicKey,
 			ToPublicKey:   recipient,
 			ProposedTxHex: txHex,
