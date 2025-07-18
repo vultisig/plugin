@@ -19,7 +19,7 @@ func Call[T comparable](
 ) (T, error) {
 	b, err := json.Marshal(body)
 	if err != nil {
-		return *new(T), fmt.Errorf("json.Marshal: %w", err)
+		return *new(T), fmt.Errorf("failed to marshal request json: %w", err)
 	}
 
 	var q string
@@ -33,7 +33,7 @@ func Call[T comparable](
 
 	req, err := http.NewRequestWithContext(ctx, method, url+q, bytes.NewReader(b))
 	if err != nil {
-		return *new(T), fmt.Errorf("http.NewRequestWithContext: %w", err)
+		return *new(T), fmt.Errorf("failded to build http request: %w", err)
 	}
 
 	for k, v := range headers {
@@ -42,7 +42,7 @@ func Call[T comparable](
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return *new(T), fmt.Errorf("http.DefaultClient.Do: %w", err)
+		return *new(T), fmt.Errorf("failed to make http call: %w", err)
 	}
 
 	bodyBytes, err := io.ReadAll(res.Body)
@@ -65,7 +65,7 @@ func Call[T comparable](
 	var r T
 	err = json.Unmarshal(bodyBytes, &r)
 	if err != nil {
-		return *new(T), fmt.Errorf("json.Unmarshal: %w", err)
+		return *new(T), fmt.Errorf("failed to unmarshal response json: %w", err)
 	}
 
 	return r, nil
