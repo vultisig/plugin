@@ -805,6 +805,8 @@ github.com/vultisig/verifier v0.0.0-20250719183158-c3bd2be013e2 h1:23TaWlwn9z1W5
 github.com/vultisig/verifier v0.0.0-20250719183158-c3bd2be013e2/go.mod h1:9f3yGSZWKZeXn30mU+/brufkbkLoGlFmNLKOpRbQgeI=
 github.com/vultisig/verifier v0.0.0-20250719183957-66bbb5d90164 h1:RD2boHHVoaSyHAz8Wo+Nx4uOlaQ1uaCnFhBSDflv2lo=
 github.com/vultisig/verifier v0.0.0-20250719183957-66bbb5d90164/go.mod h1:9f3yGSZWKZeXn30mU+/brufkbkLoGlFmNLKOpRbQgeI=
+github.com/vultisig/verifier v0.0.0-20250719200049-c8e4cfbfdde4 h1:DX+lpaifFw9PbuABELyc2IsEZ1GDRYDXEAHqxp4EG/U=
+github.com/vultisig/verifier v0.0.0-20250719200049-c8e4cfbfdde4/go.mod h1:9f3yGSZWKZeXn30mU+/brufkbkLoGlFmNLKOpRbQgeI=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b h1:Ed2DOWo8fA0KG6e36rzUmGpxcOQjmWTbxWyvUbI5by8=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
