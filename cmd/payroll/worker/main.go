@@ -5,11 +5,14 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/keysign"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/vultiserver/relay"
 
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/tasks"
@@ -17,6 +20,8 @@ import (
 	"github.com/vultisig/plugin/storage/postgres"
 )
 
+// Don't scale payroll.worker, it has scheduler which must be single instance running
+// Consider moving scheduler to separate worker
 func main() {
 	ctx := context.Background()
 
@@ -43,7 +48,6 @@ func main() {
 
 	logger := logrus.StandardLogger()
 	client := asynq.NewClient(redisOptions)
-	inspector := asynq.NewInspector(redisOptions)
 	srv := asynq.NewServer(
 		redisOptions,
 		asynq.Config{
@@ -77,11 +81,37 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create vault service: %w", err))
 	}
+
 	postgressDB, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
 	if err != nil {
 		panic(fmt.Errorf("failed to create postgres backend: %w", err))
 	}
-	p, err := payroll.NewPayrollPlugin(postgressDB, vaultStorage, cfg.BaseConfigPath, txIndexerService, client, inspector, cfg.VaultServiceConfig.EncryptionSecret)
+
+	rpcClient, err := ethclient.Dial(cfg.Rpc.Ethereum.URL)
+	if err != nil {
+		panic(fmt.Errorf("failed to create eth client: %w", err))
+	}
+
+	p, err := payroll.NewPlugin(
+		postgressDB,
+		keysign.NewSigner(
+			logger.WithField("pkg", "keysign.Signer").Logger,
+			relay.NewRelayClient(cfg.VaultServiceConfig.Relay.Server),
+			[]keysign.Emitter{
+				keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.Token),
+				keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			},
+			[]string{
+				cfg.Verifier.PartyPrefix,
+				cfg.VaultServiceConfig.LocalPartyPrefix,
+			},
+		),
+		vaultStorage,
+		rpcClient,
+		txIndexerService,
+		client,
+		cfg.VaultServiceConfig.EncryptionSecret,
+	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))
 	}

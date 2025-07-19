@@ -78,7 +78,18 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
-	feePlugin, err := fees.NewFeePlugin(db, logger, cfg.BaseConfigPath, vaultStorage, nil, inspector, client, feePluginConfig, cfg.Server.EncryptionSecret, cfg.Server.VerifierUrl)
+	feePlugin, err := fees.NewFeePlugin(
+		db,
+		logger,
+		cfg.BaseConfigPath,
+		vaultStorage,
+		nil,
+		inspector,
+		client,
+		feePluginConfig,
+		cfg.Server.EncryptionSecret,
+		cfg.Server.VerifierUrl,
+	)
 	if err != nil {
 		logger.Fatalf("failed to create fee plugin,err: %s", err)
 	}

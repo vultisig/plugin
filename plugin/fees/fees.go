@@ -82,7 +82,10 @@ func NewFeePlugin(db storage.DatabaseStorage,
 		return nil, fmt.Errorf("verifier url cannot be empty")
 	}
 
-	verifierApi := verifierapi.NewVerifierApi(verifierUrl, logger.(*logrus.Logger))
+	verifierApi := verifierapi.NewVerifierApi(
+		verifierUrl,
+		logger.(*logrus.Logger),
+	)
 	if verifierApi == nil {
 		return nil, fmt.Errorf("failed to create verifier api")
 	}

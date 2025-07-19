@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/keysign"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/common"
@@ -14,56 +15,49 @@ import (
 	"github.com/vultisig/verifier/vault"
 )
 
-var _ plugin.Plugin = (*PayrollPlugin)(nil)
+var _ plugin.Plugin = (*Plugin)(nil)
 
-type PayrollPlugin struct {
-	db               storage.DatabaseStorage
-	eth              *evm.SDK
-	logger           logrus.FieldLogger
-	config           *PluginConfig
-	txIndexerService *tx_indexer.Service
-	client           *asynq.Client
-	inspector        *asynq.Inspector
-	vaultStorage     vault.Storage
-	encryptionSecret string
+type Plugin struct {
+	db                    storage.DatabaseStorage
+	signer                *keysign.Signer
+	eth                   *evm.SDK
+	logger                logrus.FieldLogger
+	txIndexerService      *tx_indexer.Service
+	client                *asynq.Client
+	vaultStorage          vault.Storage
+	vaultEncryptionSecret string
 }
 
-func NewPayrollPlugin(
+func NewPlugin(
 	db storage.DatabaseStorage,
+	signer *keysign.Signer,
 	vaultStorage vault.Storage,
-	baseConfigPath string,
+	ethRpc *ethclient.Client,
 	txIndexerService *tx_indexer.Service,
 	client *asynq.Client,
-	inspector *asynq.Inspector,
-	encryptionSecret string,
-) (*PayrollPlugin, error) {
+	vaultEncryptionSecret string,
+) (*Plugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
-	cfg, err := loadPluginConfig(baseConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load plugin config: %w", err)
+
+	var eth *evm.SDK
+	if ethRpc != nil {
+		ethEvmChainID, err := common.Ethereum.EvmID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Ethereum EVM ID: %w", err)
+		}
+		eth = evm.NewSDK(ethEvmChainID, ethRpc, ethRpc.Client())
 	}
 
-	rpcClient, err := ethclient.Dial(cfg.RpcURL)
-	if err != nil {
-		return nil, err
-	}
-
-	ethEvmChainID, err := common.Ethereum.EvmID()
-	if err != nil {
-		return nil, fmt.Errorf("common.Ethereum.EvmID: %w", err)
-	}
-
-	return &PayrollPlugin{
-		db:               db,
-		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
-		logger:           logrus.WithField("plugin", "payroll"),
-		config:           cfg,
-		txIndexerService: txIndexerService,
-		client:           client,
-		inspector:        inspector,
-		vaultStorage:     vaultStorage,
-		encryptionSecret: encryptionSecret,
+	return &Plugin{
+		db:                    db,
+		signer:                signer,
+		eth:                   eth,
+		logger:                logrus.WithField("plugin", "payroll"),
+		txIndexerService:      txIndexerService,
+		client:                client,
+		vaultStorage:          vaultStorage,
+		vaultEncryptionSecret: vaultEncryptionSecret,
 	}, nil
 }

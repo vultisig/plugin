@@ -36,7 +36,6 @@ WORKDIR /app
 COPY --from=builder /app/server .
 COPY --from=builder /usr/local/lib/dkls /usr/local/lib/dkls
 COPY payroll.server.example.json config.json
-COPY ./etc/vultisig/payroll.yml /etc/vultisig/payroll.yml
 
 ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux/:$LD_LIBRARY_PATH
 

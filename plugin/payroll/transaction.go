@@ -2,6 +2,8 @@ package payroll
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,20 +11,20 @@ import (
 	"sync"
 	"time"
 
+	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
+	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
-
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/scheduler"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
@@ -31,12 +33,7 @@ import (
 	"github.com/vultisig/plugin/internal/types"
 )
 
-// TODO: remove once the plugin installation is implemented
-const (
-	hexEncryptionKey = "hexencryptionkey"
-)
-
-func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
+func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
 	ctx, cancel := context.WithTimeout(c, 5*time.Minute)
 	defer cancel()
 
@@ -58,7 +55,7 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task)
 	reqs, err := p.ProposeTransactions(*pluginPolicy)
 	if err != nil {
 		p.logger.WithError(err).Error("p.ProposeTransactions")
-		return fmt.Errorf("p.ProposeTransactions: %s, %w", err, asynq.SkipRetry)
+		return fmt.Errorf("failed to propose transactions: %s, %w", err, asynq.SkipRetry)
 	}
 
 	var eg errgroup.Group
@@ -71,79 +68,43 @@ func (p *PayrollPlugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task)
 	err = eg.Wait()
 	if err != nil {
 		p.logger.WithError(err).Error("eg.Wait")
-		return fmt.Errorf("eg.Wait: %s, %w", err, asynq.SkipRetry)
+		return fmt.Errorf("failed to wait for signing tasks: %s, %w", err, asynq.SkipRetry)
 	}
 
 	return nil
 }
 
-func (p *PayrollPlugin) initSign(
+func (p *Plugin) initSign(
 	ctx context.Context,
 	req vtypes.PluginKeysignRequest,
 	pluginPolicy vtypes.PluginPolicy,
 ) error {
-	buf, e := json.Marshal(req)
-	if e != nil {
-		p.logger.WithError(e).Error("json.Marshal")
-		return fmt.Errorf("json.Marshal: %w", e)
+	sigs, err := p.signer.Sign(ctx, req)
+	if err != nil {
+		p.logger.WithError(err).Error("Keysign failed")
+		return fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
-	task, e := p.client.Enqueue(
-		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
-		asynq.MaxRetry(0),
-		asynq.Timeout(5*time.Minute),
-		asynq.Retention(10*time.Minute),
-		asynq.Queue(tasks.QUEUE_NAME),
-	)
-	if e != nil {
-		p.logger.WithError(e).Error("p.client.Enqueue")
-		return fmt.Errorf("p.client.Enqueue: %w", e)
+	if len(sigs) != 1 {
+		p.logger.
+			WithField("sigs_count", len(sigs)).
+			Error("expected only 1 message+sig per request for evm")
+		return fmt.Errorf("failed to sign transaction: invalid signature count: %d", len(sigs))
+	}
+	var sig tss.KeysignResponse
+	for _, s := range sigs {
+		sig = s
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-			taskInfo, er := p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
-			if er != nil {
-				p.logger.WithError(er).Error("p.inspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)")
-				return fmt.Errorf("p.inspector.GetTaskInfo: %w", er)
-			}
-			if taskInfo.State != asynq.TaskStateCompleted {
-				continue
-			}
-			if taskInfo.Result == nil {
-				p.logger.Info("taskInfo.Result is nil, skipping")
-				return nil
-			}
-
-			var res map[string]tss.KeysignResponse
-			er = json.Unmarshal(taskInfo.Result, &res)
-			if er != nil {
-				p.logger.WithError(er).Error("json.Unmarshal(taskInfo.Result, &res)")
-				return fmt.Errorf("json.Unmarshal(taskInfo.Result, &res): %w", er)
-			}
-
-			var sig tss.KeysignResponse
-			for _, v := range res { // one sig for evm (map with 1 key)
-				sig = v
-			}
-
-			er = p.SigningComplete(ctx, sig, req, pluginPolicy)
-			if er != nil {
-				p.logger.WithError(er).Error("p.SigningComplete")
-				return fmt.Errorf("p.SigningComplete: %w", er)
-			}
-
-			p.logger.WithField("public_key", req.PublicKey).
-				Info("successfully signed and broadcasted")
-			return nil
-		}
+	err = p.SigningComplete(ctx, sig, req, pluginPolicy)
+	if err != nil {
+		p.logger.WithError(err).Error("failed to complete signing process (broadcast tx)")
+		return fmt.Errorf("failed to complete signing process: %w", err)
 	}
+	return nil
 }
 
-func (p *PayrollPlugin) IsAlreadyProposed(
+func (p *Plugin) IsAlreadyProposed(
 	ctx context.Context,
 	frequency rtypes.ScheduleFrequency,
 	startTime time.Time,
@@ -159,7 +120,7 @@ func (p *PayrollPlugin) IsAlreadyProposed(
 		interval,
 	)
 	if err != nil {
-		return false, fmt.Errorf("scheduler.NewIntervalSchedule: %w", err)
+		return false, fmt.Errorf("failed to create interval schedule: %w", err)
 	}
 
 	fromTime, toTime := sched.ToRangeFrom(time.Now())
@@ -196,7 +157,7 @@ func getTokenID(rule *rtypes.Rule) (string, error) {
 	return evm.ZeroAddress.Hex(), nil
 }
 
-func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	ctx := context.Background()
 
 	err := p.ValidatePluginPolicy(policy)
@@ -204,7 +165,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
-	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, p.encryptionSecret)
+	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, p.vaultEncryptionSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
 	}
@@ -220,6 +181,10 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	}
 
 	chain := vcommon.Ethereum
+	ethEvmID, err := chain.EvmID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %v", chain, err)
+	}
 
 	schedule := recipe.Schedule
 
@@ -229,96 +194,107 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	)
 	var eg errgroup.Group
 
-	for _, rule := range recipe.Rules {
-		tokenID, err := getTokenID(rule)
-		if err != nil {
-			return nil, fmt.Errorf("getTokenID: %v", err)
+	for _, _rule := range recipe.Rules {
+		rule := _rule
+
+		tokenID, er := getTokenID(rule)
+		if er != nil {
+			return nil, fmt.Errorf("getTokenID: %v", er)
 		}
 
-		recipient, amountStr, err := RuleToRecipientAndAmount(rule)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get recipient and amount: %v", err)
+		recipients, amountStr, er := RuleToRecipientsAndAmount(rule)
+		if er != nil {
+			return nil, fmt.Errorf("failed to get recipients and amount: %v", er)
 		}
 
-		eg.Go(func() error {
-			isAlreadyProposed, e := p.IsAlreadyProposed(
-				ctx,
-				schedule.Frequency,
-				schedule.StartTime.AsTime(),
-				int(schedule.Interval),
-				chain,
-				policy.PluginID,
-				policy.ID,
-				tokenID,
-				recipient,
-			)
-			if e != nil {
-				return fmt.Errorf("p.IsAlreadyProposed: %w", e)
-			}
-			if isAlreadyProposed {
-				p.logger.WithFields(logrus.Fields{
-					"recipient": recipient,
-					"amount":    amountStr,
-					"chain_id":  chain,
-					"token_id":  tokenID,
-				}).Info("transaction already proposed, skipping")
-				return nil
-			}
+		for _, _recipient := range recipients {
+			recipient := _recipient
 
-			tx, e := p.genUnsignedTx(
-				ctx,
-				chain,
-				ethAddress,
-				tokenID,
-				amountStr,
-				recipient,
-			)
-			if e != nil {
-				return fmt.Errorf("p.genUnsignedTx: %w", e)
-			}
+			eg.Go(func() error {
+				isAlreadyProposed, e := p.IsAlreadyProposed(
+					ctx,
+					schedule.Frequency,
+					schedule.StartTime.AsTime(),
+					int(schedule.Interval),
+					chain,
+					policy.PluginID,
+					policy.ID,
+					tokenID,
+					recipient,
+				)
+				if e != nil {
+					return fmt.Errorf("p.IsAlreadyProposed: %w", e)
+				}
+				if isAlreadyProposed {
+					p.logger.WithFields(logrus.Fields{
+						"recipient": recipient,
+						"amount":    amountStr,
+						"chain_id":  chain,
+						"token_id":  tokenID,
+					}).Info("transaction already proposed, skipping")
+					return nil
+				}
 
-			txHex := gcommon.Bytes2Hex(tx)
+				tx, e := p.genUnsignedTx(
+					ctx,
+					chain,
+					ethAddress,
+					tokenID,
+					amountStr,
+					recipient,
+				)
+				if e != nil {
+					return fmt.Errorf("p.genUnsignedTx: %w", e)
+				}
 
-			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
-				PluginID:      policy.PluginID,
-				PolicyID:      policy.ID,
-				ChainID:       chain,
-				TokenID:       tokenID,
-				FromPublicKey: policy.PublicKey,
-				ToPublicKey:   recipient,
-				ProposedTxHex: txHex,
-			})
-			if e != nil {
-				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
-			}
+				txHex := gcommon.Bytes2Hex(tx)
 
-			// Create signing request
-			signRequest := vtypes.PluginKeysignRequest{
-				KeysignRequest: vtypes.KeysignRequest{
-					PublicKey: policy.PublicKey,
-					Messages: []vtypes.KeysignMessage{
-						{
-							TxIndexerID: txToTrack.ID.String(),
-							Message:     txHex,
-							Chain:       vcommon.Ethereum,
-							// Doesn't make sense to compute hash with empty V,R,S,
-							// not on-chain hash without signature
-							Hash: txHex,
+				txData, e := ethereum.DecodeUnsignedPayload(tx)
+				if e != nil {
+					return fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
+				}
+				txHashToSign := etypes.LatestSignerForChainID(ethEvmID).Hash(etypes.NewTx(txData))
+
+				txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+					PluginID:      policy.PluginID,
+					PolicyID:      policy.ID,
+					ChainID:       chain,
+					TokenID:       tokenID,
+					FromPublicKey: policy.PublicKey,
+					ToPublicKey:   recipient,
+					ProposedTxHex: txHex,
+				})
+				if e != nil {
+					return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+				}
+
+				msgHash := sha256.Sum256(txHashToSign.Bytes())
+
+				// Create signing request
+				signRequest := vtypes.PluginKeysignRequest{
+					KeysignRequest: vtypes.KeysignRequest{
+						PublicKey: policy.PublicKey,
+						Messages: []vtypes.KeysignMessage{
+							{
+								TxIndexerID:  txToTrack.ID.String(),
+								Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
+								Chain:        chain,
+								Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
+								HashFunction: vtypes.HashFunction_SHA256,
+							},
 						},
+						PolicyID: policy.ID,
+						PluginID: policy.PluginID.String(),
 					},
-					SessionID:        uuid.New().String(),
-					HexEncryptionKey: hexEncryptionKey,
-					PolicyID:         policy.ID,
-					PluginID:         policy.PluginID.String(),
-				},
-				Transaction: txHex,
-			}
+					Transaction: txHex,
+				}
 
-			mu.Lock()
-			txs = append(txs, signRequest)
-			mu.Unlock()
-			return nil
-		})
+				mu.Lock()
+				txs = append(txs, signRequest)
+				mu.Unlock()
+				return nil
+			})
+		}
 	}
 
 	err = eg.Wait()
@@ -330,7 +306,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtype
 	return txs, nil
 }
 
-func (p *PayrollPlugin) SigningComplete(
+func (p *Plugin) SigningComplete(
 	ctx context.Context,
 	signature tss.KeysignResponse,
 	signRequest vtypes.PluginKeysignRequest,
@@ -348,11 +324,16 @@ func (p *PayrollPlugin) SigningComplete(
 		return fmt.Errorf("p.eth.Send(tx_hex=%s): %w", signRequest.Transaction, err)
 	}
 
-	p.logger.WithField("hash", tx.Hash().Hex()).Info("transaction successfully broadcasted")
+	p.logger.WithFields(logrus.Fields{
+		"from_public_key": signRequest.PublicKey,
+		"to_address":      tx.To().Hex(),
+		"hash":            tx.Hash().Hex(),
+		"chain":           vcommon.Ethereum.String(),
+	}).Info("tx successfully signed and broadcasted")
 	return nil
 }
 
-func (p *PayrollPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+func (p *Plugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
@@ -410,7 +391,7 @@ func (p *PayrollPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 	}
 }
 
-func (p *PayrollPlugin) genUnsignedTx(
+func (p *Plugin) genUnsignedTx(
 	ctx context.Context,
 	chain vcommon.Chain,
 	senderAddress, tokenID, amount, to string,
@@ -438,31 +419,32 @@ func (p *PayrollPlugin) genUnsignedTx(
 	return nil, fmt.Errorf("unsupported chain: %s", chain)
 }
 
-func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
-	var recipient string
+func RuleToRecipientsAndAmount(rule *rtypes.Rule) ([]string, string, error) {
+	var recipients []string
 	var amountStr string
 
 	if len(rule.ParameterConstraints) == 0 {
-		return "", "", fmt.Errorf("no parameter constraints found")
+		return nil, "", fmt.Errorf("no parameter constraints found")
 	}
 
 	if len(rule.ParameterConstraints) > 3 {
-		return "", "", fmt.Errorf("too many parameter constraints found")
+		return nil, "", fmt.Errorf("too many parameter constraints found")
 	}
 
 	for _, constraint := range rule.ParameterConstraints {
 		if constraint.ParameterName == "recipient" {
-			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-				return "", "", fmt.Errorf("recipient constraint is not a fixed value")
+			switch constraint.Constraint.Type {
+			case rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED:
+				recipients = []string{constraint.Constraint.GetFixedValue()}
+			case rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST:
+				recipients = constraint.Constraint.GetWhitelistValues().GetValues()
 			}
 
-			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
-			recipient = fixedValue.FixedValue
 		}
 
 		if constraint.ParameterName == "amount" {
 			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-				return "", "", fmt.Errorf("amount constraint is not a fixed value")
+				return nil, "", fmt.Errorf("amount constraint is not a fixed value")
 			}
 
 			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
@@ -470,5 +452,5 @@ func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
 		}
 	}
 
-	return recipient, amountStr, nil
+	return recipients, amountStr, nil
 }

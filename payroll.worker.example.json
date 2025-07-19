@@ -1,11 +1,22 @@
 {
+    "verifier": {
+      "url": "http://localhost:8080",
+      "token": "localhost-apikey",
+      "party_prefix": "verifier"
+    },
+    "rpc": {
+      "ethereum": {
+        "url": "https://eth.llamarpc.com"
+      }
+    },
     "vault_service": {
         "relay": {
             "server": "https://api.vultisig.com/router"
         },
         "local_party_prefix": "payroll-plugin-0000",
         "queue_email_task": false,
-        "encryption_secret": "test123"
+        "encryption_secret": "test123",
+        "do_setup_msg": true
     },
     "redis": {
         "host": "localhost",
@@ -23,7 +34,6 @@
         "host": "localhost",
         "port": 8125
     },
-    "base_file_path": "../../../etc/vultisig",
     "database": {
         "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable"
     }

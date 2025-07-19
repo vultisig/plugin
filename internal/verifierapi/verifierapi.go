@@ -22,24 +22,24 @@ type ErrorResponse struct {
 
 // VerifierApi is a client for interacting with the Verifier API.
 type VerifierApi struct {
-	URL    string
+	url    string
 	logger *logrus.Logger
 }
 
 func NewVerifierApi(url string, logger *logrus.Logger) *VerifierApi {
 	return &VerifierApi{
-		URL:    url,
+		url:    url,
 		logger: logger,
 	}
 }
 
-func (v VerifierApi) get(endpoint string) (*http.Response, error) {
-	r, err := http.Get(v.URL + endpoint)
+func (v *VerifierApi) get(endpoint string) (*http.Response, error) {
+	r, err := http.Get(v.url + endpoint)
 	if err != nil {
 		if v.logger != nil {
 			v.logger.WithFields(logrus.Fields{
 				"method":   http.MethodGet,
-				"url":      v.URL,
+				"url":      v.url,
 				"endpoint": endpoint,
 			}).WithError(err).Error("Failed to make GET request")
 		}

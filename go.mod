@@ -19,9 +19,9 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/vultisig/commondata v0.0.0-20250430024109-a2492623ef05
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250710152947-d15b238437ae
-	github.com/vultisig/verifier v0.0.0-20250715214319-5ce47c62eb76
-	github.com/vultisig/vultiserver v0.0.0-20250515110921-82d56d3d9cc9
+	github.com/vultisig/recipes v0.0.0-20250719180414-00d6b1584122
+	github.com/vultisig/verifier v0.0.0-20250719183957-66bbb5d90164
+	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b
 	golang.org/x/sync v0.12.0
 	google.golang.org/protobuf v1.36.6
 )
