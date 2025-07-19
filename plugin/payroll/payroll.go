@@ -45,7 +45,7 @@ func NewPlugin(
 	if ethRpc != nil {
 		ethEvmChainID, err := common.Ethereum.EvmID()
 		if err != nil {
-			return nil, fmt.Errorf("common.Ethereum.EvmID: %w", err)
+			return nil, fmt.Errorf("failed to get Ethereum EVM ID: %w", err)
 		}
 		eth = evm.NewSDK(ethEvmChainID, ethRpc, ethRpc.Client())
 	}

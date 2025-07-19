@@ -63,7 +63,7 @@ func (s *Signer) genIDs(req types.PluginKeysignRequest) (types.PluginKeysignRequ
 	}
 	rnd, err := uuid.New().MarshalBinary()
 	if err != nil {
-		return types.PluginKeysignRequest{}, fmt.Errorf("uuid.New.MarshalBinary: %w", err)
+		return types.PluginKeysignRequest{}, fmt.Errorf("failed to marshal UUID: %w", err)
 	}
 	req.HexEncryptionKey = hex.EncodeToString(rnd)
 
@@ -76,19 +76,19 @@ func (s *Signer) Sign(
 ) (map[string]tss.KeysignResponse, error) {
 	req, err := s.genIDs(reqRaw)
 	if err != nil {
-		return nil, fmt.Errorf("s.genIDs: %w", err)
+		return nil, fmt.Errorf("failed to generate IDs: %w", err)
 	}
 
 	for _, emitter := range s.emitters {
 		err := emitter.Sign(ctx, req)
 		if err != nil {
-			return nil, fmt.Errorf("emitter.Sign: %w", err)
+			return nil, fmt.Errorf("failed to sign with emitter: %w", err)
 		}
 	}
 
 	partyIDs, err := s.waitPartiesAndStart(ctx, req.SessionID, s.partiesPrefixes)
 	if err != nil {
-		return nil, fmt.Errorf("s.waitPartiesAndStart: %w", err)
+		return nil, fmt.Errorf("failed to wait for parties and start: %w", err)
 	}
 
 	var messages []string
@@ -98,7 +98,7 @@ func (s *Signer) Sign(
 
 	res, err := s.waitResult(ctx, req.SessionID, partyIDs, req)
 	if err != nil {
-		return nil, fmt.Errorf("s.waitResult: %w", err)
+		return nil, fmt.Errorf("failed to wait for result: %w", err)
 	}
 	return res, nil
 }
@@ -116,7 +116,7 @@ func (s *Signer) waitResult(
 		case <-time.After(time.Second):
 			ok, err := s.relay.CheckCompletedParties(sessionID, partyIDs)
 			if err != nil {
-				return nil, fmt.Errorf("s.relay.CheckCompletedParties: %w", err)
+				return nil, fmt.Errorf("failed to check completed parties: %w", err)
 			}
 			if !ok {
 				s.logger.WithFields(logrus.Fields{
@@ -166,7 +166,7 @@ func (s *Signer) waitPartiesAndStart(
 		case <-time.After(time.Second):
 			partiesJoined, err := s.relay.GetSession(sessionID)
 			if err != nil {
-				return nil, fmt.Errorf("s.relay.GetSession: %w", err)
+				return nil, fmt.Errorf("failed to get session: %w", err)
 			}
 
 			partiesIDs := filterIDsByPrefixes(partiesJoined, partiesPrefixes)
@@ -195,7 +195,7 @@ func (s *Signer) waitPartiesAndStart(
 
 			err = s.relay.StartSession(sessionID, partiesIDs)
 			if err != nil {
-				return nil, fmt.Errorf("s.relay.StartSession: %w", err)
+				return nil, fmt.Errorf("failed to start session: %w", err)
 			}
 			return partiesIDs, nil
 		}

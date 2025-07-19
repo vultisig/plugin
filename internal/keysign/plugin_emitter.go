@@ -27,7 +27,7 @@ func NewPluginEmitter(client *asynq.Client, task, queue string) *PluginEmitter {
 func (e *PluginEmitter) Sign(ctx context.Context, req types.PluginKeysignRequest) error {
 	buf, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("json.Marshal: %w", err)
+		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
 	_, err = e.client.EnqueueContext(
@@ -38,8 +38,8 @@ func (e *PluginEmitter) Sign(ctx context.Context, req types.PluginKeysignRequest
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(e.queue),
 	)
-    if err != nil {
-        return fmt.Errorf("e.client.EnqueueContext: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to enqueue task: %w", err)
+	}
 	return nil
 }

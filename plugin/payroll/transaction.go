@@ -55,7 +55,7 @@ func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error 
 	reqs, err := p.ProposeTransactions(*pluginPolicy)
 	if err != nil {
 		p.logger.WithError(err).Error("p.ProposeTransactions")
-		return fmt.Errorf("p.ProposeTransactions: %s, %w", err, asynq.SkipRetry)
+		return fmt.Errorf("failed to propose transactions: %s, %w", err, asynq.SkipRetry)
 	}
 
 	var eg errgroup.Group
@@ -68,7 +68,7 @@ func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error 
 	err = eg.Wait()
 	if err != nil {
 		p.logger.WithError(err).Error("eg.Wait")
-		return fmt.Errorf("eg.Wait: %s, %w", err, asynq.SkipRetry)
+		return fmt.Errorf("failed to wait for signing tasks: %s, %w", err, asynq.SkipRetry)
 	}
 
 	return nil
@@ -82,14 +82,14 @@ func (p *Plugin) initSign(
 	sigs, err := p.signer.Sign(ctx, req)
 	if err != nil {
 		p.logger.WithError(err).Error("Keysign failed")
-		return fmt.Errorf("p.signer.Sign: %w", err)
+		return fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
 	if len(sigs) != 1 {
 		p.logger.
 			WithField("sigs_count", len(sigs)).
 			Error("expected only 1 message+sig per request for evm")
-		return fmt.Errorf("p.signer.Sign: %w", err)
+		return fmt.Errorf("failed to sign transaction: invalid signature count: %d", len(sigs))
 	}
 	var sig tss.KeysignResponse
 	for _, s := range sigs {
@@ -99,7 +99,7 @@ func (p *Plugin) initSign(
 	err = p.SigningComplete(ctx, sig, req, pluginPolicy)
 	if err != nil {
 		p.logger.WithError(err).Error("failed to complete signing process (broadcast tx)")
-		return fmt.Errorf("p.SigningComplete: %w", err)
+		return fmt.Errorf("failed to complete signing process: %w", err)
 	}
 
 	p.logger.WithField("public_key", req.PublicKey).
@@ -123,7 +123,7 @@ func (p *Plugin) IsAlreadyProposed(
 		interval,
 	)
 	if err != nil {
-		return false, fmt.Errorf("scheduler.NewIntervalSchedule: %w", err)
+		return false, fmt.Errorf("failed to create interval schedule: %w", err)
 	}
 
 	fromTime, toTime := sched.ToRangeFrom(time.Now())

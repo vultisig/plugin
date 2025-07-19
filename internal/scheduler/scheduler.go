@@ -37,7 +37,7 @@ func NewSchedulerService(db storage.DatabaseStorage,
 	client *asynq.Client,
 	redisOpts asynq.RedisClientOpt) (*SchedulerService, error) {
 	if db == nil {
-		return nil, fmt.Errorf("db is nil")
+		return nil, fmt.Errorf("failed to initialize scheduler: db is nil")
 	}
 
 	// create inspector using the same Redis configuration as the client
@@ -173,7 +173,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 
 func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy vtypes.PluginPolicy, dbTx pgx.Tx) error {
 	if s.db == nil {
-		return fmt.Errorf("database backend is nil")
+		return fmt.Errorf("failed to create time trigger: database backend is nil")
 	}
 
 	trigger, err := s.GetTriggerFromPolicy(policy)
@@ -187,7 +187,7 @@ func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy vtypes.
 func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*types.TimeTrigger, error) {
 	recipe, err := base64.StdEncoding.DecodeString(policy.Recipe)
 	if err != nil {
-		return nil, fmt.Errorf("base64.StdEncoding.DecodeString: %w", err)
+		return nil, fmt.Errorf("failed to decode policy recipe: %w", err)
 	}
 
 	var p rtypes.Policy
@@ -195,7 +195,7 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy vtypes.PluginPolicy) (*ty
 		return nil, fmt.Errorf("failed to parse policy schedule: %w", err)
 	}
 	if p.Schedule == nil {
-		return nil, fmt.Errorf("policy schedule is nil")
+		return nil, fmt.Errorf("failed to get schedule from policy: policy schedule is nil")
 	}
 	interval := 1
 	if p.Schedule.Interval > 0 {
@@ -277,7 +277,7 @@ type IntervalSchedule struct {
 
 func NewIntervalSchedule(frequency rtypes.ScheduleFrequency, startTime time.Time, interval int) (*IntervalSchedule, error) {
 	if interval < 1 {
-		return nil, fmt.Errorf("interval must be at least 1")
+		return nil, fmt.Errorf("failed to create interval schedule: interval must be at least 1")
 	}
 
 	return &IntervalSchedule{

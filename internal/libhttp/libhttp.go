@@ -33,7 +33,7 @@ func Call[T comparable](
 
 	req, err := http.NewRequestWithContext(ctx, method, url+q, bytes.NewReader(b))
 	if err != nil {
-		return *new(T), fmt.Errorf("failded to build http request: %w", err)
+		return *new(T), fmt.Errorf("failed to build http request: %w", err)
 	}
 
 	for k, v := range headers {
@@ -50,10 +50,10 @@ func Call[T comparable](
 		_ = res.Body.Close()
 	}()
 	if err != nil {
-		return *new(T), fmt.Errorf("io.ReadAll: %w", err)
+		return *new(T), fmt.Errorf("failed to read response body: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return *new(T), fmt.Errorf("failed: status_code: %d, res_body: %s", res.StatusCode, string(bodyBytes))
+		return *new(T), fmt.Errorf("failed to get successful response: status_code: %d, res_body: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	_, isString := any(new(T)).(string)
