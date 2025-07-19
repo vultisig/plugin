@@ -3,7 +3,7 @@
     <module name="plugin" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
-      <env name="DATABASE.DSN" value="postgres://myuser:mypassword@localhost:5431/vultisig-plugin?sslmode=disable" />
+      <env name="DATABASE.DSN" value="postgres://myuser:mypassword@localhost:5431/vultisig-payroll?sslmode=disable" />
       <env name="RPC.BITCOIN.URL" value="https://bitcoin-rpc.publicnode.com" />
       <env name="RPC.ETHEREUM.URL" value="https://ethereum-rpc.publicnode.com" />
       <env name="VS_CONFIG_NAME" value="config-tx-indexer" />

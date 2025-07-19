@@ -101,9 +101,6 @@ func (p *Plugin) initSign(
 		p.logger.WithError(err).Error("failed to complete signing process (broadcast tx)")
 		return fmt.Errorf("failed to complete signing process: %w", err)
 	}
-
-	p.logger.WithField("public_key", req.PublicKey).
-		Info("successfully signed and broadcasted")
 	return nil
 }
 
@@ -327,7 +324,12 @@ func (p *Plugin) SigningComplete(
 		return fmt.Errorf("p.eth.Send(tx_hex=%s): %w", signRequest.Transaction, err)
 	}
 
-	p.logger.WithField("hash", tx.Hash().Hex()).Info("transaction successfully broadcasted")
+	p.logger.WithFields(logrus.Fields{
+		"from_public_key": signRequest.PublicKey,
+		"to_address":      tx.To().Hex(),
+		"hash":            tx.Hash().Hex(),
+		"chain":           vcommon.Ethereum.String(),
+	}).Info("tx successfully signed and broadcasted")
 	return nil
 }
 
