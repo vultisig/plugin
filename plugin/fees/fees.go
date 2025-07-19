@@ -54,7 +54,7 @@ func NewFeePlugin(db storage.DatabaseStorage,
 	client *asynq.Client,
 	feeConfig *FeeConfig,
 	encryptionSecret string,
-	verifierUrl, verifierToken string) (*FeePlugin, error) {
+	verifierUrl string) (*FeePlugin, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -84,7 +84,6 @@ func NewFeePlugin(db storage.DatabaseStorage,
 
 	verifierApi := verifierapi.NewVerifierApi(
 		verifierUrl,
-		verifierToken,
 		logger.(*logrus.Logger),
 	)
 	if verifierApi == nil {

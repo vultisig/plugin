@@ -103,7 +103,6 @@ func main() {
 		feePluginConfig,
 		cfg.VaultServiceConfig.EncryptionSecret,
 		cfg.Server.VerifierUrl,
-		"", // TODO: for Garry: if you need to co-sign messages with verifier, you can set the token here
 	)
 	if err != nil {
 		logger.Fatalf("failed to create fee plugin,err: %s", err)

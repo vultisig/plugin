@@ -23,14 +23,12 @@ type ErrorResponse struct {
 // VerifierApi is a client for interacting with the Verifier API.
 type VerifierApi struct {
 	url    string
-	token  string
 	logger *logrus.Logger
 }
 
-func NewVerifierApi(url, token string, logger *logrus.Logger) *VerifierApi {
+func NewVerifierApi(url string, logger *logrus.Logger) *VerifierApi {
 	return &VerifierApi{
 		url:    url,
-		token:  token,
 		logger: logger,
 	}
 }
