@@ -38,8 +38,8 @@ func (e *PluginEmitter) Sign(ctx context.Context, req types.PluginKeysignRequest
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(e.queue),
 	)
-	if err != nil {
-		return fmt.Errorf("e.client.Enqueue: %w", err)
-	}
+    if err != nil {
+        return fmt.Errorf("e.client.EnqueueContext: %w", err)
+    }
 	return nil
 }
