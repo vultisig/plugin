@@ -181,7 +181,7 @@ func (s *Signer) waitPartiesAndStart(
 			if len(partiesIDs) > len(partiesPrefixes) {
 				return nil, fmt.Errorf(
 					"too many parties joined: [%s], expected prefixes: [%s],"+
-						"it may caused by bug in calling code",
+						" it may be caused by a bug in calling code",
 					strings.Join(partiesIDs, ","),
 					strings.Join(partiesPrefixes, ","),
 				)
