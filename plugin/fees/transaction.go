@@ -3,7 +3,6 @@ package fees
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -11,12 +10,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
@@ -154,7 +151,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 						Hash: txHex,
 					},
 				},
-				SessionID:        uuid.New().String(),
+				SessionID:        "",
 				HexEncryptionKey: "",
 				PolicyID:         policy.ID,
 				PluginID:         policy.PluginID.String(),
@@ -215,21 +212,6 @@ func (fp *FeePlugin) initSign(
 	pluginPolicy vtypes.PluginPolicy,
 	runId uuid.UUID,
 ) error {
-	buf, e := json.Marshal(req)
-	if e != nil {
-		return fmt.Errorf("failed to marshal key sign request: %w", e)
-	}
-
-	task, e := fp.asynqClient.Enqueue(
-		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
-		asynq.MaxRetry(0),
-		asynq.Timeout(5*time.Minute),
-		asynq.Retention(10*time.Minute),
-		asynq.Queue(tasks.QUEUE_NAME),
-	)
-	if e != nil {
-		return fmt.Errorf("failed to enqueue key sign task: %w", e)
-	}
 
 	if runId != uuid.Nil {
 		if len(req.Messages) != 1 {
@@ -245,44 +227,29 @@ func (fp *FeePlugin) initSign(
 		}
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-			taskInfo, er := fp.asynqInspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
-			if er != nil {
-				return fmt.Errorf("failed to get task info: %w", er)
-			}
-			if taskInfo.State != asynq.TaskStateCompleted {
-				continue
-			}
-			if taskInfo.Result == nil {
-				fp.logger.Info("taskInfo.Result is nil, skipping")
-				return nil
-			}
-
-			var res map[string]tss.KeysignResponse
-			er = json.Unmarshal(taskInfo.Result, &res)
-			if er != nil {
-				return fmt.Errorf("failed to unmarshal task result: %w", er)
-			}
-
-			var sig tss.KeysignResponse
-			for _, v := range res { // one sig for evm (map with 1 key)
-				sig = v
-			}
-
-			er = fp.SigningComplete(ctx, sig, req, pluginPolicy)
-			if er != nil {
-				return fmt.Errorf("failed to sign and broadcast transaction: %w", er)
-			}
-
-			fp.logger.WithField("public_key", req.PublicKey).
-				Info("successfully signed and broadcasted")
-			return nil
-		}
+	sigs, err := fp.signer.Sign(ctx, req)
+	if err != nil {
+		fp.logger.WithError(err).Error("Keysign failed")
+		return fmt.Errorf("failed to sign transaction: %w", err)
 	}
+
+	if len(sigs) != 1 {
+		fp.logger.
+			WithField("sigs_count", len(sigs)).
+			Error("expected only 1 message+sig per request for evm")
+		return fmt.Errorf("failed to sign transaction: invalid signature count: %d", len(sigs))
+	}
+	var sig tss.KeysignResponse
+	for _, s := range sigs {
+		sig = s
+	}
+
+	err = fp.SigningComplete(ctx, sig, req, pluginPolicy)
+	if err != nil {
+		fp.logger.WithError(err).Error("failed to complete signing process (broadcast tx)")
+		return fmt.Errorf("failed to complete signing process: %w", err)
+	}
+	return nil
 }
 
 func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
