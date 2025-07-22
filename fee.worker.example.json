@@ -1,6 +1,8 @@
 {
-    "server": {
-        "verifier_url": "http://host.docker.internal:8080"
+    "verifier": {
+        "url": "http://verifier:8080",
+        "token": "localhost-apikey",
+        "party_prefix": "verifier"
     },
     "vault_service": {
         "relay": {

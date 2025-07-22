@@ -1,9 +1,11 @@
 {
+    "verifier": {
+        "url": "verifier:8080"
+    },
     "server": {
         "host": "localhost",
         "port": 8080,
-        "encryption_secret": "test123",
-        "verifier_url": "http://host.docker.internal:8080"
+        "encryption_secret": "test123"
     },
     "database": {
         "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-fee?sslmode=disable"
