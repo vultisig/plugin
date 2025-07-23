@@ -11,25 +11,25 @@ import (
 	"sync"
 	"time"
 
+	gcommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
-	"github.com/vultisig/recipes/ethereum"
-	"github.com/vultisig/recipes/sdk/evm"
-	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
-	"github.com/vultisig/vultiserver/contexthelper"
-	"golang.org/x/sync/errgroup"
-
-	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/recipes/ethereum"
+	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
+	"github.com/vultisig/vultiserver/contexthelper"
 
+	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/internal/types"
 )
 
