@@ -115,7 +115,6 @@ func (s *Server) StartServer() error {
 	// policy mode is always available since it is used by both verifier server and plugin server
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 	pluginGroup.PUT("/policy", s.UpdatePluginPolicyById)
-	pluginGroup.GET("/policy/schema", s.GetPolicySchema)
 	pluginGroup.GET("/recipe-specification", s.GetRecipeSpecification)
 	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
 

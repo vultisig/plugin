@@ -11,24 +11,24 @@ import (
 	"sync"
 	"time"
 
+	gcommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
-	"github.com/vultisig/recipes/ethereum"
-	"github.com/vultisig/recipes/sdk/evm"
-	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
-	"github.com/vultisig/vultiserver/contexthelper"
-	"golang.org/x/sync/errgroup"
-
-	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/plugin"
 	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/recipes/ethereum"
+	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
+	"github.com/vultisig/vultiserver/contexthelper"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/vultisig/plugin/internal/types"
 )
@@ -333,7 +333,45 @@ func (p *Plugin) SigningComplete(
 	return nil
 }
 
-func (p *Plugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+const (
+	startDate = "start-date"
+)
+
+const (
+	frequency = "frequency"
+
+	daily    = "daily"
+	weekly   = "weekly"
+	biWeekly = "bi-weekly"
+	monthly  = "monthly"
+)
+
+func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
+	cfg, err := plugin.RecipeConfiguration(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			startDate: map[string]any{
+				"type":   "string",
+				"format": "date-time",
+			},
+			frequency: map[string]any{
+				"type": "string",
+				"enum": []any{
+					daily,
+					weekly,
+					biWeekly,
+					monthly,
+				},
+			},
+		},
+		"required": []any{
+			frequency,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pb recipe config: %w", err)
+	}
+
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
@@ -382,13 +420,13 @@ func (p *Plugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
 				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
 			},
-			MaxScheduledExecutions: -1, // infinite
 		},
+		Configuration: cfg,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
-	}
+	}, nil
 }
 
 func (p *Plugin) genUnsignedTx(

@@ -1,6 +1,8 @@
 package fees
 
 import (
+	"fmt"
+
 	"github.com/vultisig/plugin/internal/plugin"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
@@ -16,10 +18,14 @@ import (
 */
 
 func (fp *FeePlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
-	return plugin.ValidatePluginPolicy(policyDoc, fp.GetRecipeSpecification())
+	spec, err := fp.GetRecipeSpecification()
+	if err != nil {
+		return fmt.Errorf("failed to get recipe spec")
+	}
+	return plugin.ValidatePluginPolicy(policyDoc, spec)
 }
 
-func (fp *FeePlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
@@ -57,5 +63,5 @@ func (fp *FeePlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
-	}
+	}, nil
 }
