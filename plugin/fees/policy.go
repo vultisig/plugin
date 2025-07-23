@@ -20,7 +20,7 @@ import (
 func (fp *FeePlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 	spec, err := fp.GetRecipeSpecification()
 	if err != nil {
-		return fmt.Errorf("failed to get recipe spec")
+		return fmt.Errorf("failed to get recipe spec: %w", err)
 	}
 	return plugin.ValidatePluginPolicy(policyDoc, spec)
 }
