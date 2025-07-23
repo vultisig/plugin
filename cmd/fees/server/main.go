@@ -13,6 +13,7 @@ import (
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/api"
+	feeconfig "github.com/vultisig/plugin/cmd/fees/config"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -21,7 +22,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	cfg, err := GetConfigure()
+	cfg, err := feeconfig.GetConfigure()
 	if err != nil {
 		panic(err)
 	}
@@ -80,6 +81,7 @@ func main() {
 
 	feePlugin, err := fees.NewFeePlugin(
 		db,
+		nil,
 		logger,
 		cfg.BaseConfigPath,
 		vaultStorage,
@@ -88,7 +90,7 @@ func main() {
 		client,
 		feePluginConfig,
 		cfg.Server.EncryptionSecret,
-		cfg.Server.VerifierUrl,
+		cfg.Verifier.URL,
 	)
 	if err != nil {
 		logger.Fatalf("failed to create fee plugin,err: %s", err)

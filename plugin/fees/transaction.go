@@ -3,7 +3,6 @@ package fees
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -11,17 +10,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	rtypes "github.com/vultisig/recipes/types"
-	rutil "github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
@@ -39,6 +35,15 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
 	}
 
+	// ERC20 USDC Token List
+	var usdc *reth.Token = &reth.Token{
+		ChainId:  1,
+		Address:  fp.config.UsdcAddress,
+		Name:     "USD Coin",
+		Symbol:   "USDC",
+		Decimals: 6,
+	}
+
 	// Get the ethereum derived addresses from the vaults master public key
 	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
 	if err != nil {
@@ -50,12 +55,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
-	echain, err := chain.GetChain("ethereum")
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ethereum chain: %v", err)
-	}
-	ethchain := echain.(*reth.Ethereum)
 	chain := vcommon.Ethereum
 	txs := []vtypes.PluginKeysignRequest{}
 
@@ -64,8 +64,8 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 
 		// This section of code goes through the rules in the fee policy. It looks for the recipient of the fee collection policy and extracts it. If other data is found throws an error as they're unsupported rules.
 		var recipient string // The address specified in the fee policy.
-		switch rule.Id {
-		case "allow-usdc-transfer-to-collector":
+		switch rule.Resource {
+		case "ethereum.usdc.transfer":
 			for _, constraint := range rule.ParameterConstraints {
 				if constraint.ParameterName == "recipient" {
 					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
@@ -80,16 +80,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		}
 		if recipient == "" {
 			return nil, fmt.Errorf("recipient is not set in policy")
-		}
-
-		// This section of code is used to get the token address for the fee collection (just eth usdc for now)
-		resourcePath, err := rutil.ParseResource(rule.Resource)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse resource: %v", err)
-		}
-		token, found := ethchain.GetToken(resourcePath.ProtocolId)
-		if !found {
-			return nil, fmt.Errorf("failed to get token: %v", resourcePath.ProtocolId)
 		}
 
 		// Here we call the verifier api to get a list of fees that have the same public key as the signed policy document.
@@ -108,7 +98,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			chain,
 			policy.PluginID,
 			policy.ID,
-			token.Address,
+			usdc.Address,
 			recipient,
 			fromTime,
 			toTime,
@@ -118,7 +108,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 				"recipient": recipient,
 				"amount":    amount,
 				"chain_id":  chain,
-				"token_id":  token.Address,
+				"token_id":  usdc.Address,
 			}).Info("transaction already proposed, skipping")
 			return nil, nil
 		}
@@ -126,7 +116,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		tx, err := fp.eth.MakeAnyTransfer(ctx,
 			gcommon.HexToAddress(ethAddress),
 			gcommon.HexToAddress(recipient),
-			gcommon.HexToAddress(token.Address),
+			gcommon.HexToAddress(usdc.Address),
 			big.NewInt(int64(amount)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
@@ -138,7 +128,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			PluginID:      policy.PluginID,
 			PolicyID:      policy.ID,
 			ChainID:       chain,
-			TokenID:       token.Address,
+			TokenID:       usdc.Address,
 			FromPublicKey: policy.PublicKey,
 			ToPublicKey:   recipient,
 			ProposedTxHex: txHex,
@@ -161,7 +151,7 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 						Hash: txHex,
 					},
 				},
-				SessionID:        uuid.New().String(),
+				SessionID:        "",
 				HexEncryptionKey: "",
 				PolicyID:         policy.ID,
 				PluginID:         policy.PluginID.String(),
@@ -222,21 +212,6 @@ func (fp *FeePlugin) initSign(
 	pluginPolicy vtypes.PluginPolicy,
 	runId uuid.UUID,
 ) error {
-	buf, e := json.Marshal(req)
-	if e != nil {
-		return fmt.Errorf("failed to marshal key sign request: %w", e)
-	}
-
-	task, e := fp.asynqClient.Enqueue(
-		asynq.NewTask(tasks.TypeKeySignDKLS, buf),
-		asynq.MaxRetry(0),
-		asynq.Timeout(5*time.Minute),
-		asynq.Retention(10*time.Minute),
-		asynq.Queue(tasks.QUEUE_NAME),
-	)
-	if e != nil {
-		return fmt.Errorf("failed to enqueue key sign task: %w", e)
-	}
 
 	if runId != uuid.Nil {
 		if len(req.Messages) != 1 {
@@ -252,44 +227,29 @@ func (fp *FeePlugin) initSign(
 		}
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-			taskInfo, er := fp.asynqInspector.GetTaskInfo(tasks.QUEUE_NAME, task.ID)
-			if er != nil {
-				return fmt.Errorf("failed to get task info: %w", er)
-			}
-			if taskInfo.State != asynq.TaskStateCompleted {
-				continue
-			}
-			if taskInfo.Result == nil {
-				fp.logger.Info("taskInfo.Result is nil, skipping")
-				return nil
-			}
-
-			var res map[string]tss.KeysignResponse
-			er = json.Unmarshal(taskInfo.Result, &res)
-			if er != nil {
-				return fmt.Errorf("failed to unmarshal task result: %w", er)
-			}
-
-			var sig tss.KeysignResponse
-			for _, v := range res { // one sig for evm (map with 1 key)
-				sig = v
-			}
-
-			er = fp.SigningComplete(ctx, sig, req, pluginPolicy)
-			if er != nil {
-				return fmt.Errorf("failed to sign and broadcast transaction: %w", er)
-			}
-
-			fp.logger.WithField("public_key", req.PublicKey).
-				Info("successfully signed and broadcasted")
-			return nil
-		}
+	sigs, err := fp.signer.Sign(ctx, req)
+	if err != nil {
+		fp.logger.WithError(err).Error("Keysign failed")
+		return fmt.Errorf("failed to sign transaction: %w", err)
 	}
+
+	if len(sigs) != 1 {
+		fp.logger.
+			WithField("sigs_count", len(sigs)).
+			Error("expected only 1 message+sig per request for evm")
+		return fmt.Errorf("failed to sign transaction: invalid signature count: %d", len(sigs))
+	}
+	var sig tss.KeysignResponse
+	for _, s := range sigs {
+		sig = s
+	}
+
+	err = fp.SigningComplete(ctx, sig, req, pluginPolicy)
+	if err != nil {
+		fp.logger.WithError(err).Error("failed to complete signing process (broadcast tx)")
+		return fmt.Errorf("failed to complete signing process: %w", err)
+	}
+	return nil
 }
 
 func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
