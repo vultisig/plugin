@@ -74,6 +74,11 @@ CREATE TABLE "plugin_policies" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
+CREATE TABLE "scheduler" (
+    "policy_id" "uuid" NOT NULL,
+    "next_execution" timestamp without time zone NOT NULL
+);
+
 CREATE TABLE "time_triggers" (
     "id" integer NOT NULL,
     "policy_id" "uuid" NOT NULL,
@@ -126,6 +131,9 @@ ALTER TABLE ONLY "fee_run"
 ALTER TABLE ONLY "plugin_policies"
     ADD CONSTRAINT "plugin_policies_pkey" PRIMARY KEY ("id");
 
+ALTER TABLE ONLY "scheduler"
+    ADD CONSTRAINT "scheduler_pkey" PRIMARY KEY ("policy_id");
+
 ALTER TABLE ONLY "time_triggers"
     ADD CONSTRAINT "time_triggers_pkey" PRIMARY KEY ("id");
 
@@ -143,6 +151,8 @@ CREATE INDEX "idx_plugin_policies_active" ON "plugin_policies" USING "btree" ("a
 CREATE INDEX "idx_plugin_policies_plugin_id" ON "plugin_policies" USING "btree" ("plugin_id");
 
 CREATE INDEX "idx_plugin_policies_public_key" ON "plugin_policies" USING "btree" ("public_key");
+
+CREATE INDEX "idx_scheduler_next_execution" ON "scheduler" USING "btree" ("next_execution");
 
 CREATE INDEX "idx_time_triggers_policy_id" ON "time_triggers" USING "btree" ("policy_id");
 
