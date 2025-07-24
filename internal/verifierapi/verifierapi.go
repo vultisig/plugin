@@ -24,26 +24,28 @@ type ErrorResponse struct {
 type VerifierApi struct {
 	url    string
 	logger *logrus.Logger
+	token  string // api key
+	client *http.Client
 }
 
-func NewVerifierApi(url string, logger *logrus.Logger) *VerifierApi {
+func NewVerifierApi(url string, token string, logger *logrus.Logger) *VerifierApi {
 	return &VerifierApi{
 		url:    url,
 		logger: logger,
+		token:  token,
+		client: &http.Client{},
 	}
 }
 
 func (v *VerifierApi) get(endpoint string) (*http.Response, error) {
-	r, err := http.Get(v.url + endpoint)
+	return http.Get(v.url + endpoint)
+}
+
+func (v *VerifierApi) getAuth(endpoint string) (*http.Response, error) {
+	r, err := http.NewRequest(http.MethodGet, v.url+endpoint, nil)
 	if err != nil {
-		if v.logger != nil {
-			v.logger.WithFields(logrus.Fields{
-				"method":   http.MethodGet,
-				"url":      v.url,
-				"endpoint": endpoint,
-			}).WithError(err).Error("Failed to make GET request")
-		}
 		return nil, err
 	}
-	return r, nil
+	r.Header.Set("Authorization", "Bearer "+v.token)
+	return v.client.Do(r)
 }
