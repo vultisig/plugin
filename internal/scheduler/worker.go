@@ -101,17 +101,17 @@ func (w *Worker) enqueue() error {
 		eg.Go(func() error {
 			policy, er := w.policy.GetPluginPolicy(ctx, task.PolicyID)
 			if er != nil {
-				return fmt.Errorf("failed to fetch policy: %w", err)
+				return fmt.Errorf("failed to fetch policy: %w", er)
 			}
 
 			next, er := w.interval.FromNowWhenNext(*policy)
 			if er != nil {
-				return fmt.Errorf("failed to compute next: %w", err)
+				return fmt.Errorf("failed to compute next: %w", er)
 			}
 
 			buf, er := json.Marshal(task)
 			if er != nil {
-				return fmt.Errorf("failed to marshal task: %w", err)
+				return fmt.Errorf("failed to marshal task: %w", er)
 			}
 
 			_, er = w.client.EnqueueContext(
@@ -123,12 +123,12 @@ func (w *Worker) enqueue() error {
 				asynq.Queue(w.queue),
 			)
 			if er != nil {
-				return fmt.Errorf("failed to enqueue task: %w", err)
+				return fmt.Errorf("failed to enqueue task: %w", er)
 			}
 
 			er = w.repo.SetNext(ctx, task.PolicyID, next)
 			if er != nil {
-				return fmt.Errorf("failed to set next: %w", err)
+				return fmt.Errorf("failed to set next: %w", er)
 			}
 			return nil
 		})
