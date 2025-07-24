@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/verifier/tx_indexer"
 	tx_indexer_storage "github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
@@ -80,11 +81,11 @@ func main() {
 		db,
 		redisStorage,
 		vaultStorage,
-		redisOptions,
 		client,
 		inspector,
 		sdClient,
 		p,
+		scheduler.NewNilService(),
 	)
 	if err := server.StartServer(); err != nil {
 		panic(err)

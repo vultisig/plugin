@@ -14,8 +14,10 @@ type Scheduler struct {
 }
 
 type Storage interface {
+	GetByPolicy(ctx context.Context, policyID uuid.UUID) (Scheduler, error)
 	CreateWithTx(ctx context.Context, tx pgx.Tx, policyID uuid.UUID, next time.Time) error
 	DeleteWithTx(ctx context.Context, tx pgx.Tx, policyID uuid.UUID) error
 	GetPending(ctx context.Context) ([]Scheduler, error)
 	SetNext(ctx context.Context, policyID uuid.UUID, next time.Time) error
+	SetNextWithTx(ctx context.Context, tx pgx.Tx, policyID uuid.UUID, next time.Time) error
 }

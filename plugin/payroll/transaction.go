@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -13,7 +12,6 @@ import (
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -29,8 +27,6 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/vultisig/plugin/internal/types"
 )
 
 func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
@@ -41,7 +37,7 @@ func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error 
 		p.logger.WithError(err).Warn("Context cancelled, skipping scheduler trigger")
 		return err
 	}
-	var trigger types.TimeTrigger
+	var trigger scheduler.Scheduler
 	if err := json.Unmarshal(t.Payload(), &trigger); err != nil {
 		p.logger.WithError(err).Error("Failed to unmarshal trigger payload")
 		return fmt.Errorf("failed to unmarshal trigger payload: %s, %w", err, asynq.SkipRetry)
@@ -104,46 +100,6 @@ func (p *Plugin) initSign(
 	return nil
 }
 
-func (p *Plugin) IsAlreadyProposed(
-	ctx context.Context,
-	frequency rtypes.ScheduleFrequency,
-	startTime time.Time,
-	interval int,
-	chainID vcommon.Chain,
-	pluginID vtypes.PluginID,
-	policyID uuid.UUID,
-	tokenID, recipientPublicKey string,
-) (bool, error) {
-	sched, err := scheduler.NewIntervalSchedule(
-		frequency,
-		startTime,
-		interval,
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to create interval schedule: %w", err)
-	}
-
-	fromTime, toTime := sched.ToRangeFrom(time.Now())
-
-	_, err = p.txIndexerService.GetTxInTimeRange(
-		ctx,
-		chainID,
-		pluginID,
-		policyID,
-		tokenID,
-		recipientPublicKey,
-		fromTime,
-		toTime,
-	)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, storage.ErrNoTx) {
-		return false, nil
-	}
-	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
-}
-
 func getTokenID(rule *rtypes.Rule) (string, error) {
 	if rule == nil {
 		return "", fmt.Errorf("rule is nil")
@@ -186,8 +142,6 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %v", chain, err)
 	}
 
-	schedule := recipe.Schedule
-
 	var (
 		mu  = &sync.Mutex{}
 		txs = make([]vtypes.PluginKeysignRequest, 0)
@@ -211,30 +165,6 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 			recipient := _recipient
 
 			eg.Go(func() error {
-				isAlreadyProposed, e := p.IsAlreadyProposed(
-					ctx,
-					schedule.Frequency,
-					schedule.StartTime.AsTime(),
-					int(schedule.Interval),
-					chain,
-					policy.PluginID,
-					policy.ID,
-					tokenID,
-					recipient,
-				)
-				if e != nil {
-					return fmt.Errorf("p.IsAlreadyProposed: %w", e)
-				}
-				if isAlreadyProposed {
-					p.logger.WithFields(logrus.Fields{
-						"recipient": recipient,
-						"amount":    amountStr,
-						"chain_id":  chain,
-						"token_id":  tokenID,
-					}).Info("transaction already proposed, skipping")
-					return nil
-				}
-
 				tx, e := p.genUnsignedTx(
 					ctx,
 					chain,
@@ -411,14 +341,6 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					},
 				},
 				Required: true,
-			},
-		},
-		Scheduling: &rtypes.SchedulingCapability{
-			SupportsScheduling: true,
-			SupportedFrequencies: []rtypes.ScheduleFrequency{
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
 			},
 		},
 		Configuration: cfg,

@@ -7,7 +7,6 @@
     "database": {
         "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable"
     },
-    "base_config_path": "../../../etc/vultisig",
     "redis": {
         "host": "localhost",
         "port": "6378",

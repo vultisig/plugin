@@ -31,6 +31,21 @@ func (s *PostgresStorage) CreateWithTx(ctx context.Context, tx pgx.Tx, policyID 
 	return nil
 }
 
+func (s *PostgresStorage) GetByPolicy(ctx context.Context, policyID uuid.UUID) (Scheduler, error) {
+	var scheduler Scheduler
+	err := s.pool.QueryRow(ctx, `
+		SELECT policy_id, next_execution
+		FROM scheduler
+		WHERE policy_id = $1
+		LIMIT 1
+	`, policyID).Scan(&scheduler.PolicyID, &scheduler.NextExecution)
+	if err != nil {
+		return Scheduler{}, fmt.Errorf("failed to query scheduler by policy: %w", err)
+	}
+
+	return scheduler, nil
+}
+
 func (s *PostgresStorage) GetPending(ctx context.Context) ([]Scheduler, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT policy_id, next_execution
@@ -61,6 +76,18 @@ func (s *PostgresStorage) GetPending(ctx context.Context) ([]Scheduler, error) {
 
 func (s *PostgresStorage) SetNext(ctx context.Context, policyID uuid.UUID, next time.Time) error {
 	_, err := s.pool.Exec(ctx, `
+		UPDATE scheduler
+		SET next_execution = $2
+		WHERE policy_id = $1
+	`, policyID, next)
+	if err != nil {
+		return fmt.Errorf("failed to update next execution time: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStorage) SetNextWithTx(ctx context.Context, tx pgx.Tx, policyID uuid.UUID, next time.Time) error {
+	_, err := tx.Exec(ctx, `
 		UPDATE scheduler
 		SET next_execution = $2
 		WHERE policy_id = $1
