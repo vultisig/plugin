@@ -22,17 +22,23 @@ import (
 	"github.com/vultisig/plugin/storage"
 )
 
+const UniswapV2RouterAddress = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+
+var UniswapSwapTopic = gcommon.HexToHash("0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822")
+
 var _ plugin.Plugin = (*Plugin)(nil)
 
 type Plugin struct {
 	db                    storage.DatabaseStorage
 	signer                *keysign.Signer
 	eth                   *evm.SDK
+	ethRpc                *ethclient.Client
 	logger                logrus.FieldLogger
 	txIndexerService      *tx_indexer.Service
 	client                *asynq.Client
 	vaultStorage          vault.Storage
 	vaultEncryptionSecret string
+	blockID               uint64
 }
 
 func NewPlugin(
@@ -48,24 +54,34 @@ func NewPlugin(
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
 
-	var eth *evm.SDK
+	var (
+		eth          *evm.SDK
+		currentBlock uint64
+	)
 	if ethRpc != nil {
 		ethEvmChainID, err := common.Ethereum.EvmID()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get Ethereum EVM ID: %w", err)
 		}
 		eth = evm.NewSDK(ethEvmChainID, ethRpc, ethRpc.Client())
+
+		currentBlock, err = ethRpc.BlockNumber(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get block: %w", err)
+		}
 	}
 
 	return &Plugin{
 		db:                    db,
 		signer:                signer,
 		eth:                   eth,
-		logger:                logrus.WithField("plugin", "payroll"),
+		ethRpc:                ethRpc,
+		logger:                logrus.WithField("plugin", "copytrader"),
 		txIndexerService:      txIndexerService,
 		client:                client,
 		vaultStorage:          vaultStorage,
 		vaultEncryptionSecret: vaultEncryptionSecret,
+		blockID:               currentBlock,
 	}, nil
 }
 
