@@ -3,7 +3,6 @@ package fees
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
@@ -163,47 +161,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 	}
 
 	return txs, nil
-}
-
-// Copy from the payroll plugin. Checks if a tx was created
-func (fp *FeePlugin) IsAlreadyProposed(
-	ctx context.Context,
-	frequency rtypes.ScheduleFrequency,
-	startTime time.Time,
-	interval int,
-	chainID vcommon.Chain,
-	pluginID vtypes.PluginID,
-	policyID uuid.UUID,
-	tokenID, recipientPublicKey string,
-) (bool, error) {
-	sched, err := scheduler.NewIntervalSchedule(
-		frequency,
-		startTime,
-		interval,
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to create interval schedule: %w", err)
-	}
-
-	fromTime, toTime := sched.ToRangeFrom(time.Now())
-
-	_, err = fp.txIndexerService.GetTxInTimeRange(
-		ctx,
-		chainID,
-		pluginID,
-		policyID,
-		tokenID,
-		recipientPublicKey,
-		fromTime,
-		toTime,
-	)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, storage.ErrNoTx) {
-		return false, nil
-	}
-	return false, fmt.Errorf("failed to get tx in time range: %w", err)
 }
 
 func (fp *FeePlugin) initSign(

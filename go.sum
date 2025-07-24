@@ -761,6 +761,12 @@ github.com/vultisig/recipes v0.0.0-20250723142134-153c7f486070 h1:AcE6x2dxkl/4P/
 github.com/vultisig/recipes v0.0.0-20250723142134-153c7f486070/go.mod h1:30NOW5y2BnMCmEYFeVls3NhxkbMvuv7BNyRQfoFhGIM=
 github.com/vultisig/recipes v0.0.0-20250724111913-675e7fdcbc24 h1:NKkcuAtSSQfaYTQ0Fo96mnTsTDAoTh+XrbrUHLEliNY=
 github.com/vultisig/recipes v0.0.0-20250724111913-675e7fdcbc24/go.mod h1:Ot3lrUnnSw67Hep+MelclVPgNLDxJP01Ezixw/1RYRE=
+github.com/vultisig/recipes v0.0.0-20250724145933-37c12287503c h1:PFaQfDNMSBymgwu+6Jr9+wYF/tFpv3jk97i8VE2+bSY=
+github.com/vultisig/recipes v0.0.0-20250724145933-37c12287503c/go.mod h1:Ot3lrUnnSw67Hep+MelclVPgNLDxJP01Ezixw/1RYRE=
+github.com/vultisig/recipes v0.0.0-20250724150617-ab960a120ce8 h1:aMVowo/fdQGizJf7lFDzh07t7GmKvLyddVOWeFm7dkw=
+github.com/vultisig/recipes v0.0.0-20250724150617-ab960a120ce8/go.mod h1:Ot3lrUnnSw67Hep+MelclVPgNLDxJP01Ezixw/1RYRE=
+github.com/vultisig/recipes v0.0.0-20250724151024-afb75caf8884 h1:ObxhyUAEQYfmuqH2mnvw/fidEmaDPIEbxdp3oIpM9WY=
+github.com/vultisig/recipes v0.0.0-20250724151024-afb75caf8884/go.mod h1:Ot3lrUnnSw67Hep+MelclVPgNLDxJP01Ezixw/1RYRE=
 github.com/vultisig/verifier v0.0.0-20250723150319-a51c59a884bf h1:3VhxFQR0oJEieaajNDvKlOGBDyTBbSMJSxow3zwUlmw=
 github.com/vultisig/verifier v0.0.0-20250723150319-a51c59a884bf/go.mod h1:9f3yGSZWKZeXn30mU+/brufkbkLoGlFmNLKOpRbQgeI=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b h1:Ed2DOWo8fA0KG6e36rzUmGpxcOQjmWTbxWyvUbI5by8=
