@@ -771,7 +771,7 @@ func (p *DCAPlugin) completePolicy(ctx context.Context, policy vtypes.PluginPoli
 	return nil
 }
 
-func (p *DCAPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
+func (p *DCAPlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
@@ -829,5 +829,5 @@ func (p *DCAPlugin) GetRecipeSpecification() *rtypes.RecipeSchema {
 			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
-	}
+	}, nil
 }

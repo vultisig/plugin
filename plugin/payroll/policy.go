@@ -50,5 +50,10 @@ func (p *Plugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []
 }
 
 func (p *Plugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
-	return plugin.ValidatePluginPolicy(policyDoc, p.GetRecipeSpecification())
+	spec, err := p.GetRecipeSpecification()
+	if err != nil {
+		return fmt.Errorf("failed to build recipe spec: %w", err)
+	}
+
+	return plugin.ValidatePluginPolicy(policyDoc, spec)
 }

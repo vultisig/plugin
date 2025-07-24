@@ -8,10 +8,13 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/keysign"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/vultiserver/relay"
 
+	feeconfig "github.com/vultisig/plugin/cmd/fees/config"
 	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -20,7 +23,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	cfg, err := GetConfigure()
+	cfg, err := feeconfig.GetConfigure()
 	if err != nil {
 		panic(err)
 	}
@@ -92,8 +95,22 @@ func main() {
 		logger.Fatalf("failed to create fees config,err: %s", err)
 	}
 
+	signer := keysign.NewSigner(
+		logger.WithField("pkg", "keysign.Signer").Logger,
+		relay.NewRelayClient(cfg.VaultServiceConfig.Relay.Server),
+		[]keysign.Emitter{
+			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.Token),
+			keysign.NewPluginEmitter(asynqClient, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+		},
+		[]string{
+			cfg.Verifier.PartyPrefix,
+			cfg.VaultServiceConfig.LocalPartyPrefix,
+		},
+	)
+
 	feePlugin, err := fees.NewFeePlugin(
 		postgressDB,
+		signer,
 		logger,
 		cfg.BaseConfigPath,
 		vaultStorage,
@@ -102,7 +119,7 @@ func main() {
 		asynqClient,
 		feePluginConfig,
 		cfg.VaultServiceConfig.EncryptionSecret,
-		cfg.Server.VerifierUrl,
+		cfg.Verifier.URL,
 	)
 	if err != nil {
 		logger.Fatalf("failed to create fee plugin,err: %s", err)

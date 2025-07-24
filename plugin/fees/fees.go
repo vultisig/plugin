@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/internal/keysign"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer"
@@ -34,6 +35,7 @@ var _ plugin.Plugin = (*FeePlugin)(nil)
 type FeePlugin struct {
 	vaultService     *vault.ManagementService
 	vaultStorage     *vault.BlockStorageImp
+	signer           *keysign.Signer
 	db               storage.DatabaseStorage
 	eth              *evm.SDK
 	logger           logrus.FieldLogger
@@ -46,6 +48,7 @@ type FeePlugin struct {
 }
 
 func NewFeePlugin(db storage.DatabaseStorage,
+	signer *keysign.Signer,
 	logger logrus.FieldLogger,
 	baseConfigPath string,
 	vaultStorage *vault.BlockStorageImp,
@@ -55,6 +58,7 @@ func NewFeePlugin(db storage.DatabaseStorage,
 	feeConfig *FeeConfig,
 	encryptionSecret string,
 	verifierUrl string) (*FeePlugin, error) {
+
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -93,6 +97,7 @@ func NewFeePlugin(db storage.DatabaseStorage,
 	return &FeePlugin{
 		db:               db,
 		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
+		signer:           signer,
 		logger:           logger.WithField("plugin", "fees"),
 		config:           feeConfig,
 		verifierApi:      verifierApi,

@@ -206,8 +206,12 @@ func (s *Server) GetPolicySchema(c echo.Context) error {
 }
 
 func (s *Server) GetRecipeSpecification(c echo.Context) error {
-	recipeSpec := s.plugin.GetRecipeSpecification()
-	return c.JSON(http.StatusOK, &recipeSpec)
+	recipeSpec, err := s.plugin.GetRecipeSpecification()
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get recipe spec")
+		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to get recipe spec"))
+	}
+	return c.JSON(http.StatusOK, recipeSpec)
 }
 
 func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy) bool {
