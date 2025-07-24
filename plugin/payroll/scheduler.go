@@ -24,7 +24,7 @@ func NewSchedulerService(repo scheduler.Storage) *SchedulerService {
 func (s *SchedulerService) Create(ctx context.Context, tx pgx.Tx, policy types.PluginPolicy) error {
 	start, err := startDateFromPolicy(policy)
 	if err != nil {
-		return fmt.Errorf("fauiled to unpack start date from policy: %w", err)
+		return fmt.Errorf("failed to unpack start date from policy: %w", err)
 	}
 	return s.repo.CreateWithTx(ctx, tx, policy.ID, start)
 }

@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -14,10 +13,6 @@ type NilService struct{}
 
 func NewNilService() *NilService {
 	return &NilService{}
-}
-
-func (s *NilService) FromNowWhenNext(_ types.PluginPolicy) (time.Time, error) {
-	return time.Time{}, nil
 }
 
 func (s *NilService) Create(_ context.Context, _ pgx.Tx, _ types.PluginPolicy) error {
