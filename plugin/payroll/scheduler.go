@@ -42,7 +42,7 @@ func startDateFromPolicy(policy types.PluginPolicy) (time.Time, error) {
 	if cfgStartDate != "" {
 		t, er := time.Parse(time.RFC3339, cfgStartDate)
 		if er != nil {
-			return time.Time{}, fmt.Errorf("failed to parse start date (%s): %w", cfgStartDate, err)
+			return time.Time{}, fmt.Errorf("failed to parse start date (%s): %w", cfgStartDate, er)
 		}
 		start = t
 	}
