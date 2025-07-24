@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/vultisig/plugin/api"
+	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -116,11 +117,11 @@ func createDummyServer() (*api.Server, vault.Storage, *fees.FeePlugin) {
 		db,
 		redisStorage,
 		vaultStorage,
-		redisOptions,
 		client,
 		inspector,
 		sdClient,
 		nil,
+		scheduler.NewNilService(),
 	)
 
 	return server, vaultStorage, &p
