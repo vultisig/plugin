@@ -816,15 +816,6 @@ func (p *DCAPlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 				Required: true,
 			},
 		},
-		Scheduling: &rtypes.SchedulingCapability{
-			SupportsScheduling: true,
-			SupportedFrequencies: []rtypes.ScheduleFrequency{
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_HOURLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_DAILY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY,
-			},
-			MaxScheduledExecutions: 1000, // DCA can have many small orders
-		},
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},

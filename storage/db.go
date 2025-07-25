@@ -21,15 +21,6 @@ type DatabaseStorage interface {
 	InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 
-	CreateTimeTriggerTx(ctx context.Context, dbTx pgx.Tx, trigger types.TimeTrigger) error
-	GetPendingTimeTriggers(ctx context.Context) ([]types.TimeTrigger, error)
-	UpdateTimeTriggerLastExecution(ctx context.Context, policyID uuid.UUID) error
-	UpdateTimeTriggerTx(ctx context.Context, policyID uuid.UUID, trigger types.TimeTrigger, dbTx pgx.Tx) error
-
-	DeleteTimeTrigger(ctx context.Context, policyID uuid.UUID) error
-	UpdateTriggerStatus(ctx context.Context, policyID uuid.UUID, status types.TimeTriggerStatus) error
-	GetTriggerStatus(ctx context.Context, policyID uuid.UUID) (types.TimeTriggerStatus, error)
-
 	CreateFeeRun(ctx context.Context, policyId uuid.UUID, state types.FeeRunState, fees []verifierapi.FeeDto) (*types.FeeRun, error)
 	SetFeeRunSent(ctx context.Context, runId uuid.UUID, txId uuid.UUID) error
 

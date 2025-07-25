@@ -1,5 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="[git] plugin stack" type="CompoundRunConfigurationType">
+    <toRun name="[git] payroll scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="[git] payroll server" type="GoApplicationRunConfiguration" />
     <toRun name="[git] payroll worker" type="GoApplicationRunConfiguration" />
     <toRun name="[git] tx_indexer worker" type="GoApplicationRunConfiguration" />

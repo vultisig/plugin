@@ -1,0 +1,10 @@
+{
+    "redis": {
+        "host": "localhost",
+        "port": "6378",
+        "password": "password"
+    },
+    "database": {
+        "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-payroll?sslmode=disable"
+    }
+}
