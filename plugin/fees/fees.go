@@ -88,8 +88,10 @@ func NewFeePlugin(db storage.DatabaseStorage,
 
 	verifierApi := verifierapi.NewVerifierApi(
 		verifierUrl,
+		feeConfig.VerifierToken,
 		logger.(*logrus.Logger),
 	)
+
 	if verifierApi == nil {
 		return nil, fmt.Errorf("failed to create verifier api")
 	}
