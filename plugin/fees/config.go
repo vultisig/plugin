@@ -3,6 +3,7 @@ package fees
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 	"strings"
 
@@ -36,11 +37,13 @@ type FeeConfig struct {
 	MaxFeeAmount                uint64   `mapstructure:"max_fee_amount"`                // Policies that are created/submitted which do not have this amount will be rejected.
 	UsdcAddress                 string   `mapstructure:"usdc_address"`                  // The address of the USDC token on the Ethereum blockchain.
 	VerifierToken               string   `mapstructure:"verifier_token"`                // The token to use for the verifier API.
+	ChainId                     *big.Int `mapstructure:"chain_id"`                      // The chain ID of the Ethereum blockchain.
 }
 
 type ConfigOption func(*FeeConfig) error
 
 func withDefaults(c *FeeConfig) {
+	c.ChainId = big.NewInt(1)
 	c.Type = PLUGIN_TYPE
 	c.Version = "1.0.0"
 	c.RpcURL = "https://ethereum.publicnode.com/"
@@ -73,6 +76,13 @@ func WithCollectorWhitelistAddresses(collectorWhitelistAddresses []string) Confi
 func WithMaxFeeAmount(maxFeeAmount uint64) ConfigOption {
 	return func(c *FeeConfig) error {
 		c.MaxFeeAmount = maxFeeAmount
+		return nil
+	}
+}
+
+func WithChainId(chainId *big.Int) ConfigOption {
+	return func(c *FeeConfig) error {
+		c.ChainId = chainId
 		return nil
 	}
 }
@@ -139,6 +149,10 @@ func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
 
 	if c.VerifierToken == "" {
 		return c, errors.New("verifier_token is required")
+	}
+
+	if c.ChainId == nil {
+		return c, errors.New("chain_id is required")
 	}
 
 	return c, nil

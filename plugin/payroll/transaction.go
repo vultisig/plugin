@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -13,13 +12,11 @@ import (
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/plugin"
-	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
@@ -102,46 +99,6 @@ func (p *Plugin) initSign(
 		return fmt.Errorf("failed to complete signing process: %w", err)
 	}
 	return nil
-}
-
-func (p *Plugin) IsAlreadyProposed(
-	ctx context.Context,
-	frequency rtypes.ScheduleFrequency,
-	startTime time.Time,
-	interval int,
-	chainID vcommon.Chain,
-	pluginID vtypes.PluginID,
-	policyID uuid.UUID,
-	tokenID, recipientPublicKey string,
-) (bool, error) {
-	sched, err := scheduler.NewIntervalSchedule(
-		frequency,
-		startTime,
-		interval,
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to create interval schedule: %w", err)
-	}
-
-	fromTime, toTime := sched.ToRangeFrom(time.Now())
-
-	_, err = p.txIndexerService.GetTxInTimeRange(
-		ctx,
-		chainID,
-		pluginID,
-		policyID,
-		tokenID,
-		recipientPublicKey,
-		fromTime,
-		toTime,
-	)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, storage.ErrNoTx) {
-		return false, nil
-	}
-	return false, fmt.Errorf("p.txIndexerService.GetTxInTimeRange: %w", err)
 }
 
 func getTokenID(rule *rtypes.Rule) (string, error) {

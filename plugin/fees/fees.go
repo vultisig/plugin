@@ -68,12 +68,6 @@ func NewFeePlugin(db storage.DatabaseStorage,
 		return nil, err
 	}
 
-	// Initialize the Ethereum SDK for transaction broadcasting
-	ethEvmChainID, err := vcommon.Ethereum.EvmID()
-	if err != nil {
-		return nil, fmt.Errorf("vcommon.Ethereum.EvmID: %w", err)
-	}
-
 	if _, ok := logger.(*logrus.Logger); !ok {
 		return nil, fmt.Errorf("logger must be *logrus.Logger, got %T", logger)
 	}
@@ -98,7 +92,7 @@ func NewFeePlugin(db storage.DatabaseStorage,
 
 	return &FeePlugin{
 		db:               db,
-		eth:              evm.NewSDK(ethEvmChainID, rpcClient, rpcClient.Client()),
+		eth:              evm.NewSDK(feeConfig.ChainId, rpcClient, rpcClient.Client()),
 		signer:           signer,
 		logger:           logger.WithField("plugin", "fees"),
 		config:           feeConfig,

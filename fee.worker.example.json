@@ -10,7 +10,8 @@
         },
         "local_party_prefix": "fee-plugin-0000",
         "queue_email_task": false,
-        "encryption_secret": "test123"
+        "encryption_secret": "test123",
+        "do_setup_msg": true
     },
     "redis": {
         "host": "redis-fees",
