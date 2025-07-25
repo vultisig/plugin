@@ -53,8 +53,7 @@ func main() {
 			Logger:      logger,
 			Concurrency: 10,
 			Queues: map[string]int{
-				tasks.QUEUE_NAME:         10,
-				"scheduled_plugin_queue": 10, // new queue
+				tasks.QUEUE_NAME: 10,
 			},
 		},
 	)
@@ -115,11 +114,8 @@ func main() {
 		panic(fmt.Errorf("failed to create copytrader plugin: %w", err))
 	}
 
-	_ = ct
-
 	mux := asynq.NewServeMux()
-	// TRIGGER???
-	//mux.HandleFunc(tasks.TypePluginTransaction, p.HandleSchedulerTrigger)
+	mux.HandleFunc(tasks.TypePluginTransaction, ct.HandleSwapTask)
 	mux.HandleFunc(tasks.TypeKeySignDKLS, vaultService.HandleKeySignDKLS)
 	mux.HandleFunc(tasks.TypeReshareDKLS, vaultService.HandleReshareDKLS)
 	if err := srv.Run(mux); err != nil {

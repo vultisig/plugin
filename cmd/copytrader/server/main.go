@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/plugin/plugin/copytrader"
+	"github.com/vultisig/verifier/tx_indexer"
+	tx_indexer_storage "github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/api"
@@ -15,7 +19,7 @@ import (
 )
 
 func main() {
-	//ctx := context.Background()
+	ctx := context.Background()
 
 	cfg, err := GetConfigure()
 	if err != nil {
@@ -57,29 +61,29 @@ func main() {
 		logger.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	//txIndexerStore, err := tx_indexer_storage.NewPostgresTxIndexStore(ctx, cfg.Database.DSN)
-	//if err != nil {
-	//	panic(fmt.Errorf("tx_indexer_storage.NewPostgresTxIndexStore: %w", err))
-	//}
+	txIndexerStore, err := tx_indexer_storage.NewPostgresTxIndexStore(ctx, cfg.Database.DSN)
+	if err != nil {
+		panic(fmt.Errorf("tx_indexer_storage.NewPostgresTxIndexStore: %w", err))
+	}
 
-	//txIndexerService := tx_indexer.NewService(
-	//	logger,
-	//	txIndexerStore,
-	//	tx_indexer.Chains(),
-	//)
+	txIndexerService := tx_indexer.NewService(
+		logger,
+		txIndexerStore,
+		tx_indexer.Chains(),
+	)
 
-	//p, err := payroll.NewPlugin(
-	//	db,
-	//	nil, // not used by server
-	//	vaultStorage,
-	//	nil,
-	//	txIndexerService,
-	//	client,
-	//	cfg.Server.EncryptionSecret,
-	//)
-	//if err != nil {
-	//	logger.Fatalf("failed to create payroll plugin,err: %s", err)
-	//}
+	ct, err := copytrader.NewPlugin(
+		db,
+		nil, // not used by server
+		vaultStorage,
+		nil,
+		txIndexerService,
+		client,
+		cfg.Server.EncryptionSecret,
+	)
+	if err != nil {
+		logger.Fatalf("failed to create payroll plugin,err: %s", err)
+	}
 
 	server := api.NewServer(
 		cfg.Server,
@@ -90,8 +94,7 @@ func main() {
 		client,
 		inspector,
 		sdClient,
-		nil,
-		//p,
+		ct,
 	)
 	if err := server.StartServer(); err != nil {
 		panic(err)
