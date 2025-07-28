@@ -180,7 +180,9 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to delete policy"))
 	}
 
-	return c.NoContent(http.StatusNoContent)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"policy_id": policyID,
+	})
 }
 
 func (s *Server) GetPolicySchema(c echo.Context) error {

@@ -22,6 +22,39 @@ CREATE TYPE "tx_indexer_status_onchain" AS ENUM (
     'FAIL'
 );
 
+CREATE FUNCTION "prevent_insert_if_policy_deleted"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    IF NEW.deleted = true THEN
+        RAISE EXCEPTION 'Cannot insert a deleted policy';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION "prevent_update_if_policy_deleted"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    IF OLD.deleted = true THEN
+        RAISE EXCEPTION 'Cannot update a deleted policy';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION "set_policy_inactive_on_delete"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    IF NEW.deleted = true THEN
+        NEW.active := false;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION "update_updated_at_column"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -71,7 +104,8 @@ CREATE TABLE "plugin_policies" (
     "recipe" "text" NOT NULL,
     "active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "deleted" boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE "time_triggers" (
@@ -151,6 +185,12 @@ CREATE INDEX "idx_time_triggers_start_time" ON "time_triggers" USING "btree" ("s
 CREATE INDEX "idx_tx_indexer_key" ON "tx_indexer" USING "btree" ("chain_id", "plugin_id", "policy_id", "token_id", "to_public_key", "created_at");
 
 CREATE INDEX "idx_tx_indexer_status_onchain_lost" ON "tx_indexer" USING "btree" ("status_onchain", "lost");
+
+CREATE TRIGGER "trg_prevent_insert_if_policy_deleted" BEFORE INSERT ON "plugin_policies" FOR EACH ROW EXECUTE FUNCTION "public"."prevent_insert_if_policy_deleted"();
+
+CREATE TRIGGER "trg_prevent_update_if_policy_deleted" BEFORE UPDATE ON "plugin_policies" FOR EACH ROW WHEN (("old"."deleted" = true)) EXECUTE FUNCTION "public"."prevent_update_if_policy_deleted"();
+
+CREATE TRIGGER "trg_set_policy_inactive_on_delete" BEFORE INSERT OR UPDATE ON "plugin_policies" FOR EACH ROW WHEN (("new"."deleted" = true)) EXECUTE FUNCTION "public"."set_policy_inactive_on_delete"();
 
 CREATE TRIGGER "update_fee_run_updated_at" BEFORE UPDATE ON "fee_run" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
