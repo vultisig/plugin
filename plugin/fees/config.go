@@ -137,6 +137,10 @@ func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
 		return c, fmt.Errorf("collector_address must be in the whitelist: %s, whitelist: %v", c.CollectorAddress, c.CollectorWhitelistAddresses)
 	}
 
+	if c.VerifierToken == "" {
+		return c, errors.New("verifier_token is required")
+	}
+
 	return c, nil
 }
 

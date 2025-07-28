@@ -156,13 +156,10 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 			return nil, fmt.Errorf("getTokenID: %v", er)
 		}
 
-		recipients, amountStr, er := RuleToRecipientsAndAmount(rule)
+		recipient, amountStr, er := RuleToRecipientAndAmount(rule)
 		if er != nil {
-			return nil, fmt.Errorf("failed to get recipients and amount: %v", er)
+			return nil, fmt.Errorf("failed to get recipient and amount: %v", er)
 		}
-
-		for _, _recipient := range recipients {
-			recipient := _recipient
 
 			eg.Go(func() error {
 				tx, e := p.genUnsignedTx(
@@ -177,54 +174,53 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 					return fmt.Errorf("p.genUnsignedTx: %w", e)
 				}
 
-				txHex := gcommon.Bytes2Hex(tx)
+			txHex := gcommon.Bytes2Hex(tx)
 
-				txData, e := ethereum.DecodeUnsignedPayload(tx)
-				if e != nil {
-					return fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
-				}
-				txHashToSign := etypes.LatestSignerForChainID(ethEvmID).Hash(etypes.NewTx(txData))
+			txData, e := ethereum.DecodeUnsignedPayload(tx)
+			if e != nil {
+				return fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
+			}
+			txHashToSign := etypes.LatestSignerForChainID(ethEvmID).Hash(etypes.NewTx(txData))
 
-				txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
-					PluginID:      policy.PluginID,
-					PolicyID:      policy.ID,
-					ChainID:       chain,
-					TokenID:       tokenID,
-					FromPublicKey: policy.PublicKey,
-					ToPublicKey:   recipient,
-					ProposedTxHex: txHex,
-				})
-				if e != nil {
-					return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
-				}
-
-				msgHash := sha256.Sum256(txHashToSign.Bytes())
-
-				// Create signing request
-				signRequest := vtypes.PluginKeysignRequest{
-					KeysignRequest: vtypes.KeysignRequest{
-						PublicKey: policy.PublicKey,
-						Messages: []vtypes.KeysignMessage{
-							{
-								TxIndexerID:  txToTrack.ID.String(),
-								Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
-								Chain:        chain,
-								Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
-								HashFunction: vtypes.HashFunction_SHA256,
-							},
-						},
-						PolicyID: policy.ID,
-						PluginID: policy.PluginID.String(),
-					},
-					Transaction: txHex,
-				}
-
-				mu.Lock()
-				txs = append(txs, signRequest)
-				mu.Unlock()
-				return nil
+			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
+				PluginID:      policy.PluginID,
+				PolicyID:      policy.ID,
+				ChainID:       chain,
+				TokenID:       tokenID,
+				FromPublicKey: policy.PublicKey,
+				ToPublicKey:   recipient,
+				ProposedTxHex: txHex,
 			})
-		}
+			if e != nil {
+				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
+			}
+
+			msgHash := sha256.Sum256(txHashToSign.Bytes())
+
+			// Create signing request
+			signRequest := vtypes.PluginKeysignRequest{
+				KeysignRequest: vtypes.KeysignRequest{
+					PublicKey: policy.PublicKey,
+					Messages: []vtypes.KeysignMessage{
+						{
+							TxIndexerID:  txToTrack.ID.String(),
+							Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
+							Chain:        chain,
+							Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
+							HashFunction: vtypes.HashFunction_SHA256,
+						},
+					},
+					PolicyID: policy.ID,
+					PluginID: policy.PluginID.String(),
+				},
+				Transaction: txHex,
+			}
+
+			mu.Lock()
+			txs = append(txs, signRequest)
+			mu.Unlock()
+			return nil
+		})
 	}
 
 	err = eg.Wait()
@@ -321,7 +317,6 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 						ParameterName: "recipient",
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
 						},
 						Required: true,
 					},
@@ -379,38 +374,38 @@ func (p *Plugin) genUnsignedTx(
 	return nil, fmt.Errorf("unsupported chain: %s", chain)
 }
 
-func RuleToRecipientsAndAmount(rule *rtypes.Rule) ([]string, string, error) {
-	var recipients []string
-	var amountStr string
-
+func RuleToRecipientAndAmount(rule *rtypes.Rule) (string, string, error) {
 	if len(rule.ParameterConstraints) == 0 {
-		return nil, "", fmt.Errorf("no parameter constraints found")
+		return "", "", fmt.Errorf("no parameter constraints found")
 	}
 
 	if len(rule.ParameterConstraints) > 3 {
-		return nil, "", fmt.Errorf("too many parameter constraints found")
+		return "", "", fmt.Errorf("too many parameter constraints found")
 	}
 
+	var (
+		recipient string
+		amountStr string
+	)
 	for _, constraint := range rule.ParameterConstraints {
-		if constraint.ParameterName == "recipient" {
-			switch constraint.Constraint.Type {
-			case rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED:
-				recipients = []string{constraint.Constraint.GetFixedValue()}
-			case rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST:
-				recipients = constraint.Constraint.GetWhitelistValues().GetValues()
-			}
+		if recipient != "" && amountStr != "" {
+			break
+		}
 
+		if constraint.ParameterName == "recipient" {
+			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+				return "", "", fmt.Errorf("recipient constraint is not a fixed value")
+			}
+			recipient = constraint.Constraint.GetFixedValue()
 		}
 
 		if constraint.ParameterName == "amount" {
 			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-				return nil, "", fmt.Errorf("amount constraint is not a fixed value")
+				return "", "", fmt.Errorf("amount constraint is not a fixed value")
 			}
-
-			fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
-			amountStr = fixedValue.FixedValue
+			amountStr = constraint.Constraint.GetFixedValue()
 		}
 	}
 
-	return recipients, amountStr, nil
+	return recipient, amountStr, nil
 }
