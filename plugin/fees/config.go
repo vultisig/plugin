@@ -34,6 +34,8 @@ type FeeConfig struct {
 	CollectorWhitelistAddresses []string `mapstructure:"collector_whitelist_addresses"` // A list of whitelisted addresses for which fee transactions are collected against. These can include previous addresses. Fee plugins with a recipient address that is not in this list will not be processed.
 	CollectorAddress            string   `mapstructure:"collector_address"`             // This address is what is used for new policies. Fee policies created with a different address will be rejected.
 	MaxFeeAmount                uint64   `mapstructure:"max_fee_amount"`                // Policies that are created/submitted which do not have this amount will be rejected.
+	UsdcAddress                 string   `mapstructure:"usdc_address"`                  // The address of the USDC token on the Ethereum blockchain.
+	VerifierToken               string   `mapstructure:"verifier_token"`                // The token to use for the verifier API.
 }
 
 type ConfigOption func(*FeeConfig) error
@@ -133,6 +135,10 @@ func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
 	// Collector address must be in the whitelist
 	if !slices.Contains(c.CollectorWhitelistAddresses, c.CollectorAddress) {
 		return c, fmt.Errorf("collector_address must be in the whitelist: %s, whitelist: %v", c.CollectorAddress, c.CollectorWhitelistAddresses)
+	}
+
+	if c.VerifierToken == "" {
+		return c, errors.New("verifier_token is required")
 	}
 
 	return c, nil

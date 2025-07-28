@@ -5,3 +5,5 @@ collector_whitelist_addresses:
     - 0x7d760c17d798a7A9a4c4AcAf311A02dC95972503
     - 0x5BB06B9C5e4f7624Df7100Badb2F5AA1C86d8498
 collector_address: 0x7d760c17d798a7A9a4c4AcAf311A02dC95972503
+usdc_address: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+verifier_token: localhost-fee-apikey
