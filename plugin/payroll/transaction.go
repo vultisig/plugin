@@ -17,6 +17,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/plugin"
+	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
@@ -160,18 +161,18 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 			return nil, fmt.Errorf("failed to get recipient and amount: %v", er)
 		}
 
-			eg.Go(func() error {
-				tx, e := p.genUnsignedTx(
-					ctx,
-					chain,
-					ethAddress,
-					tokenID,
-					amountStr,
-					recipient,
-				)
-				if e != nil {
-					return fmt.Errorf("p.genUnsignedTx: %w", e)
-				}
+		eg.Go(func() error {
+			tx, e := p.genUnsignedTx(
+				ctx,
+				chain,
+				ethAddress,
+				tokenID,
+				amountStr,
+				recipient,
+			)
+			if e != nil {
+				return fmt.Errorf("p.genUnsignedTx: %w", e)
+			}
 
 			txHex := gcommon.Bytes2Hex(tx)
 
