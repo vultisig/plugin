@@ -7,11 +7,10 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/verifier/plugin/tasks"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
-
-	"github.com/vultisig/plugin/internal/tasks"
 )
 
 func main() {

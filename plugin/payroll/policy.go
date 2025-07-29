@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vultisig/plugin/internal/plugin"
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
+	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
 )
 

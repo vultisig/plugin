@@ -16,11 +16,11 @@ import (
 	"github.com/sirupsen/logrus"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
+	"github.com/vultisig/verifier/plugin/tasks"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
 	vv "github.com/vultisig/plugin/internal/vultisig_validator"
 	"github.com/vultisig/plugin/service"
 	"github.com/vultisig/plugin/storage"
