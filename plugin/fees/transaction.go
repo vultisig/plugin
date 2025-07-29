@@ -2,8 +2,8 @@ package fees
 
 import (
 	"context"
-	"encoding/hex"
-	"errors"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"math/big"
 	"strings"
