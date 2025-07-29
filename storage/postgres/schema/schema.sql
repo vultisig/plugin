@@ -66,8 +66,7 @@ CREATE TABLE "plugin_policies" (
     "recipe" "text" NOT NULL,
     "active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "deleted" boolean DEFAULT false NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 CREATE TABLE "scheduler" (
