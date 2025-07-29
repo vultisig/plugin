@@ -3,13 +3,12 @@ package fees
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/recipes/chain"
@@ -22,6 +21,8 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
@@ -87,30 +88,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		}
 		amount := feeHistory.FeesPendingCollection
 
-		//Check if fees have been collected withing a 6 hour time window.
-		fromTime := time.Now().Add(-6 * time.Hour)
-		toTime := time.Now()
-
-		_, err = fp.txIndexerService.GetTxInTimeRange(
-			ctx,
-			chain,
-			policy.PluginID,
-			policy.ID,
-			usdc.Address,
-			recipient,
-			fromTime,
-			toTime,
-		)
-		if err == nil {
-			fp.logger.WithFields(logrus.Fields{
-				"recipient": recipient,
-				"amount":    amount,
-				"chain_id":  chain,
-				"token_id":  usdc.Address,
-			}).Info("transaction already proposed, skipping")
-			return nil, nil
-		}
-
 		tx, err := fp.eth.MakeAnyTransfer(ctx,
 			gcommon.HexToAddress(ethAddress),
 			gcommon.HexToAddress(recipient),
@@ -120,7 +97,13 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
 		}
 
-		txHex := hex.EncodeToString(tx)
+		txHex := hexutil.Encode(tx)
+
+		txData, e := reth.DecodeUnsignedPayload(tx)
+		if e != nil {
+			return nil, fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
+		}
+		txHashToSign := etypes.LatestSignerForChainID(fp.config.ChainId).Hash(etypes.NewTx(txData))
 
 		txToTrack, e := fp.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
 			PluginID:      policy.PluginID,
@@ -135,18 +118,18 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 			return nil, fmt.Errorf("error creating tx indexed transaction: %w", e)
 		}
 
-		// Create signing request
+		msgHash := sha256.Sum256(txHashToSign.Bytes())
+
 		signRequest := vtypes.PluginKeysignRequest{
 			KeysignRequest: vtypes.KeysignRequest{
 				PublicKey: policy.PublicKey,
 				Messages: []vtypes.KeysignMessage{
 					{
-						TxIndexerID: txToTrack.ID.String(),
-						Message:     txHex,
-						Chain:       vcommon.Ethereum,
-						// Doesn't make sense to compute hash with empty V,R,S,
-						// not on-chain hash without signature
-						Hash: txHex,
+						TxIndexerID:  txToTrack.ID.String(),
+						Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
+						Chain:        vcommon.Ethereum,
+						Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
+						HashFunction: vtypes.HashFunction_SHA256,
 					},
 				},
 				SessionID:        "",
