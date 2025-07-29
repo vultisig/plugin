@@ -9,7 +9,6 @@ import (
 const QUEUE_NAME = "plugin_queue"
 const (
 	TypePluginTransaction = "plugin:transaction"
-	TypeKeyGenerationDKLS = "key:generationDKLS"
 	TypeKeySignDKLS       = "key:signDKLS"
 	TypeReshareDKLS       = "key:reshareDKLS"
 )

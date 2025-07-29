@@ -17,6 +17,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/plugin"
+	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
@@ -26,8 +27,6 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/vultisig/plugin/internal/types"
 )
 
 func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
@@ -38,7 +37,7 @@ func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error 
 		p.logger.WithError(err).Warn("Context cancelled, skipping scheduler trigger")
 		return err
 	}
-	var trigger types.TimeTrigger
+	var trigger scheduler.Scheduler
 	if err := json.Unmarshal(t.Payload(), &trigger); err != nil {
 		p.logger.WithError(err).Error("Failed to unmarshal trigger payload")
 		return fmt.Errorf("failed to unmarshal trigger payload: %s, %w", err, asynq.SkipRetry)
@@ -337,14 +336,6 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					},
 				},
 				Required: true,
-			},
-		},
-		Scheduling: &rtypes.SchedulingCapability{
-			SupportsScheduling: true,
-			SupportedFrequencies: []rtypes.ScheduleFrequency{
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_WEEKLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_BIWEEKLY,
-				rtypes.ScheduleFrequency_SCHEDULE_FREQUENCY_MONTHLY,
 			},
 		},
 		Configuration: cfg,

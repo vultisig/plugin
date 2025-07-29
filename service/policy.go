@@ -26,11 +26,11 @@ var _ Policy = (*PolicyService)(nil)
 
 type PolicyService struct {
 	db        storage.DatabaseStorage
-	scheduler *scheduler.SchedulerService
+	scheduler scheduler.Service
 	logger    *logrus.Logger
 }
 
-func NewPolicyService(db storage.DatabaseStorage, scheduler *scheduler.SchedulerService, logger *logrus.Logger) (*PolicyService, error) {
+func NewPolicyService(db storage.DatabaseStorage, scheduler scheduler.Service, logger *logrus.Logger) (*PolicyService, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database storage cannot be nil")
 	}
@@ -61,12 +61,11 @@ func (s *PolicyService) CreatePolicy(ctx context.Context, policy vtypes.PluginPo
 		return nil, fmt.Errorf("failed to insert policy: %w", err)
 	}
 
-	// Handle trigger if scheduler exists
-	if s.scheduler != nil {
-		if err := s.scheduler.CreateTimeTrigger(ctx, policy, tx); err != nil {
-			return nil, fmt.Errorf("failed to create time trigger: %w", err)
-		}
+	err = s.scheduler.Create(ctx, tx, policy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create policy in scheduler: %w", err)
 	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -82,21 +81,20 @@ func (s *PolicyService) UpdatePolicy(ctx context.Context, policy vtypes.PluginPo
 	}
 	defer s.handleRollback(ctx, tx)
 
+	oldPolicy, err := s.db.GetPluginPolicy(ctx, policy.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get plugin policy: %w", err)
+	}
+
+	err = s.scheduler.Update(ctx, tx, *oldPolicy, policy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update policy in scheduler: %w", err)
+	}
+
 	// Update policy with tx
 	updatedPolicy, err := s.db.UpdatePluginPolicyTx(ctx, tx, policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update policy: %w", err)
-	}
-
-	if s.scheduler != nil {
-		trigger, err := s.scheduler.GetTriggerFromPolicy(policy)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get trigger from policy: %w", err)
-		}
-
-		if err := s.db.UpdateTimeTriggerTx(ctx, policy.ID, *trigger, tx); err != nil {
-			return nil, fmt.Errorf("failed to update trigger execution tx: %w", err)
-		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -117,6 +115,11 @@ func (s *PolicyService) DeletePolicy(ctx context.Context, policyID uuid.UUID, si
 	err = s.db.DeletePluginPolicyTx(ctx, tx, policyID)
 	if err != nil {
 		return fmt.Errorf("failed to delete policy: %w", err)
+	}
+
+	err = s.scheduler.Delete(ctx, tx, policyID)
+	if err != nil {
+		return fmt.Errorf("failed to delete policy from scheduler: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

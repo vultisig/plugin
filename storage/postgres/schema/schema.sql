@@ -5,11 +5,6 @@ CREATE TYPE "plugin_id" AS ENUM (
     'vultisig-fees-feee'
 );
 
-CREATE TYPE "trigger_status" AS ENUM (
-    'PENDING',
-    'RUNNING'
-);
-
 CREATE TYPE "tx_indexer_status" AS ENUM (
     'PROPOSED',
     'VERIFIED',
@@ -21,39 +16,6 @@ CREATE TYPE "tx_indexer_status_onchain" AS ENUM (
     'SUCCESS',
     'FAIL'
 );
-
-CREATE FUNCTION "prevent_insert_if_policy_deleted"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-    IF NEW.deleted = true THEN
-        RAISE EXCEPTION 'Cannot insert a deleted policy';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-CREATE FUNCTION "prevent_update_if_policy_deleted"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-    IF OLD.deleted = true THEN
-        RAISE EXCEPTION 'Cannot update a deleted policy';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-CREATE FUNCTION "set_policy_inactive_on_delete"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-BEGIN
-    IF NEW.deleted = true THEN
-        NEW.active := false;
-    END IF;
-    RETURN NEW;
-END;
-$$;
 
 CREATE FUNCTION "update_updated_at_column"() RETURNS "trigger"
     LANGUAGE "plpgsql"
@@ -104,32 +66,13 @@ CREATE TABLE "plugin_policies" (
     "recipe" "text" NOT NULL,
     "active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "deleted" boolean DEFAULT false NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
-CREATE TABLE "time_triggers" (
-    "id" integer NOT NULL,
+CREATE TABLE "scheduler" (
     "policy_id" "uuid" NOT NULL,
-    "cron_expression" "text" NOT NULL,
-    "start_time" timestamp without time zone NOT NULL,
-    "end_time" timestamp without time zone,
-    "frequency" integer NOT NULL,
-    "interval" integer NOT NULL,
-    "last_execution" timestamp without time zone,
-    "status" "trigger_status" NOT NULL,
-    "created_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    "next_execution" timestamp without time zone NOT NULL
 );
-
-CREATE SEQUENCE "time_triggers_id_seq"
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE "time_triggers_id_seq" OWNED BY "public"."time_triggers"."id";
 
 CREATE TABLE "tx_indexer" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -149,8 +92,6 @@ CREATE TABLE "tx_indexer" (
     "updated_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-ALTER TABLE ONLY "time_triggers" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."time_triggers_id_seq"'::"regclass");
-
 ALTER TABLE ONLY "fee"
     ADD CONSTRAINT "fee_pkey" PRIMARY KEY ("id");
 
@@ -160,8 +101,8 @@ ALTER TABLE ONLY "fee_run"
 ALTER TABLE ONLY "plugin_policies"
     ADD CONSTRAINT "plugin_policies_pkey" PRIMARY KEY ("id");
 
-ALTER TABLE ONLY "time_triggers"
-    ADD CONSTRAINT "time_triggers_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "scheduler"
+    ADD CONSTRAINT "scheduler_pkey" PRIMARY KEY ("policy_id");
 
 ALTER TABLE ONLY "tx_indexer"
     ADD CONSTRAINT "tx_indexer_pkey" PRIMARY KEY ("id");
@@ -178,19 +119,11 @@ CREATE INDEX "idx_plugin_policies_plugin_id" ON "plugin_policies" USING "btree" 
 
 CREATE INDEX "idx_plugin_policies_public_key" ON "plugin_policies" USING "btree" ("public_key");
 
-CREATE INDEX "idx_time_triggers_policy_id" ON "time_triggers" USING "btree" ("policy_id");
-
-CREATE INDEX "idx_time_triggers_start_time" ON "time_triggers" USING "btree" ("start_time");
+CREATE INDEX "idx_scheduler_next_execution" ON "scheduler" USING "btree" ("next_execution");
 
 CREATE INDEX "idx_tx_indexer_key" ON "tx_indexer" USING "btree" ("chain_id", "plugin_id", "policy_id", "token_id", "to_public_key", "created_at");
 
 CREATE INDEX "idx_tx_indexer_status_onchain_lost" ON "tx_indexer" USING "btree" ("status_onchain", "lost");
-
-CREATE TRIGGER "trg_prevent_insert_if_policy_deleted" BEFORE INSERT ON "plugin_policies" FOR EACH ROW EXECUTE FUNCTION "public"."prevent_insert_if_policy_deleted"();
-
-CREATE TRIGGER "trg_prevent_update_if_policy_deleted" BEFORE UPDATE ON "plugin_policies" FOR EACH ROW WHEN (("old"."deleted" = true)) EXECUTE FUNCTION "public"."prevent_update_if_policy_deleted"();
-
-CREATE TRIGGER "trg_set_policy_inactive_on_delete" BEFORE INSERT OR UPDATE ON "plugin_policies" FOR EACH ROW WHEN (("new"."deleted" = true)) EXECUTE FUNCTION "public"."set_policy_inactive_on_delete"();
 
 CREATE TRIGGER "update_fee_run_updated_at" BEFORE UPDATE ON "fee_run" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
@@ -202,7 +135,4 @@ ALTER TABLE ONLY "fee_run"
 
 ALTER TABLE ONLY "fee_run"
     ADD CONSTRAINT "fee_run_tx_id_fkey" FOREIGN KEY ("tx_id") REFERENCES "tx_indexer"("id") ON DELETE SET NULL;
-
-ALTER TABLE ONLY "time_triggers"
-    ADD CONSTRAINT "time_triggers_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id");
 
