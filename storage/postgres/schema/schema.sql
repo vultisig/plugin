@@ -72,7 +72,7 @@ CREATE TABLE "fee_run" (
     "status" character varying(50) DEFAULT 'draft'::character varying NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    "tx_id" "uuid",
+    "tx_hash" character varying(66),
     "policy_id" "uuid" NOT NULL,
     CONSTRAINT "fee_run_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['draft'::character varying, 'sent'::character varying, 'completed'::character varying, 'failed'::character varying])::"text"[])))
 );
@@ -82,13 +82,13 @@ CREATE VIEW "fee_run_with_totals" AS
     "fr"."status",
     "fr"."created_at",
     "fr"."updated_at",
-    "fr"."tx_id",
+    "fr"."tx_hash",
     "fr"."policy_id",
     COALESCE("sum"("fi"."amount"), (0)::bigint) AS "total_amount",
     "count"("fi"."id") AS "fee_count"
    FROM ("fee_run" "fr"
      LEFT JOIN "fee" "fi" ON (("fr"."id" = "fi"."fee_run_id")))
-  GROUP BY "fr"."id", "fr"."status", "fr"."created_at", "fr"."updated_at", "fr"."tx_id", "fr"."policy_id";
+  GROUP BY "fr"."id", "fr"."status", "fr"."created_at", "fr"."updated_at", "fr"."tx_hash", "fr"."policy_id";
 
 CREATE TABLE "plugin_policies" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -173,7 +173,4 @@ ALTER TABLE ONLY "fee"
 
 ALTER TABLE ONLY "fee_run"
     ADD CONSTRAINT "fee_run_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id") ON DELETE CASCADE;
-
-ALTER TABLE ONLY "fee_run"
-    ADD CONSTRAINT "fee_run_tx_id_fkey" FOREIGN KEY ("tx_id") REFERENCES "tx_indexer"("id") ON DELETE SET NULL;
 

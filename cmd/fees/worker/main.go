@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
+	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tasks"
@@ -19,6 +21,45 @@ import (
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage/postgres"
 )
+
+func startLoadingFees(asynqClient *asynq.Client, logger *logrus.Logger) {
+	logger.Info("Loading fees")
+	payload, err := json.Marshal(fees.FeeCollectionFormat{
+		FeeCollectionType: fees.FeeCollectionTypeAll,
+	})
+	if err != nil {
+		logger.WithError(err).Error("Failed to marshal fee loading config in demo run")
+		return
+	}
+	asynqClient.Enqueue(
+		asynq.NewTask(fees.TypeFeeLoad, payload),
+		asynq.MaxRetry(0),
+		asynq.Timeout(2*time.Minute),
+		asynq.Retention(5*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
+}
+
+func startTransactingFees(asynqClient *asynq.Client, logger *logrus.Logger) {
+	logger.Info("Transacting fees")
+	payload := make([]byte, 0)
+	asynqClient.Enqueue(
+		asynq.NewTask(fees.TypeFeeTransact, payload),
+		asynq.MaxRetry(0),
+		asynq.Timeout(2*time.Minute),
+		asynq.Retention(5*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
+}
+
+func startPostTx(asynqClient *asynq.Client, logger *logrus.Logger) {
+	logger.Info("Checking status")
+	payload := make([]byte, 0)
+	asynqClient.Enqueue(
+		asynq.NewTask(fees.TypeFeePostTx, payload),
+		asynq.MaxRetry(0),
+		asynq.Timeout(2*time.Minute),
+		asynq.Retention(5*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
+}
 
 func main() {
 	ctx := context.Background()
@@ -132,9 +173,33 @@ func main() {
 	mux.HandleFunc(tasks.TypeReshareDKLS, vaultService.HandleReshareDKLS)
 
 	//Plugin specific functions.
-	mux.HandleFunc(fees.TypeFeeCollection, feePlugin.HandleCollections)
+	mux.HandleFunc(fees.TypeFeeLoad, feePlugin.LoadFees)
+	mux.HandleFunc(fees.TypeFeeTransact, feePlugin.HandleTransactions)
+	mux.HandleFunc(fees.TypeFeePostTx, feePlugin.HandlePostTx)
+
+	// Load fees every 10 minutes
+	loadFees := cron.New()
+	loadFees.AddFunc(feePluginConfig.Jobs.Load.Cronexpr, func() {
+		startLoadingFees(asynqClient, logger)
+	})
+	loadFees.Start()
+
+	// Transact fees every Friday at 12:00 PM
+	transactFees := cron.New()
+	transactFees.AddFunc(feePluginConfig.Jobs.Transact.Cronexpr, func() {
+		startTransactingFees(asynqClient, logger)
+	})
+	transactFees.Start()
+
+	// // Update verifier every 10 minutes
+	updateVerifier := cron.New()
+	updateVerifier.AddFunc(feePluginConfig.Jobs.Post.Cronexpr, func() {
+		startPostTx(asynqClient, logger)
+	})
+	updateVerifier.Start()
 
 	logger.Info("Starting asynq listener")
+
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))
 	}
