@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -54,4 +55,30 @@ func (v *VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, 
 	}
 
 	return &feeHistory.Data, nil
+}
+
+func (v *VerifierApi) MarkFeeAsCollected(txHash string, collectedAt time.Time, feeIds ...uuid.UUID) error {
+
+	var body = struct {
+		IDs         []uuid.UUID `json:"ids"`
+		TxHash      string      `json:"tx_hash"`
+		CollectedAt time.Time   `json:"collected_at"`
+	}{
+		IDs:         feeIds,
+		TxHash:      txHash,
+		CollectedAt: collectedAt,
+	}
+
+	url := "/fees/collected"
+	response, err := v.postAuth(url, body)
+	if err != nil {
+		return fmt.Errorf("failed to mark fee as collected: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to mark fee as collected, status code: %d", response.StatusCode)
+	}
+
+	return nil
 }
