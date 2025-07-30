@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,10 +15,11 @@ import (
 	"github.com/vultisig/recipes/chain"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
+	resolver "github.com/vultisig/recipes/resolver"
+
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
-	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
@@ -55,30 +57,50 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
 
-	chain := vcommon.Ethereum
 	txs := []vtypes.PluginKeysignRequest{}
-
+	var magicConstantRecipientValue rtypes.MagicConstant = rtypes.MagicConstant_UNSPECIFIED
+	var token string
 	// This should only return one rule, but in case there are more/fewer rules, we'll loop through them all and error if it's the case.
 	for _, rule := range recipe.Rules {
 
 		// This section of code goes through the rules in the fee policy. It looks for the recipient of the fee collection policy and extracts it. If other data is found throws an error as they're unsupported rules.
 		var recipient string // The address specified in the fee policy.
 		switch rule.Resource {
-		case "ethereum.usdc.transfer":
+		case "ethereum.erc20.transfer":
 			for _, constraint := range rule.ParameterConstraints {
 				if constraint.ParameterName == "recipient" {
-					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-						return nil, fmt.Errorf("recipient constraint is not a fixed value")
+					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT {
+						return nil, fmt.Errorf("recipient constraint is not a magic constant")
 					}
+					iv, err := strconv.ParseInt(constraint.Constraint.GetFixedValue(), 10, 64)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse fixed value: %v", err)
+					}
+					magicConstantRecipientValue = rtypes.MagicConstant(iv)
 				}
-				fixedValue := constraint.Constraint.GetValue().(*rtypes.Constraint_FixedValue)
-				recipient = fixedValue.FixedValue
+				if constraint.ParameterName == "token" {
+					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
+						return nil, fmt.Errorf("token constraint is not a fixed value")
+					}
+					token = constraint.Constraint.GetFixedValue()
+				}
 			}
 		default:
 			return nil, fmt.Errorf("unsupported rule: %v", rule.Id)
 		}
-		if recipient == "" {
-			return nil, fmt.Errorf("recipient is not set in policy")
+
+		if magicConstantRecipientValue != rtypes.MagicConstant_VULTISIG_TREASURY {
+			return nil, fmt.Errorf("recipient constraint is not a treasury magic constant")
+		}
+
+		treasuryResolver := resolver.NewDefaultTreasuryResolver()
+		recipient, _, err := treasuryResolver.Resolve(magicConstantRecipientValue, "ethereum", "usdc")
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve treasury address: %v", err)
+		}
+
+		if gcommon.HexToAddress(token) != gcommon.HexToAddress(usdc.Address) {
+			return nil, fmt.Errorf("token address does not match usdc address")
 		}
 
 		// Here we call the verifier api to get a list of fees that have the same public key as the signed policy document.
@@ -105,19 +127,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 		}
 		txHashToSign := etypes.LatestSignerForChainID(fp.config.ChainId).Hash(etypes.NewTx(txData))
 
-		txToTrack, e := fp.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
-			PluginID:      policy.PluginID,
-			PolicyID:      policy.ID,
-			ChainID:       chain,
-			TokenID:       usdc.Address,
-			FromPublicKey: policy.PublicKey,
-			ToPublicKey:   recipient,
-			ProposedTxHex: txHex,
-		})
-		if e != nil {
-			return nil, fmt.Errorf("error creating tx indexed transaction: %w", e)
-		}
-
 		msgHash := sha256.Sum256(txHashToSign.Bytes())
 
 		signRequest := vtypes.PluginKeysignRequest{
@@ -125,8 +134,8 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 				PublicKey: policy.PublicKey,
 				Messages: []vtypes.KeysignMessage{
 					{
-						TxIndexerID:  txToTrack.ID.String(),
 						Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
+						RawMessage:   txHex,
 						Chain:        vcommon.Ethereum,
 						Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 						HashFunction: vtypes.HashFunction_SHA256,
@@ -157,11 +166,8 @@ func (fp *FeePlugin) initSign(
 		if len(req.Messages) != 1 {
 			return fmt.Errorf("multiple messages in key sign request, expected 1")
 		}
-		txId, err := uuid.Parse(req.Messages[0].TxIndexerID)
-		if err != nil {
-			return fmt.Errorf("failed to parse tx indexer id: %w", err)
-		}
-		err = fp.db.SetFeeRunSent(ctx, runId, txId)
+
+		err := fp.db.SetFeeRunSent(ctx, runId, uuid.Nil) // TODO this will be replaced imminently in an upcoming PR
 		if err != nil {
 			return fmt.Errorf("failed to update fee run: %w", err)
 		}
@@ -240,6 +246,7 @@ func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, tx
 
 func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
 	// Broadcast the signed transaction to the Ethereum network
+
 	tx, err := fp.eth.Send(
 		ctx,
 		gcommon.FromHex(signRequest.Transaction),
