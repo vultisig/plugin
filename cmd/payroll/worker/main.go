@@ -15,7 +15,6 @@ import (
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/vultiserver/relay"
 
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/payroll"
 	"github.com/vultisig/plugin/storage/postgres"
 )
