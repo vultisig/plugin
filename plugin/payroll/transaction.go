@@ -28,7 +28,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/types"
 )
 
 func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
