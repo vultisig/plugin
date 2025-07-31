@@ -35,7 +35,6 @@ type Server struct {
 	client        *asynq.Client
 	inspector     *asynq.Inspector
 	sdClient      *statsd.Client
-	scheduler     *scheduler.SchedulerService
 	policyService service.Policy
 	plugin        plugin.Plugin
 	logger        *logrus.Logger
@@ -48,24 +47,15 @@ func NewServer(
 	db *postgres.PostgresBackend,
 	redis *storage.RedisStorage,
 	vaultStorage vault.Storage,
-	redisOpts asynq.RedisClientOpt,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
 	sdClient *statsd.Client,
 	p plugin.Plugin,
+	scheduler scheduler.Service,
 ) *Server {
 	logger := logrus.WithField("service", "plugin").Logger
-	schedulerService, err := scheduler.NewSchedulerService(
-		db,
-		client,
-		redisOpts,
-	)
-	if err != nil {
-		logger.Fatalf("Failed to initialize scheduler service: %v", err)
-		return nil
-	}
 
-	policyService, err := service.NewPolicyService(db, schedulerService, logger.WithField("service", "policy").Logger)
+	policyService, err := service.NewPolicyService(db, scheduler, logger.WithField("service", "policy").Logger)
 	if err != nil {
 		logger.Fatalf("Failed to initialize policy service: %v", err)
 	}
@@ -79,7 +69,6 @@ func NewServer(
 		vaultStorage:  vaultStorage,
 		plugin:        p,
 		db:            db,
-		scheduler:     schedulerService,
 		logger:        logger,
 		policyService: policyService,
 	}

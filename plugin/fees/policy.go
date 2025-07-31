@@ -26,6 +26,12 @@ func (fp *FeePlugin) ValidatePluginPolicy(policyDoc vtypes.PluginPolicy) error {
 }
 
 func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
+
+	cfg, err := plugin.RecipeConfiguration(map[string]any{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pb recipe config: %w", err)
+	}
+
 	return &rtypes.RecipeSchema{
 		Version:         1, // Schema version
 		ScheduleVersion: 1, // Schedule specification version
@@ -38,13 +44,13 @@ func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					ChainId:    "ethereum",
 					ProtocolId: "usdc",
 					FunctionId: "transfer",
-					Full:       "ethereum.usdc.transfer",
+					Full:       "ethereum.erc20.transfer",
 				},
 				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 					{
 						ParameterName: "recipient",
 						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+							rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
 						},
 						Required: true,
 					},
@@ -52,6 +58,13 @@ func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 						ParameterName: "amount",
 						SupportedTypes: []rtypes.ConstraintType{
 							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
+						},
+						Required: true,
+					},
+					{
+						ParameterName: "token",
+						SupportedTypes: []rtypes.ConstraintType{
+							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 						},
 						Required: true,
 					},
@@ -63,5 +76,6 @@ func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			MinVultisigVersion: 1,
 			SupportedChains:    []string{"ethereum"},
 		},
+		Configuration: cfg,
 	}, nil
 }

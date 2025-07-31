@@ -15,13 +15,11 @@ import (
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/vultiserver/relay"
 
-	"github.com/vultisig/plugin/internal/scheduler"
+	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/payroll"
 	"github.com/vultisig/plugin/storage/postgres"
 )
 
-// Don't scale payroll.worker, it has scheduler which must be single instance running
-// Consider moving scheduler to separate worker
 func main() {
 	ctx := context.Background()
 
@@ -54,8 +52,7 @@ func main() {
 			Logger:      logger,
 			Concurrency: 10,
 			Queues: map[string]int{
-				tasks.QUEUE_NAME:         10,
-				"scheduled_plugin_queue": 10, // new queue
+				tasks.QUEUE_NAME: 10,
 			},
 		},
 	)
@@ -115,13 +112,6 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("failed to create payroll plugin: %w", err))
 	}
-	schedulerSvc, err := scheduler.NewSchedulerService(postgressDB, client, redisOptions)
-	if err != nil {
-		panic(fmt.Errorf("failed to create scheduler service: %w", err))
-	}
-
-	schedulerSvc.Start()
-	defer schedulerSvc.Stop()
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypePluginTransaction, p.HandleSchedulerTrigger)
