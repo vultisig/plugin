@@ -1,6 +1,8 @@
 package verifierapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 
 	"github.com/sirupsen/logrus"
@@ -48,4 +50,21 @@ func (v *VerifierApi) getAuth(endpoint string) (*http.Response, error) {
 	}
 	r.Header.Set("Authorization", "Bearer "+v.token)
 	return v.client.Do(r)
+}
+
+func (v *VerifierApi) postAuth(endpoint string, body any) (*http.Response, error) {
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := http.NewRequest(http.MethodPost, v.url+endpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+v.token)
+
+	return v.client.Do(request)
 }

@@ -130,7 +130,7 @@ func (s *PolicyService) DeletePolicy(ctx context.Context, policyID uuid.UUID, si
 }
 
 func (s *PolicyService) GetPluginPolicies(ctx context.Context, pluginID vtypes.PluginID, publicKey string, onlyActive bool) ([]vtypes.PluginPolicy, error) {
-	return s.db.GetAllPluginPolicies(ctx, publicKey, pluginID, onlyActive)
+	return s.db.GetPluginPolicies(ctx, publicKey, pluginID, onlyActive)
 }
 
 func (s *PolicyService) GetPluginPolicy(ctx context.Context, policyID uuid.UUID) (*vtypes.PluginPolicy, error) {

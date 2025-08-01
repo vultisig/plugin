@@ -11,8 +11,10 @@ import (
 type FeeRunState string
 
 const (
-	FeeRunStateDraft FeeRunState = "draft"
-	FeeRunStateSent  FeeRunState = "sent"
+	FeeRunStateDraft   FeeRunState = "draft"
+	FeeRunStateSent    FeeRunState = "sent"
+	FeeRunStateSuccess FeeRunState = "completed"
+	FeeRunStateFailed  FeeRunState = "failed"
 )
 
 // individual fee record in the db
@@ -29,8 +31,9 @@ type FeeRun struct {
 	Status      FeeRunState `db:"status"`
 	CreatedAt   time.Time   `db:"created_at"`
 	UpdatedAt   time.Time   `db:"updated_at"`
-	TxID        *uuid.UUID  `db:"tx_id"`
+	TxHash      *string     `db:"tx_hash"`
 	PolicyID    uuid.UUID   `db:"policy_id"`
 	TotalAmount int         `db:"total_amount"`
 	FeeCount    int         `db:"fee_count"`
+	Fees        []Fee       `db:"fees"`
 }
