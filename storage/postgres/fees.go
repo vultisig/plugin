@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -12,7 +14,7 @@ import (
 	"github.com/vultisig/plugin/internal/verifierapi"
 )
 
-func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, state types.FeeRunState, fees ...verifierapi.FeeDto) (*types.FeeRun, error) {
+func (p *PostgresBackend) CreateFeeRun(ctx context.Context, dbTx pgx.Tx, policyId uuid.UUID, state types.FeeRunState, fees ...verifierapi.FeeDto) (*types.FeeRun, error) {
 	// Check policy id is valid
 	query := `select plugin_id from plugin_policies where id = $1`
 	policyrows := p.pool.QueryRow(ctx, query, policyId)
@@ -57,16 +59,16 @@ func (p *PostgresBackend) CreateFeeRun(ctx context.Context, policyId uuid.UUID, 
 	return &run, nil
 }
 
-func (p *PostgresBackend) SetFeeRunSent(ctx context.Context, runId uuid.UUID, txHash string) error {
-	_, err := p.pool.Exec(ctx, `update fee_run set status = $1, tx_hash = $2 where id = $3`, types.FeeRunStateSent, txHash, runId)
+func (p *PostgresBackend) SetFeeRunSent(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID, txHash string) error {
+	_, err := dbTx.Exec(ctx, `update fee_run set status = $1, tx_hash = $2 where id = $3`, types.FeeRunStateSent, txHash, runId)
 	if err != nil {
 		return fmt.Errorf("failed to update fee run: %w", err)
 	}
 	return nil
 }
 
-func (p *PostgresBackend) SetFeeRunSuccess(ctx context.Context, runId uuid.UUID) error {
-	_, err := p.pool.Exec(ctx, `update fee_run set status = $1 where id = $2`, types.FeeRunStateSuccess, runId)
+func (p *PostgresBackend) SetFeeRunSuccess(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID) error {
+	_, err := dbTx.Exec(ctx, `update fee_run set status = $1 where id = $2`, types.FeeRunStateSuccess, runId)
 	if err != nil {
 		return fmt.Errorf("failed to update fee run: %w", err)
 	}
@@ -170,8 +172,8 @@ func (p *PostgresBackend) GetPendingFeeRun(ctx context.Context, policyId uuid.UU
 	return &run, nil
 }
 
-func (p *PostgresBackend) CreateFee(ctx context.Context, runId uuid.UUID, fee verifierapi.FeeDto) error {
-	_, err := p.pool.Exec(ctx, `insert into fee (id, fee_run_id, amount) values ($1, $2, $3)`, fee.ID, runId, fee.Amount)
+func (p *PostgresBackend) CreateFee(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID, fee verifierapi.FeeDto) error {
+	_, err := dbTx.Exec(ctx, `insert into fee (id, fee_run_id, amount) values ($1, $2, $3)`, fee.ID, runId, fee.Amount)
 	if err != nil {
 		return fmt.Errorf("failed to insert fee: %w", err)
 	}
@@ -196,4 +198,37 @@ func (p *PostgresBackend) GetFeeRuns(ctx context.Context, state types.FeeRunStat
 		runs = append(runs, run)
 	}
 	return runs, nil
+}
+
+func (p *PostgresBackend) CreateFeeRunTx(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID, tx []byte, hash string, blockNumber uint64, chainID *big.Int) error {
+	txHex := hexutil.Encode(tx)
+	var chainIDInt uint64
+	if chainID != nil {
+		chainIDInt = chainID.Uint64()
+	}
+	_, err := dbTx.Exec(ctx, `insert into fee_run_tx (fee_run_id, tx, hash, block_number, chain_id) values ($1, $2, $3, $4, $5)`, runId, txHex, hash, blockNumber, chainIDInt)
+	if err != nil {
+		return fmt.Errorf("failed to insert fee run tx: %w", err)
+	}
+	return nil
+}
+
+// Get a list of run txs most recent first
+func (p *PostgresBackend) GetFeeRunTxs(ctx context.Context, runId uuid.UUID) ([]types.FeeRunTx, error) {
+	query := `select id, fee_run_id, tx, hash, block_number, created_at from fee_run_tx where fee_run_id = $1 order by created_at desc`
+	rows, err := p.pool.Query(ctx, query, runId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	txs := []types.FeeRunTx{}
+	for rows.Next() {
+		var tx types.FeeRunTx
+		err := rows.Scan(&tx.ID, &tx.FeeRunID, &tx.Tx, &tx.Hash, &tx.BlockNumber, &tx.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, nil
 }

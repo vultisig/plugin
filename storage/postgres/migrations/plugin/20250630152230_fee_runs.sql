@@ -38,6 +38,16 @@ CREATE INDEX IF NOT EXISTS idx_fee_run_status ON fee_run(status);
 CREATE INDEX IF NOT EXISTS idx_fee_run_created_at ON fee_run(created_at);
 CREATE INDEX IF NOT EXISTS idx_fee_id_fee_run_id ON fee(fee_run_id);
 
+CREATE TABLE IF NOT EXISTS fee_run_tx (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fee_run_id UUID NOT NULL REFERENCES fee_run(id) ON DELETE CASCADE,
+    chain_id BIGINT NOT NULL,
+    tx TEXT NOT NULL,
+    hash VARCHAR(66) NOT NULL,
+    block_number BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

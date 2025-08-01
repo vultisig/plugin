@@ -203,9 +203,26 @@ func (fp *FeePlugin) executeFeeLoading(ctx context.Context, feePolicy vtypes.Plu
 			}
 
 			// If no draft run is found, create a new one and add the fee to it
+			dbTx, err := fp.db.Pool().Begin(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to begin transaction: %w", err)
+			}
+
+			var txErr error
+			defer func() {
+				if txErr != nil {
+					if err := dbTx.Rollback(ctx); err != nil {
+						fp.logger.WithError(err).Error("Failed to rollback transaction")
+					}
+				} else {
+					if err := dbTx.Commit(ctx); err != nil {
+						fp.logger.WithError(err).Error("Failed to commit transaction")
+					}
+				}
+			}()
 			if run == nil {
-				run, err = fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, fee)
-				if err != nil {
+				run, txErr = fp.db.CreateFeeRun(ctx, dbTx, feePolicy.ID, types.FeeRunStateDraft, fee)
+				if txErr != nil {
 					return fmt.Errorf("failed to create fee run: %w", err)
 				}
 				fp.logger.WithFields(logrus.Fields{
@@ -216,7 +233,7 @@ func (fp *FeePlugin) executeFeeLoading(ctx context.Context, feePolicy vtypes.Plu
 
 				// If a draft run is found, add the fee to it
 			} else {
-				if err := fp.db.CreateFee(ctx, run.ID, fee); err != nil {
+				if txErr = fp.db.CreateFee(ctx, dbTx, run.ID, fee); err != nil {
 					return fmt.Errorf("failed to create fee: %w", err)
 				}
 				fp.logger.WithFields(logrus.Fields{
@@ -225,6 +242,7 @@ func (fp *FeePlugin) executeFeeLoading(ctx context.Context, feePolicy vtypes.Plu
 					"runId":     run.ID,
 				}).Info("Fee added to fee run")
 			}
+
 		}
 	}
 

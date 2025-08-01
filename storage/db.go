@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,14 +23,16 @@ type DatabaseStorage interface {
 	InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 
-	CreateFeeRun(ctx context.Context, policyId uuid.UUID, state types.FeeRunState, fees ...verifierapi.FeeDto) (*types.FeeRun, error)
-	SetFeeRunSent(ctx context.Context, runId uuid.UUID, txHash string) error
-	SetFeeRunSuccess(ctx context.Context, runId uuid.UUID) error
+	CreateFeeRun(ctx context.Context, dbTx pgx.Tx, policyId uuid.UUID, state types.FeeRunState, fees ...verifierapi.FeeDto) (*types.FeeRun, error)
+	SetFeeRunSent(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID, txHash string) error
+	SetFeeRunSuccess(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID) error
 	GetAllFeeRuns(ctx context.Context, statuses ...types.FeeRunState) ([]types.FeeRun, error) // If no statuses are provided, all fee runs are returned.
 	GetFees(ctx context.Context, feeIds ...uuid.UUID) ([]types.Fee, error)
 	GetPendingFeeRun(ctx context.Context, policyId uuid.UUID) (*types.FeeRun, error)
-	CreateFee(ctx context.Context, runId uuid.UUID, fee verifierapi.FeeDto) error
+	CreateFee(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID, fee verifierapi.FeeDto) error
 	GetFeeRuns(ctx context.Context, state types.FeeRunState) ([]types.FeeRun, error)
+	CreateFeeRunTx(ctx context.Context, dbTx pgx.Tx, runId uuid.UUID, tx []byte, hash string, blockNumber uint64, chainID *big.Int) error
+	GetFeeRunTxs(ctx context.Context, runId uuid.UUID) ([]types.FeeRunTx, error)
 
 	Pool() *pgxpool.Pool
 }
