@@ -8,14 +8,14 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/plugin/internal/keysign"
+	"github.com/vultisig/verifier/plugin/keysign"
+	"github.com/vultisig/verifier/plugin/tasks"
 	"github.com/vultisig/verifier/tx_indexer"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/vultiserver/relay"
 
 	feeconfig "github.com/vultisig/plugin/cmd/fees/config"
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/fees"
 	"github.com/vultisig/plugin/storage/postgres"
 )
