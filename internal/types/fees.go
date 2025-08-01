@@ -37,3 +37,12 @@ type FeeRun struct {
 	FeeCount    int         `db:"fee_count"`
 	Fees        []Fee       `db:"fees"`
 }
+
+type FeeRunTx struct {
+	ID          uuid.UUID `db:"id"`
+	FeeRunID    uuid.UUID `db:"fee_run_id"`
+	Tx          string    `db:"tx"`
+	Hash        string    `db:"hash"`
+	BlockNumber uint64    `db:"block_number"`
+	CreatedAt   time.Time `db:"created_at"`
+}

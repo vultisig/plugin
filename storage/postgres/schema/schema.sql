@@ -76,6 +76,16 @@ CREATE TABLE "fee_run" (
     CONSTRAINT "fee_run_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['draft'::character varying, 'sent'::character varying, 'completed'::character varying, 'failed'::character varying])::"text"[])))
 );
 
+CREATE TABLE "fee_run_tx" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "fee_run_id" "uuid" NOT NULL,
+    "chain_id" bigint NOT NULL,
+    "tx" "text" NOT NULL,
+    "hash" character varying(66) NOT NULL,
+    "block_number" bigint NOT NULL,
+    "created_at" timestamp without time zone DEFAULT "now"()
+);
+
 CREATE VIEW "fee_run_with_totals" AS
  SELECT "fr"."id",
     "fr"."status",
@@ -132,6 +142,9 @@ ALTER TABLE ONLY "fee"
 ALTER TABLE ONLY "fee_run"
     ADD CONSTRAINT "fee_run_pkey" PRIMARY KEY ("id");
 
+ALTER TABLE ONLY "fee_run_tx"
+    ADD CONSTRAINT "fee_run_tx_pkey" PRIMARY KEY ("id");
+
 ALTER TABLE ONLY "plugin_policies"
     ADD CONSTRAINT "plugin_policies_pkey" PRIMARY KEY ("id");
 
@@ -172,4 +185,7 @@ ALTER TABLE ONLY "fee"
 
 ALTER TABLE ONLY "fee_run"
     ADD CONSTRAINT "fee_run_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id") ON DELETE CASCADE;
+
+ALTER TABLE ONLY "fee_run_tx"
+    ADD CONSTRAINT "fee_run_tx_fee_run_id_fkey" FOREIGN KEY ("fee_run_id") REFERENCES "fee_run"("id") ON DELETE CASCADE;
 
