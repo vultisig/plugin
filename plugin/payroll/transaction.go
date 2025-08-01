@@ -15,18 +15,19 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/plugin/internal/plugin"
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/vultisig/plugin/common"
 )
 
 func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {

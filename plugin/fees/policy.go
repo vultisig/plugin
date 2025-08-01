@@ -3,8 +3,8 @@ package fees
 import (
 	"fmt"
 
-	"github.com/vultisig/plugin/internal/plugin"
 	rtypes "github.com/vultisig/recipes/types"
+	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
 )
 

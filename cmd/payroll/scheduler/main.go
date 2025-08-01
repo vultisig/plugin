@@ -6,8 +6,10 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+
+	"github.com/vultisig/verifier/plugin/tasks"
+
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/plugin/internal/tasks"
 	"github.com/vultisig/plugin/plugin/payroll"
 	"github.com/vultisig/plugin/storage/postgres"
 )
