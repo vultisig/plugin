@@ -7,6 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	ecommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
@@ -51,6 +53,7 @@ func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 	}
 	wg.Wait()
 	if err := eg.Wait(); err != nil {
+		fp.logger.WithError(err).Error("failed to execute fee run status check")
 		return fmt.Errorf("failed to execute fee run status check: %w", err)
 	}
 	fp.logger.Info("Fee run status check completed")
@@ -66,9 +69,71 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, run types.FeeRun, current
 
 	receipt, err := fp.ethClient.TransactionReceipt(ctx, hash)
 	if err == ethereum.NotFound {
-		// TODO rebroadcast logic
-		fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx not found on chain, rebroadcasting")
-		return nil
+		lastTxs, err := fp.db.GetFeeRunTxs(ctx, run.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get fee run txs: %w", err)
+		}
+		if len(lastTxs) == 0 {
+			return fmt.Errorf("no tx found for run %s", run.ID)
+		}
+		txHex := lastTxs[0].Tx
+
+		var tx etypes.Transaction
+		txBytes, err := hexutil.Decode(txHex)
+		if err != nil {
+			return fmt.Errorf("failed to decode tx: %w", err)
+		}
+		if err := tx.UnmarshalBinary(txBytes); err != nil {
+			return fmt.Errorf("failed to unmarshal tx: %w", err)
+		}
+
+		fromAddress, err := fp.getEthAddressFromFeePolicyId(run.PolicyID)
+		if err != nil {
+			return fmt.Errorf("failed to get eth address from fee policy: %w", err)
+		}
+
+		nonce, err := fp.ethClient.PendingNonceAt(ctx, ecommon.HexToAddress(fromAddress))
+		if err != nil {
+			return fmt.Errorf("failed to get pending nonce: %w", err)
+		}
+
+		// Rebroadcast if pending nonce is the same as the nonce in the tx
+		if tx.Nonce() == nonce {
+			var err error
+			dbTx, err := fp.db.Pool().Begin(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to begin transaction: %w", err)
+			}
+			txBytes, err := tx.MarshalBinary()
+			if err != nil {
+				return fmt.Errorf("failed to marshal tx: %w", err)
+			}
+			defer func() {
+				if err != nil {
+					if err := dbTx.Rollback(ctx); err != nil {
+						fp.logger.WithError(err).Error("failed to rollback transaction")
+					}
+				} else {
+					if err := dbTx.Commit(ctx); err != nil {
+						fp.logger.WithError(err).Error("failed to commit transaction")
+					}
+				}
+			}()
+			err = fp.db.CreateFeeRunTx(ctx, dbTx, run.ID, txBytes, tx.Hash().Hex(), 0, fp.config.ChainId)
+			if err != nil {
+				return fmt.Errorf("failed to create fee run tx: %w", err)
+			}
+			err = fp.ethClient.SendTransaction(ctx, &tx)
+			if err != nil {
+				return fmt.Errorf("failed to send tx: %w", err)
+			}
+
+			fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx rebroadcasted")
+			return nil
+		} else {
+			//TODO handle an earlier nonce or later nonce
+			return nil
+		}
 	}
 	if receipt.Status == 1 {
 		if currentBlock > receipt.BlockNumber.Uint64()+fp.config.Jobs.Post.SuccessConfirmations {
@@ -79,14 +144,28 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, run types.FeeRun, current
 				ids = append(ids, fee.ID)
 			}
 
-			if err = fp.verifierApi.MarkFeeAsCollected(*run.TxHash, run.CreatedAt, ids...); err != nil {
+			dbTx, err := fp.db.Pool().Begin(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to begin transaction: %w", err)
+			}
+			var txErr error
+			defer func() {
+				if txErr != nil {
+					dbTx.Rollback(ctx)
+				} else {
+					dbTx.Commit(ctx)
+				}
+			}()
+
+			if txErr = fp.db.SetFeeRunSuccess(ctx, dbTx, run.ID); err != nil {
+				return fmt.Errorf("failed to set fee run success: %w", err)
+			}
+
+			// include this in the errors too, as if the verifier is not updated, the there will be a state mismatch between the verifier and the plugin.
+			if txErr = fp.verifierApi.MarkFeeAsCollected(*run.TxHash, run.CreatedAt, ids...); err != nil {
 				return fmt.Errorf("failed to mark fee as collected on verifier: %w", err)
 			}
 
-			// This is semi critical code as it could create a state mismatch between the verifier and the database.
-			if err = fp.db.SetFeeRunSuccess(ctx, run.ID); err != nil {
-				return fmt.Errorf("failed to set fee run success: %w", err)
-			}
 		} else {
 			fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx successful, but not enough confirmations, waiting for more")
 			return nil
