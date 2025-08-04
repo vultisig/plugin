@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
-	"github.com/vultisig/recipes/chain"
+	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	resolver "github.com/vultisig/recipes/resolver"
@@ -77,12 +76,6 @@ func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.P
 						return nil, fmt.Errorf("failed to parse fixed value: %v", err)
 					}
 					magicConstantRecipientValue = rtypes.MagicConstant(iv)
-				}
-				if constraint.ParameterName == "token" {
-					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED {
-						return nil, fmt.Errorf("token constraint is not a fixed value")
-					}
-					token = constraint.Constraint.GetFixedValue()
 				}
 			}
 		default:
@@ -217,26 +210,15 @@ func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, tx
 	// Validate each proposed transaction
 	for _, tx := range txs {
 		for _, keysignMessage := range tx.Messages {
-			// Get the chain for the transaction
-			messageChain, err := chain.GetChain(strings.ToLower(keysignMessage.Chain.String()))
+			txBytes, err := base64.StdEncoding.DecodeString(keysignMessage.Message)
 			if err != nil {
-				return fmt.Errorf("failed to get chain: %w", err)
-			}
-
-			// Parse the transaction to validate its structure
-			decodedTx, err := messageChain.ParseTransaction(keysignMessage.Message)
-			if err != nil {
-				return fmt.Errorf("failed to parse transaction: %w", err)
+				return fmt.Errorf("failed to decode transaction: %w", err)
 			}
 
 			// Evaluate if the transaction is allowed by the policy
-			transactionAllowed, _, err := eng.Evaluate(recipe, messageChain, decodedTx)
+			_, err = eng.Evaluate(recipe, rcommon.Chain(keysignMessage.Chain), txBytes)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate transaction: %w", err)
-			}
-
-			if !transactionAllowed {
-				return fmt.Errorf("transaction %s on %s not allowed by policy", keysignMessage.Hash, keysignMessage.Chain)
 			}
 		}
 	}
