@@ -38,7 +38,39 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id uuid.UUID) (*v
 	return &policy, nil
 }
 
-func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey string, pluginID vtypes.PluginID, onlyActive bool) ([]vtypes.PluginPolicy, error) {
+func (p *PostgresBackend) GetAllFeePolicies(ctx context.Context) ([]vtypes.PluginPolicy, error) {
+	query := `SELECT DISTINCT ON(public_key) id, public_key, plugin_id, plugin_version, policy_version, signature, active, recipe
+		FROM plugin_policies
+		WHERE plugin_id = 'vultisig-fees-feee' AND active = true
+		ORDER BY public_key, created_at DESC`
+
+	rows, err := p.pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var policies []vtypes.PluginPolicy = []vtypes.PluginPolicy{}
+	for rows.Next() {
+		var policy vtypes.PluginPolicy
+		err := rows.Scan(
+			&policy.ID,
+			&policy.PublicKey,
+			&policy.PluginID,
+			&policy.PluginVersion,
+			&policy.PolicyVersion,
+			&policy.Signature,
+			&policy.Active,
+			&policy.Recipe,
+		)
+		if err != nil {
+			return nil, err
+		}
+		policies = append(policies, policy)
+	}
+	return policies, nil
+}
+
+func (p *PostgresBackend) GetPluginPolicies(ctx context.Context, publicKey string, pluginID vtypes.PluginID, onlyActive bool) ([]vtypes.PluginPolicy, error) {
 
 	if p.pool == nil {
 		return nil, fmt.Errorf("database pool is nil")
