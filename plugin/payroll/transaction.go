@@ -262,7 +262,7 @@ func (p *Plugin) SigningComplete(
 }
 
 const (
-	startDate = "start-date"
+	startDate = "startDate"
 )
 
 const (
