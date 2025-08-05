@@ -10,15 +10,17 @@ import (
 	"sync"
 	"time"
 
-	gcommon "github.com/ethereum/go-ethereum/common"
+	ecommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/internal/scheduler"
+	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
+	"github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
@@ -101,46 +103,37 @@ func (p *Plugin) initSign(
 	return nil
 }
 
-func getTokenID(rule *rtypes.Rule) (string, error) {
-	if rule == nil {
-		return "", fmt.Errorf("rule is nil")
-	}
-
-	for _, constraint := range rule.GetParameterConstraints() {
-		if constraint.ParameterName == "token" {
-			return constraint.GetConstraint().GetFixedValue(), nil
-		}
-	}
-	return evm.ZeroAddress.Hex(), nil
-}
-
 func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
 	ctx := context.Background()
 
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate plugin policy: %v", err)
+		return nil, fmt.Errorf("failed to validate plugin policy: %w", err)
 	}
 
 	vault, err := common.GetVaultFromPolicy(p.vaultStorage, policy, p.vaultEncryptionSecret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
+		return nil, fmt.Errorf("failed to get vault from policy: %w", err)
 	}
 
 	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get eth address: %v", err)
+		return nil, fmt.Errorf("failed to get eth address: %w", err)
 	}
 
 	recipe, err := policy.GetRecipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get recipe from policy: %v", err)
+		return nil, fmt.Errorf("failed to get recipe from policy: %w", err)
 	}
 
-	chain := vcommon.Ethereum
+	chain := rcommon.Ethereum
 	ethEvmID, err := chain.EvmID()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %v", chain, err)
+		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %w", chain, err)
+	}
+	nativeSymbol, err := chain.NativeSymbol()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get native symbol for chain %s: %w", chain, err)
 	}
 
 	var (
@@ -152,9 +145,17 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 	for _, _rule := range recipe.Rules {
 		rule := _rule
 
-		tokenID, er := getTokenID(rule)
+		resource, er := util.ParseResource(rule.GetResource())
 		if er != nil {
-			return nil, fmt.Errorf("getTokenID: %v", er)
+			return nil, fmt.Errorf("failed to parse resource: %w", er)
+		}
+
+		var tokenID string
+		switch resource.GetProtocolId() {
+		case nativeSymbol:
+			tokenID = evm.ZeroAddress.Hex()
+		default:
+			tokenID = rule.GetTarget().GetAddress()
 		}
 
 		recipient, amountStr, er := RuleToRecipientAndAmount(rule)
@@ -175,7 +176,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 				return fmt.Errorf("p.genUnsignedTx: %w", e)
 			}
 
-			txHex := gcommon.Bytes2Hex(tx)
+			txHex := ecommon.Bytes2Hex(tx)
 
 			txData, e := ethereum.DecodeUnsignedPayload(tx)
 			if e != nil {
@@ -186,7 +187,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
 				PluginID:      policy.PluginID,
 				PolicyID:      policy.ID,
-				ChainID:       chain,
+				ChainID:       vcommon.Chain(chain),
 				TokenID:       tokenID,
 				FromPublicKey: policy.PublicKey,
 				ToPublicKey:   recipient,
@@ -206,7 +207,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 						{
 							TxIndexerID:  txToTrack.ID.String(),
 							Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
-							Chain:        chain,
+							Chain:        vcommon.Chain(chain),
 							Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 							HashFunction: vtypes.HashFunction_SHA256,
 						},
@@ -241,10 +242,10 @@ func (p *Plugin) SigningComplete(
 ) error {
 	tx, err := p.eth.Send(
 		ctx,
-		gcommon.FromHex(signRequest.Transaction),
-		gcommon.Hex2Bytes(signature.R),
-		gcommon.Hex2Bytes(signature.S),
-		gcommon.Hex2Bytes(signature.RecoveryID),
+		ecommon.FromHex(signRequest.Transaction),
+		ecommon.Hex2Bytes(signature.R),
+		ecommon.Hex2Bytes(signature.S),
+		ecommon.Hex2Bytes(signature.RecoveryID),
 	)
 	if err != nil {
 		p.logger.WithError(err).WithField("tx_hex", signRequest.Transaction).Error("p.eth.Send")
@@ -300,11 +301,10 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	return &rtypes.RecipeSchema{
-		Version:         1, // Schema version
-		ScheduleVersion: 1, // Schedule specification version
-		PluginId:        string(vtypes.PluginVultisigPayroll_0000),
-		PluginName:      "Payroll Management",
-		PluginVersion:   1, // Convert from "0.1.0" to int32
+		Version:       1, // Schema version
+		PluginId:      string(vtypes.PluginVultisigPayroll_0000),
+		PluginName:    "Payroll Management",
+		PluginVersion: 1, // Convert from "0.1.0" to int32
 		SupportedResources: []*rtypes.ResourcePattern{
 			{
 				ResourcePath: &rtypes.ResourcePath{
@@ -313,27 +313,17 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					FunctionId: "transfer",
 					Full:       "ethereum.erc20.transfer",
 				},
+				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 					{
-						ParameterName: "recipient",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						},
-						Required: true,
+						ParameterName:  "recipient",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
 					},
 					{
-						ParameterName: "amount",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						},
-						Required: true,
-					},
-					{
-						ParameterName: "token", // ERC20/TRC20/etc contract address
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						},
-						Required: true,
+						ParameterName:  "amount",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
 					},
 				},
 				Required: true,
@@ -349,11 +339,11 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 
 func (p *Plugin) genUnsignedTx(
 	ctx context.Context,
-	chain vcommon.Chain,
+	chain rcommon.Chain,
 	senderAddress, tokenID, amount, to string,
 ) ([]byte, error) {
 	switch chain {
-	case vcommon.Ethereum:
+	case rcommon.Ethereum:
 		amt, ok := new(big.Int).SetString(amount, 10)
 		if !ok {
 			return nil, fmt.Errorf("failed to parse amount: %s", amount)
@@ -361,9 +351,9 @@ func (p *Plugin) genUnsignedTx(
 
 		tx, err := p.eth.MakeAnyTransfer(
 			ctx,
-			gcommon.HexToAddress(senderAddress),
-			gcommon.HexToAddress(to),
-			gcommon.HexToAddress(tokenID),
+			ecommon.HexToAddress(senderAddress),
+			ecommon.HexToAddress(to),
+			ecommon.HexToAddress(tokenID),
 			amt,
 		)
 		if err != nil {

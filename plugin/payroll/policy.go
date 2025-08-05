@@ -1,10 +1,10 @@
 package payroll
 
 import (
+	"encoding/base64"
 	"fmt"
-	"strings"
 
-	"github.com/vultisig/recipes/chain"
+	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/engine"
 	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
@@ -25,23 +25,14 @@ func (p *Plugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []
 
 	for _, tx := range txs {
 		for _, keysignMessage := range tx.Messages {
-			messageChain, err := chain.GetChain(strings.ToLower(keysignMessage.Chain.String()))
+			txBytes, err := base64.StdEncoding.DecodeString(keysignMessage.Message)
 			if err != nil {
-				return fmt.Errorf("failed to get chain: %w", err)
+				return fmt.Errorf("failed to decode transaction: %w", err)
 			}
 
-			decodedTx, err := messageChain.ParseTransaction(keysignMessage.Message)
-			if err != nil {
-				return fmt.Errorf("failed to parse transaction: %w", err)
-			}
-
-			transactionAllowed, _, err := eng.Evaluate(recipe, messageChain, decodedTx)
+			_, err = eng.Evaluate(recipe, rcommon.Chain(keysignMessage.Chain), txBytes)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate transaction: %w", err)
-			}
-
-			if !transactionAllowed {
-				return fmt.Errorf("transaction %s on %s not allowed by policy", keysignMessage.Hash, keysignMessage.Chain)
 			}
 		}
 	}

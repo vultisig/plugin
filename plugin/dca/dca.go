@@ -772,53 +772,5 @@ func (p *DCAPlugin) completePolicy(ctx context.Context, policy vtypes.PluginPoli
 }
 
 func (p *DCAPlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
-	return &rtypes.RecipeSchema{
-		Version:         1, // Schema version
-		ScheduleVersion: 1, // Schedule specification version
-		PluginId:        string(vtypes.PluginVultisigDCA_0000),
-		PluginName:      "Dollar-Cost Averaging",
-		PluginVersion:   1, // Convert from "0.0.1" to int32
-		SupportedResources: []*rtypes.ResourcePattern{
-			{
-				ResourcePath: &rtypes.ResourcePath{
-					ChainId:    "ethereum",
-					ProtocolId: "uniswap",
-					FunctionId: "swap",
-					Full:       "ethereum.uniswap.swap",
-				},
-				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-					{
-						ParameterName: "source_token",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
-						},
-						Required: true,
-					},
-					{
-						ParameterName: "destination_token",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_WHITELIST,
-						},
-						Required: true,
-					},
-					{
-						ParameterName: "amount",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
-							rtypes.ConstraintType_CONSTRAINT_TYPE_RANGE,
-						},
-						Required: true,
-					},
-				},
-				Required: true,
-			},
-		},
-		Requirements: &rtypes.PluginRequirements{
-			MinVultisigVersion: 1,
-			SupportedChains:    []string{"ethereum"},
-		},
-	}, nil
+	return &rtypes.RecipeSchema{}, nil
 }

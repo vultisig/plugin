@@ -33,11 +33,10 @@ func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	return &rtypes.RecipeSchema{
-		Version:         1, // Schema version
-		ScheduleVersion: 1, // Schedule specification version
-		PluginId:        vtypes.PluginVultisigFees_feee.String(),
-		PluginName:      "Fee Plugin",
-		PluginVersion:   1,
+		Version:       1, // Schema version
+		PluginId:      vtypes.PluginVultisigFees_feee.String(),
+		PluginName:    "Fee Plugin",
+		PluginVersion: 1,
 		SupportedResources: []*rtypes.ResourcePattern{
 			{
 				ResourcePath: &rtypes.ResourcePath{
@@ -46,27 +45,17 @@ func (fp *FeePlugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					FunctionId: "transfer",
 					Full:       "ethereum.erc20.transfer",
 				},
+				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 					{
-						ParameterName: "recipient",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
-						},
-						Required: true,
+						ParameterName:  "recipient",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
+						Required:       true,
 					},
 					{
-						ParameterName: "amount",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
-						},
-						Required: true,
-					},
-					{
-						ParameterName: "token",
-						SupportedTypes: []rtypes.ConstraintType{
-							rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						},
-						Required: true,
+						ParameterName:  "amount",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_MAX,
+						Required:       true,
 					},
 				},
 				Required: true,
