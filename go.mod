@@ -19,7 +19,7 @@ require (
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20250805093243-2060ffd4754e
-	github.com/vultisig/verifier v0.0.0-20250731092019-00d44a4b02b9
+	github.com/vultisig/verifier v0.0.0-20250805144140-643ec1133008
 	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
