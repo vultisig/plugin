@@ -2,7 +2,7 @@ type: fee
 version: 1.0.0
 usdc_address: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 verifier_token: localhost-fee-apikey
-eth_provider: https://eth-mainnet.g.alchemy.com/v2/HAtIwB5y82TNVwaHkwcMj
+eth_provider: ${ETH_PROVIDER_URL}
 chain_id: 1
 jobs:
     load:
