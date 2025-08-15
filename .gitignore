@@ -15,7 +15,6 @@ localconfig*
 worker/worker
 vultisigner
 cmd/payroll/server/server
-cmd/dca/server/server
 
 tmp/
 test/vaults/*
