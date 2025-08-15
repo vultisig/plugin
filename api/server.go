@@ -111,7 +111,7 @@ func (s *Server) StartServer() error {
 }
 
 func (s *Server) Ping(c echo.Context) error {
-	return c.String(http.StatusOK, "Payroll & DCA Plugin server is running")
+	return c.String(http.StatusOK, "server is running")
 }
 
 // ReshareVault is a handler to reshare a vault

@@ -47,7 +47,7 @@ jobs:
 
       - name: Create test config
         run: |
-          cat > dca.json <<EOF
+          cat > payroll.json <<EOF
           {
             "server": {
               "host": "localhost",
@@ -73,51 +73,47 @@ jobs:
               "host": "localhost",
               "port": "8125"
             },
-            "type": "dca",
+            "type": "payroll",
             "version": "0.1.0",
-            "rpc_url": "https://example.com",
-            "uniswap": {
-              "v2_router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-              "deadline": 1000
-            }
+            "rpc_url": "https://example.com"
           }
           EOF
 
-      - name: Build dca binary
+      - name: Build payroll binary
         run: |
           export LD_LIBRARY_PATH=../go-wrappers/includes/linux/:$LD_LIBRARY_PATH
-          go build -o dca cmd/dca/server/*.go
+          go build -o payroll cmd/payroll/server/*.go
 
-      - name: Run dca and check migrations
+      - name: Run payroll and check migrations
         run: |
           export LD_LIBRARY_PATH=../go-wrappers/includes/linux/:$LD_LIBRARY_PATH
-          export VS_CONFIG_NAME=dca
+          export VS_CONFIG_NAME=payroll
 
-          # Start dca in background
-          ./dca &
-          DCA_PID=$!
+          # Start payroll in background
+          ./payroll &
+          PAYROLL_PID=$!
 
           # Give it time to run migrations
           sleep 10
 
           # Check if process is still running
-          if ! kill -0 $DCA_PID 2>/dev/null; then
-            echo "DCA process failed to start"
+          if ! kill -0 $PAYROLL_PID 2>/dev/null; then
+            echo "Payroll process failed to start"
             exit 1
           fi
 
           # Check if migrations ran successfully by verifying tables exist
-          PGPASSWORD=mypassword psql -h localhost -U myuser -d vultisig-plugin -c "\dt" | grep -E "(plugin_policies|time_triggers) | wc -l" > /dev/null
+          PGPASSWORD=mypassword psql -h localhost -U myuser -d vultisig-plugin -c "\dt" | grep -E "(plugin_policies|scheduler)" | wc -l > /dev/null
           if [ $? -ne 0 ]; then
             echo "Migrations did not run successfully - expected tables not found"
-            kill $DCA_PID
+            kill $PAYROLL_PID
             exit 1
           fi
 
           echo "All migrations ran successfully!"
 
-          # Stop dca
-          kill $DCA_PID
+          # Stop payroll
+          kill $PAYROLL_PID
 
       - name: Check migration integrity
         run: |
@@ -143,7 +139,7 @@ jobs:
             -e '/^--.*/d' \
             -e '/^SET /d' \
             -e '/^SELECT pg_catalog./d' \
-            -e 's/"public"\.//' | awk '/./ { e=0 } /^$$/ { e += 1 } e <= 1' \
+            -e 's/"public"\.//' | awk '/./ { e=0 } /^$/ { e += 1 } e <= 1' \
             > ./current_schema.sql
 
           # Compare with repository schema
