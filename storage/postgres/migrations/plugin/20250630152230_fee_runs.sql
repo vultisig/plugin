@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS fee_run (
     status VARCHAR(50) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'completed', 'failed')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    tx_id UUID REFERENCES tx_indexer(id) ON DELETE SET NULL,
+    tx_hash VARCHAR(66),
     policy_id UUID NOT NULL REFERENCES plugin_policies(id) ON DELETE CASCADE
 );
 
@@ -25,13 +25,13 @@ SELECT
     fr.status,
     fr.created_at,
     fr.updated_at,
-    fr.tx_id,
+    fr.tx_hash,
     fr.policy_id,
     COALESCE(SUM(fi.amount), 0) as total_amount,
     COUNT(fi.id) as fee_count
 FROM fee_run fr
 LEFT JOIN fee fi ON fr.id = fi.fee_run_id
-GROUP BY fr.id, fr.status, fr.created_at, fr.updated_at, fr.tx_id, fr.policy_id;
+GROUP BY fr.id, fr.status, fr.created_at, fr.updated_at, fr.tx_hash, fr.policy_id;
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_fee_run_status ON fee_run(status);
