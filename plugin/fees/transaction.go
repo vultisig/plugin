@@ -12,14 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/plugin/common"
 	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	resolver "github.com/vultisig/recipes/resolver"
 
 	rtypes "github.com/vultisig/recipes/types"
-	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
 
@@ -35,9 +33,9 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 		return nil, fmt.Errorf("policy id does not match run policy id")
 	}
 
-	vault, err := common.GetVaultFromPolicy(fp.vaultStorage, policy, fp.encryptionSecret)
+	fromAddress, err := fp.getEthAddressFromFeePolicy(policy)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get vault from policy: %v", err)
+		return nil, fmt.Errorf("failed to get eth address from fee policy: %v", err)
 	}
 
 	// ERC20 USDC Token List
@@ -47,12 +45,6 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 		Name:     "USD Coin",
 		Symbol:   "USDC",
 		Decimals: 6,
-	}
-
-	// Get the ethereum derived addresses from the vaults master public key
-	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get eth address: %v", err)
 	}
 
 	// Get some consts and types needed for later
@@ -90,7 +82,6 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 		if magicConstantRecipientValue != rtypes.MagicConstant_VULTISIG_TREASURY {
 			return nil, fmt.Errorf("recipient constraint is not a treasury magic constant")
 		}
-
 		treasuryResolver := resolver.NewDefaultTreasuryResolver()
 		recipient, _, err := treasuryResolver.Resolve(magicConstantRecipientValue, "ethereum", "usdc")
 		if err != nil {
@@ -100,28 +91,25 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 		if gcommon.HexToAddress(token) != gcommon.HexToAddress(usdc.Address) {
 			return nil, fmt.Errorf("token address does not match usdc address")
 		}
-
 		amount := run.TotalAmount
-
 		tx, err := fp.eth.MakeAnyTransfer(ctx,
-			gcommon.HexToAddress(ethAddress),
+			gcommon.HexToAddress(fromAddress),
 			gcommon.HexToAddress(recipient),
 			gcommon.HexToAddress(usdc.Address),
 			big.NewInt(int64(amount)))
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
 		}
 
 		txHex := hexutil.Encode(tx)
-
 		txData, e := reth.DecodeUnsignedPayload(tx)
 		if e != nil {
 			return nil, fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
 		}
+
 		txHashToSign := etypes.LatestSignerForChainID(fp.config.ChainId).Hash(etypes.NewTx(txData))
-
 		msgHash := sha256.Sum256(txHashToSign.Bytes())
-
 		signRequest := vtypes.PluginKeysignRequest{
 			KeysignRequest: vtypes.KeysignRequest{
 				PublicKey: policy.PublicKey,
@@ -141,10 +129,8 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 			},
 			Transaction: txHex,
 		}
-
 		txs = append(txs, signRequest)
 	}
-
 	return txs, nil
 }
 
@@ -191,10 +177,14 @@ func (fp *FeePlugin) initSign(
 		return fmt.Errorf("failed to get hash: %w", err)
 	}
 
-	erc20tx, err := decodeTx(req.Transaction)
+	erc20tx := new(erc20Data)
+	unsignedTx, err := decodeUnsignedTx(req.Transaction)
 	if err != nil {
-		fp.logger.WithError(err).Error("failed to decode tx")
-		return fmt.Errorf("failed to decode tx: %w", err)
+		return fmt.Errorf("failed to decode unsigned tx: %w", err)
+	}
+	erc20tx, err = parseErc20Tx(unsignedTx)
+	if err != nil {
+		return fmt.Errorf("failed to parse erc20 tx: %w", err)
 	}
 
 	fp.logger.WithFields(logrus.Fields{
@@ -205,19 +195,49 @@ func (fp *FeePlugin) initSign(
 		"public_key": pluginPolicy.PublicKey,
 	}).Info("fee collection transaction")
 
-	tx, err := fp.eth.Send(ctx, txBytes, r, s, v)
+	txWithSig, err := appendSignature(txBytes, r, s, v, fp.config.ChainId)
 	if err != nil {
-		fp.logger.WithError(err).WithField("tx_hex", req.Transaction).Error("fp.eth.Send")
-		return fmt.Errorf("failed to send transaction: %w", err)
+		return fmt.Errorf("failed to append signature: %w", err)
 	}
 
-	// This is exceptionally important, as if it errors, the transaction will internally be recorded as draft, even after it's been broadcasted
-	if err := fp.db.SetFeeRunSent(ctx, runId, tx.Hash().Hex()); err != nil { //TODO pass the real tx id
+	signedTxBytes, err := txWithSig.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to marshal transaction: %w", err)
+	}
+
+	dbTx, err := fp.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	var txdbErr error
+	defer func() {
+		if txdbErr != nil {
+			dbTx.Rollback(ctx)
+		}
+	}()
+
+	if txdbErr = fp.db.SetFeeRunSent(ctx, dbTx, runId, txWithSig.Hash().Hex()); err != nil { //TODO pass the real tx id
 		return fmt.Errorf("failed to set fee run sent: %w", err)
 	}
 
-	// Log successful transaction broadcast
-	fp.logger.WithField("hash", tx.Hash().Hex()).Info("fee collection transaction successfully broadcasted")
+	if txdbErr = fp.db.CreateFeeRunTx(ctx, dbTx, runId, signedTxBytes, txWithSig.Hash().Hex(), 0, fp.config.ChainId); err != nil {
+		return fmt.Errorf("failed to create fee run tx: %w", err)
+	}
+	if !fp.config.DryRun {
+		if err = fp.ethClient.SendTransaction(ctx, txWithSig); err != nil {
+			return fmt.Errorf("failed to send transaction: %w", err)
+		}
+		txDataHex := hexutil.Encode(txWithSig.Data())
+		fp.logger.WithFields(logrus.Fields{"hash": txWithSig.Hash().Hex(), "tx_data": txDataHex}).Info("fee collection transaction successfully broadcasted")
+	} else {
+		fp.logger.WithField("tx_hash", txHash.Hash().Hex()).Info("dry-run: fee collection transaction would have been broadcasted")
+	}
+	// This would be a CRITICAL error, as the transaction would be recorded as draft, even after it's been broadcasted
+	if err = dbTx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 
 }
