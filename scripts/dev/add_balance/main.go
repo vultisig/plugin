@@ -16,8 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/vultisig/verifier/address"
-	vcommon "github.com/vultisig/verifier/common"
+	"github.com/vultisig/vultisig-go/address"
+	vcommon "github.com/vultisig/vultisig-go/common"
 )
 
 const (

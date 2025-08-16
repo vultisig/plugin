@@ -18,8 +18,8 @@ import (
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/plugin/common"
 	rtypes "github.com/vultisig/recipes/types"
-	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
+	vcommon "github.com/vultisig/vultisig-go/common"
 	"google.golang.org/protobuf/proto"
 )
 

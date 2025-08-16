@@ -9,11 +9,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
-	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
+	vcommon "github.com/vultisig/vultisig-go/common"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 

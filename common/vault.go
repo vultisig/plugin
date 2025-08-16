@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
-	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
 	vault "github.com/vultisig/verifier/vault"
+	vcommon "github.com/vultisig/vultisig-go/common"
 )
 
 func GetVaultFromPolicy(s vault.Storage, policy vtypes.PluginPolicy, encryptionSecret string) (*v1.Vault, error) {

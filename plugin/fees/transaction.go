@@ -19,9 +19,9 @@ import (
 	resolver "github.com/vultisig/recipes/resolver"
 
 	rtypes "github.com/vultisig/recipes/types"
-	"github.com/vultisig/verifier/address"
-	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
+	"github.com/vultisig/vultisig-go/address"
+	vcommon "github.com/vultisig/vultisig-go/common"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
