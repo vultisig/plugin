@@ -8,24 +8,208 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"sync"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/resolver"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/address"
 	vgcommon "github.com/vultisig/vultisig-go/common"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/types"
 )
+
+/* ------------------------------------------------------------------------------------------------
+HANDLING TRANSACTIONS
+here we handle the transactions for a fee run
+------------------------------------------------------------------------------------------------ */
+
+func (fp *FeePlugin) HandleTransactions(ctx context.Context, task *asynq.Task) error {
+	fp.logger.Info("Starting Fee Transaction Job. Acquiring mutex")
+	fp.transactingMutex.Lock()
+	fp.logger.Info("Mutex acquired")
+
+	defer func() {
+		fp.transactingMutex.Unlock()
+		fp.logger.Info("Mutex released")
+	}()
+
+	fp.logger.Info("Getting all fee runs")
+	runs, err := fp.db.GetAllFeeRuns(ctx)
+	if err != nil {
+		fp.logger.WithError(err).Error("Failed to get fee runs")
+		return fmt.Errorf("failed to get fee runs: %w", err)
+	}
+
+	sem := semaphore.NewWeighted(int64(fp.config.Jobs.Transact.MaxConcurrentJobs))
+	var wg sync.WaitGroup
+	var eg errgroup.Group
+	for _, run := range runs {
+		run = run
+		eg.Go(func() error {
+			//TODO also check failed runs
+			if run.Status != types.FeeRunStateDraft {
+				return nil
+			}
+
+			if run.TxHash != nil {
+				return nil
+			}
+
+			if run.FeeCount == 0 || run.TotalAmount == 0 {
+				return nil
+			}
+
+			fp.logger.WithFields(logrus.Fields{"runId": run.ID}).Info("Processing fee run")
+			feePolicy, err := fp.db.GetPluginPolicy(ctx, run.PolicyID)
+			if err != nil {
+				return fmt.Errorf("failed to get fee policy: %w", err)
+			}
+			wg.Add(1)
+			fp.logger.WithFields(logrus.Fields{"runId": run.ID, "policyId": run.PolicyID}).Info("Retrieved fee policy")
+
+			defer wg.Done()
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return fmt.Errorf("failed to acquire semaphore: %w", err)
+			}
+			defer sem.Release(1)
+			if err := fp.executeFeeTransaction(ctx, run, *feePolicy); err != nil {
+				fp.logger.WithError(err).WithFields(logrus.Fields{
+					"runId": run.ID,
+				}).Error("Failed to execute fee transaction")
+				return err
+			}
+			return nil
+		})
+	}
+
+	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		return fmt.Errorf("failed to execute fee transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, run types.FeeRun, feePolicy vtypes.PluginPolicy) error {
+
+	fp.logger.WithFields(logrus.Fields{
+		"runId":    run.ID,
+		"policyId": feePolicy.ID,
+	}).Info("Checking if fee run policy id matches fee policy id")
+	if run.PolicyID != feePolicy.ID {
+		return fmt.Errorf("fee run policy id does not match fee policy id")
+	}
+
+	// Get a vault and sign the transactions
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Getting vault")
+	_, err := common.GetVaultFromPolicy(fp.vaultStorage, feePolicy, fp.encryptionSecret)
+	if err != nil {
+		return fmt.Errorf("failed to get vault: %w", err)
+	}
+
+	// Propose the transactions
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Proposing transactions")
+	keySignRequests, err := fp.proposeTransactions(ctx, feePolicy, run)
+	if err != nil {
+		return fmt.Errorf("failed to propose transactions: %w", err)
+	}
+	fp.logger.WithFields(logrus.Fields{
+		"publicKey": feePolicy.PublicKey,
+	}).Info("Key sign requests proposed")
+	for _, keySignRequest := range keySignRequests {
+		req := keySignRequest
+		if err := fp.initSign(ctx, req, feePolicy, run.ID); err != nil {
+			return fmt.Errorf("failed to init sign: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (fp *FeePlugin) initSign(
+	ctx context.Context,
+	req vtypes.PluginKeysignRequest,
+	pluginPolicy vtypes.PluginPolicy,
+	runId uuid.UUID,
+) error {
+
+	sigs, err := fp.signer.Sign(ctx, req)
+	if err != nil {
+		fp.logger.WithError(err).Error("Keysign failed")
+		return fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	if len(sigs) != 1 {
+		fp.logger.
+			WithField("sigs_count", len(sigs)).
+			Error("expected only 1 message+sig per request for evm")
+		return fmt.Errorf("failed to sign transaction: invalid signature count: %d", len(sigs))
+	}
+
+	var sig tss.KeysignResponse
+	for _, s := range sigs {
+		sig = s
+	}
+
+	txBytes, txErr := hexutilDecode(req.Transaction)
+	r, rErr := hexutilDecode(sig.R)
+	s, sErr := hexutilDecode(sig.S)
+	v, vErr := hexutilDecode(sig.RecoveryID)
+	if txErr != nil || rErr != nil || sErr != nil || vErr != nil {
+		return fmt.Errorf("error decoding tx or sigs: %w", errors.Join(txErr, rErr, sErr, vErr))
+	}
+
+	txHash, err := getHash(txBytes, r, s, v, fp.config.ChainId)
+	if err != nil {
+		return fmt.Errorf("failed to get hash: %w", err)
+	}
+
+	erc20tx, err := decodeTx(req.Transaction)
+	if err != nil {
+		fp.logger.WithError(err).Error("failed to decode tx")
+		return fmt.Errorf("failed to decode tx: %w", err)
+	}
+
+	fp.logger.WithFields(logrus.Fields{
+		"tx_hash":    txHash.Hash().Hex(),
+		"tx_to":      erc20tx.to.Hex(),
+		"tx_amount":  erc20tx.amount.String(),
+		"tx_token":   erc20tx.token.Hex(),
+		"public_key": pluginPolicy.PublicKey,
+	}).Info("fee collection transaction")
+
+	tx, err := fp.eth.Send(ctx, txBytes, r, s, v)
+	if err != nil {
+		fp.logger.WithError(err).WithField("tx_hex", req.Transaction).Error("fp.eth.Send")
+		return fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	// This is exceptionally important, as if it errors, the transaction will internally be recorded as draft, even after it's been broadcasted
+	if err := fp.db.SetFeeRunSent(ctx, runId, tx.Hash().Hex()); err != nil { //TODO pass the real tx id
+		return fmt.Errorf("failed to set fee run sent: %w", err)
+	}
+
+	// Log successful transaction broadcast
+	fp.logger.WithField("hash", tx.Hash().Hex()).Info("fee collection transaction successfully broadcasted")
+	return nil
+
+}
 
 func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.PluginPolicy, run types.FeeRun) ([]vtypes.PluginKeysignRequest, error) {
 
@@ -145,118 +329,4 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 	txs = append(txs, signRequest)
 
 	return txs, nil
-}
-
-// deprecated, use proposeTransactions instead as it relies on a fee run and a context
-func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (fp *FeePlugin) initSign(
-	ctx context.Context,
-	req vtypes.PluginKeysignRequest,
-	pluginPolicy vtypes.PluginPolicy,
-	runId uuid.UUID,
-) error {
-
-	sigs, err := fp.signer.Sign(ctx, req)
-	if err != nil {
-		fp.logger.WithError(err).Error("Keysign failed")
-		return fmt.Errorf("failed to sign transaction: %w", err)
-	}
-
-	if len(sigs) != 1 {
-		fp.logger.
-			WithField("sigs_count", len(sigs)).
-			Error("expected only 1 message+sig per request for evm")
-		return fmt.Errorf("failed to sign transaction: invalid signature count: %d", len(sigs))
-	}
-
-	var sig tss.KeysignResponse
-	for _, s := range sigs {
-		sig = s
-	}
-
-	txBytes, txErr := hexutilDecode(req.Transaction)
-	r, rErr := hexutilDecode(sig.R)
-	s, sErr := hexutilDecode(sig.S)
-	v, vErr := hexutilDecode(sig.RecoveryID)
-	if txErr != nil || rErr != nil || sErr != nil || vErr != nil {
-		return fmt.Errorf("error decoding tx or sigs: %w", errors.Join(txErr, rErr, sErr, vErr))
-	}
-
-	txHash, err := getHash(txBytes, r, s, v, fp.config.ChainId)
-	if err != nil {
-		return fmt.Errorf("failed to get hash: %w", err)
-	}
-
-	erc20tx, err := decodeTx(req.Transaction)
-	if err != nil {
-		fp.logger.WithError(err).Error("failed to decode tx")
-		return fmt.Errorf("failed to decode tx: %w", err)
-	}
-
-	fp.logger.WithFields(logrus.Fields{
-		"tx_hash":    txHash.Hash().Hex(),
-		"tx_to":      erc20tx.to.Hex(),
-		"tx_amount":  erc20tx.amount.String(),
-		"tx_token":   erc20tx.token.Hex(),
-		"public_key": pluginPolicy.PublicKey,
-	}).Info("fee collection transaction")
-
-	tx, err := fp.eth.Send(ctx, txBytes, r, s, v)
-	if err != nil {
-		fp.logger.WithError(err).WithField("tx_hex", req.Transaction).Error("fp.eth.Send")
-		return fmt.Errorf("failed to send transaction: %w", err)
-	}
-
-	// This is exceptionally important, as if it errors, the transaction will internally be recorded as draft, even after it's been broadcasted
-	if err := fp.db.SetFeeRunSent(ctx, runId, tx.Hash().Hex()); err != nil { //TODO pass the real tx id
-		return fmt.Errorf("failed to set fee run sent: %w", err)
-	}
-
-	// Log successful transaction broadcast
-	fp.logger.WithField("hash", tx.Hash().Hex()).Info("fee collection transaction successfully broadcasted")
-	return nil
-
-}
-
-func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
-	// First validate the plugin policy itself
-	err := fp.ValidatePluginPolicy(policy)
-	if err != nil {
-		return fmt.Errorf("failed to validate plugin policy: %v", err)
-	}
-
-	// Get the recipe from the policy for transaction validation
-	recipe, err := policy.GetRecipe()
-	if err != nil {
-		return fmt.Errorf("failed to get recipe from policy: %v", err)
-	}
-
-	// Create a recipe engine for evaluating transactions
-	eng := engine.NewEngine()
-
-	// Validate each proposed transaction
-	for _, tx := range txs {
-		for _, keysignMessage := range tx.Messages {
-			txBytes, err := base64.StdEncoding.DecodeString(keysignMessage.Message)
-			if err != nil {
-				return fmt.Errorf("failed to decode transaction: %w", err)
-			}
-
-			// Evaluate if the transaction is allowed by the policy
-			_, err = eng.Evaluate(recipe, keysignMessage.Chain, txBytes)
-			if err != nil {
-				return fmt.Errorf("failed to evaluate transaction: %w", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// deprecated, no longer part of the flow. initSign handles the transaction signing, sending and recording of initial state. The process thereafter is handled by the post_tx flow
-func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
-	return fmt.Errorf("not implemented")
 }
