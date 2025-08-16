@@ -63,87 +63,88 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 
 	txs := []vtypes.PluginKeysignRequest{}
 	var magicConstantRecipientValue rtypes.MagicConstant = rtypes.MagicConstant_UNSPECIFIED
-	var token string
+
 	// This should only return one rule, but in case there are more/fewer rules, we'll loop through them all and error if it's the case.
-	for _, rule := range recipe.Rules {
-
-		// This section of code goes through the rules in the fee policy. It looks for the recipient of the fee collection policy and extracts it. If other data is found throws an error as they're unsupported rules.
-		var recipient string // The address specified in the fee policy.
-		switch rule.Resource {
-		case "ethereum.erc20.transfer":
-			for _, constraint := range rule.ParameterConstraints {
-				if constraint.ParameterName == "recipient" {
-					if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT {
-						return nil, fmt.Errorf("recipient constraint is not a magic constant")
-					}
-					iv, err := strconv.ParseInt(constraint.Constraint.GetFixedValue(), 10, 64)
-					if err != nil {
-						return nil, fmt.Errorf("failed to parse fixed value: %v", err)
-					}
-					magicConstantRecipientValue = rtypes.MagicConstant(iv)
-				}
-			}
-		default:
-			return nil, fmt.Errorf("unsupported rule: %v", rule.Id)
-		}
-
-		if magicConstantRecipientValue != rtypes.MagicConstant_VULTISIG_TREASURY {
-			return nil, fmt.Errorf("recipient constraint is not a treasury magic constant")
-		}
-
-		treasuryResolver := resolver.NewDefaultTreasuryResolver()
-		recipient, _, err := treasuryResolver.Resolve(magicConstantRecipientValue, "ethereum", "usdc")
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve treasury address: %v", err)
-		}
-
-		if gcommon.HexToAddress(token) != gcommon.HexToAddress(usdc.Address) {
-			return nil, fmt.Errorf("token address does not match usdc address")
-		}
-
-		amount := run.TotalAmount
-
-		tx, err := fp.eth.MakeAnyTransfer(ctx,
-			gcommon.HexToAddress(ethAddress),
-			gcommon.HexToAddress(recipient),
-			gcommon.HexToAddress(usdc.Address),
-			big.NewInt(int64(amount)))
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
-		}
-
-		txHex := hexutil.Encode(tx)
-
-		txData, e := reth.DecodeUnsignedPayload(tx)
-		if e != nil {
-			return nil, fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
-		}
-		txHashToSign := etypes.LatestSignerForChainID(fp.config.ChainId).Hash(etypes.NewTx(txData))
-
-		msgHash := sha256.Sum256(txHashToSign.Bytes())
-
-		signRequest := vtypes.PluginKeysignRequest{
-			KeysignRequest: vtypes.KeysignRequest{
-				PublicKey: policy.PublicKey,
-				Messages: []vtypes.KeysignMessage{
-					{
-						Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
-						RawMessage:   txHex,
-						Chain:        vcommon.Ethereum,
-						Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
-						HashFunction: vtypes.HashFunction_SHA256,
-					},
-				},
-				SessionID:        "",
-				HexEncryptionKey: "",
-				PolicyID:         policy.ID,
-				PluginID:         policy.PluginID.String(),
-			},
-			Transaction: txHex,
-		}
-
-		txs = append(txs, signRequest)
+	if len(recipe.Rules) != 1 {
+		return nil, fmt.Errorf("expected 1 rule, got %d", len(recipe.Rules))
 	}
+	rule := recipe.Rules[0]
+
+	resourceName := "ethereum.erc20.transfer"
+	if rule.Resource != resourceName {
+		return nil, fmt.Errorf("rule resource expected to be %s", resourceName)
+	}
+
+	for _, constraint := range rule.ParameterConstraints {
+		if constraint.ParameterName == "recipient" {
+			if constraint.Constraint.Type != rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT {
+				return nil, fmt.Errorf("recipient constraint is not a magic constant")
+			}
+			iv, err := strconv.ParseInt(constraint.Constraint.GetFixedValue(), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse fixed value: %v", err)
+			}
+			magicConstantRecipientValue = rtypes.MagicConstant(iv)
+		}
+	}
+
+	if magicConstantRecipientValue != rtypes.MagicConstant_VULTISIG_TREASURY {
+		return nil, fmt.Errorf("recipient constraint is not a treasury magic constant")
+	}
+
+	treasuryResolver := resolver.NewDefaultTreasuryResolver()
+	recipient, _, err := treasuryResolver.Resolve(magicConstantRecipientValue, "ethereum", "usdc")
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve treasury address: %v", err)
+	}
+
+	token := rule.Target.GetAddress()
+
+	if gcommon.HexToAddress(token) != gcommon.HexToAddress(usdc.Address) {
+		return nil, fmt.Errorf("token address does not match usdc address")
+	}
+
+	amount := run.TotalAmount
+
+	tx, err := fp.eth.MakeAnyTransfer(ctx,
+		gcommon.HexToAddress(ethAddress),
+		gcommon.HexToAddress(recipient),
+		gcommon.HexToAddress(usdc.Address),
+		big.NewInt(int64(amount)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate unsigned transaction: %w", err)
+	}
+
+	txHex := hexutil.Encode(tx)
+
+	txData, e := reth.DecodeUnsignedPayload(tx)
+	if e != nil {
+		return nil, fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
+	}
+
+	txHashToSign := etypes.LatestSignerForChainID(fp.config.ChainId).Hash(etypes.NewTx(txData))
+	msgHash := sha256.Sum256(txHashToSign.Bytes())
+	signRequest := vtypes.PluginKeysignRequest{
+		KeysignRequest: vtypes.KeysignRequest{
+			PublicKey: policy.PublicKey,
+			Messages: []vtypes.KeysignMessage{
+				{
+					Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
+					RawMessage:   txHex,
+					Chain:        vcommon.Ethereum,
+					Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
+					HashFunction: vtypes.HashFunction_SHA256,
+				},
+			},
+			SessionID:        "",
+			HexEncryptionKey: "",
+			PolicyID:         policy.ID,
+			PluginID:         policy.PluginID.String(),
+		},
+		Transaction: txHex,
+	}
+
+	txs = append(txs, signRequest)
 
 	return txs, nil
 }
