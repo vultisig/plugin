@@ -20,6 +20,7 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/verifier/vault"
 	vcommon "github.com/vultisig/vultisig-go/common"
+	vgtypes "github.com/vultisig/vultisig-go/types"
 
 	"github.com/vultisig/plugin/internal/scheduler"
 	"github.com/vultisig/plugin/service"
@@ -173,7 +174,7 @@ func (s *Server) GetVault(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, NewErrorResponse("fail to get vault"))
 	}
 
-	return c.JSON(http.StatusOK, vtypes.VaultGetResponse{
+	return c.JSON(http.StatusOK, vgtypes.VaultGetResponse{
 		Name:           v.Name,
 		PublicKeyEcdsa: v.PublicKeyEcdsa,
 		PublicKeyEddsa: v.PublicKeyEddsa,
