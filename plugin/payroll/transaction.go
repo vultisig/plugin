@@ -16,7 +16,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/internal/scheduler"
-	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
@@ -26,7 +25,7 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"github.com/vultisig/vultisig-go/address"
-	vcommon "github.com/vultisig/vultisig-go/common"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/vultisig/plugin/common"
@@ -116,7 +115,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 		return nil, fmt.Errorf("failed to get vault from policy: %w", err)
 	}
 
-	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
+	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vgcommon.Ethereum)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get eth address: %w", err)
 	}
@@ -126,7 +125,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 		return nil, fmt.Errorf("failed to get recipe from policy: %w", err)
 	}
 
-	chain := rcommon.Ethereum
+	chain := vgcommon.Ethereum
 	ethEvmID, err := chain.EvmID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %w", chain, err)
@@ -187,7 +186,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
 				PluginID:      policy.PluginID,
 				PolicyID:      policy.ID,
-				ChainID:       vcommon.Chain(chain),
+				ChainID:       vgcommon.Chain(chain),
 				TokenID:       tokenID,
 				FromPublicKey: policy.PublicKey,
 				ToPublicKey:   recipient,
@@ -207,7 +206,7 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 						{
 							TxIndexerID:  txToTrack.ID.String(),
 							Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
-							Chain:        vcommon.Chain(chain),
+							Chain:        vgcommon.Chain(chain),
 							Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 							HashFunction: vtypes.HashFunction_SHA256,
 						},
@@ -256,7 +255,7 @@ func (p *Plugin) SigningComplete(
 		"from_public_key": signRequest.PublicKey,
 		"to_address":      tx.To().Hex(),
 		"hash":            tx.Hash().Hex(),
-		"chain":           vcommon.Ethereum.String(),
+		"chain":           vgcommon.Ethereum.String(),
 	}).Info("tx successfully signed and broadcasted")
 	return nil
 }
@@ -339,11 +338,11 @@ func (p *Plugin) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 
 func (p *Plugin) genUnsignedTx(
 	ctx context.Context,
-	chain rcommon.Chain,
+	chain vgcommon.Chain,
 	senderAddress, tokenID, amount, to string,
 ) ([]byte, error) {
 	switch chain {
-	case rcommon.Ethereum:
+	case vgcommon.Ethereum:
 		amt, ok := new(big.Int).SetString(amount, 10)
 		if !ok {
 			return nil, fmt.Errorf("failed to parse amount: %s", amount)

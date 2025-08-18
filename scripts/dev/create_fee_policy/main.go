@@ -19,7 +19,7 @@ import (
 	"github.com/vultisig/plugin/common"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
-	vcommon "github.com/vultisig/vultisig-go/common"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -219,7 +219,7 @@ func DecryptVaultFromBackup(password string, vaultBackupRaw []byte) (*vaultType.
 		if err != nil {
 			return nil, nil, err
 		}
-		vaultRaw, err = vcommon.DecryptVault(password, vaultBytes)
+		vaultRaw, err = vgcommon.DecryptVault(password, vaultBytes)
 		if err != nil {
 			return nil, nil, err
 		}

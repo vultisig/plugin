@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/plugin/common"
-	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
 	resolver "github.com/vultisig/recipes/resolver"
@@ -21,7 +20,7 @@ import (
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/address"
-	vcommon "github.com/vultisig/vultisig-go/common"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -50,7 +49,7 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 	}
 
 	// Get the ethereum derived addresses from the vaults master public key
-	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum)
+	ethAddress, _, _, err := address.GetAddress(vault.PublicKeyEcdsa, vault.HexChainCode, vgcommon.Ethereum)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get eth address: %v", err)
 	}
@@ -129,7 +128,7 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 					{
 						Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
 						RawMessage:   txHex,
-						Chain:        vcommon.Ethereum,
+						Chain:        vgcommon.Ethereum,
 						Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 						HashFunction: vtypes.HashFunction_SHA256,
 					},
@@ -247,7 +246,7 @@ func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, tx
 			}
 
 			// Evaluate if the transaction is allowed by the policy
-			_, err = eng.Evaluate(recipe, rcommon.Chain(keysignMessage.Chain), txBytes)
+			_, err = eng.Evaluate(recipe, vgcommon.Chain(keysignMessage.Chain), txBytes)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate transaction: %w", err)
 			}

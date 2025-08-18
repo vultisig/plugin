@@ -4,10 +4,10 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/engine"
 	"github.com/vultisig/verifier/plugin"
 	vtypes "github.com/vultisig/verifier/types"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 )
 
 func (p *Plugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []vtypes.PluginKeysignRequest) error {
@@ -30,7 +30,7 @@ func (p *Plugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []
 				return fmt.Errorf("failed to decode transaction: %w", err)
 			}
 
-			_, err = eng.Evaluate(recipe, rcommon.Chain(keysignMessage.Chain), txBytes)
+			_, err = eng.Evaluate(recipe, vgcommon.Chain(keysignMessage.Chain), txBytes)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate transaction: %w", err)
 			}

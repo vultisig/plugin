@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/vultisig/vultisig-go/address"
-	vcommon "github.com/vultisig/vultisig-go/common"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 )
 
 const (
@@ -59,7 +59,7 @@ func main() {
 	}
 	compressedPubKeyHex := string(rawKeyBytes)
 
-	derivedAddress, _, _, err := address.GetAddress(compressedPubKeyHex, hexChainCode, vcommon.Ethereum)
+	derivedAddress, _, _, err := address.GetAddress(compressedPubKeyHex, hexChainCode, vgcommon.Ethereum)
 	if err != nil {
 		panic(err)
 	}

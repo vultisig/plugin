@@ -13,7 +13,7 @@ import (
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
-	vcommon "github.com/vultisig/vultisig-go/common"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
@@ -317,7 +317,7 @@ func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, run types.FeeRun
 	fp.logger.WithFields(logrus.Fields{
 		"publicKey": feePolicy.PublicKey,
 	}).Info("Getting vault")
-	vaultFileName := vcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
+	vaultFileName := vgcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
 	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
 	if err != nil {
 		return fmt.Errorf("failed to get vault: %w", err)
