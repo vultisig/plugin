@@ -12,7 +12,7 @@ import (
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
-	"github.com/vultisig/verifier/tx_indexer"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -31,7 +31,7 @@ All key logic related to fees will go here, that includes
 - getting fee information
 */
 
-var _ plugin.Plugin = (*FeePlugin)(nil)
+var _ plugin.Spec = (*FeePlugin)(nil)
 
 type FeePlugin struct {
 	vaultService     *vault.ManagementService

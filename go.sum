@@ -476,6 +476,8 @@ github.com/kaptinlin/go-i18n v0.1.4 h1:wCiwAn1LOcvymvWIVAM4m5dUAMiHunTdEubLDk4hT
 github.com/kaptinlin/go-i18n v0.1.4/go.mod h1:g1fn1GvTgT4CiLE8/fFE1hboHWJ6erivrDpiDtCcFKg=
 github.com/kaptinlin/jsonschema v0.4.6 h1:vOSFg5tjmfkOdKg+D6Oo4fVOM/pActWu/ntkPsI1T64=
 github.com/kaptinlin/jsonschema v0.4.6/go.mod h1:1DUd7r5SdyB2ZnMtyB7uLv64dE3zTFTiYytDCd+AEL0=
+github.com/kelseyhightower/envconfig v1.4.0 h1:Im6hONhd3pLkfDFsbRgu68RDNkGF1r3dvMUtDTo2cv8=
+github.com/kelseyhightower/envconfig v1.4.0/go.mod h1:cccZRl6mQpaq41TPp5QxidR+Sa3axMbJDNb//FQX6Gg=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/kkdai/bstream v0.0.0-20161212061736-f391b8402d23/go.mod h1:J+Gs4SYgM6CZQHDETBtE9HaSEkGmuNXF86RwHhHUvq4=
@@ -759,10 +761,8 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20250805093243-2060ffd4754e h1:RhIQVc28MzLWsE7Fn0KsltSr+00ESc1eKKNUHcLgFB4=
 github.com/vultisig/recipes v0.0.0-20250805093243-2060ffd4754e/go.mod h1:Ot3lrUnnSw67Hep+MelclVPgNLDxJP01Ezixw/1RYRE=
-github.com/vultisig/verifier v0.0.0-20250805144140-643ec1133008 h1:yiOifIrCG8/JpF9Iqlw01ylNLbsT5d27366EMXH9I4I=
-github.com/vultisig/verifier v0.0.0-20250805144140-643ec1133008/go.mod h1:fxehysyf+G7WwZstP3WvtswB+4VK2rt9/b5ccjKhYbY=
-github.com/vultisig/verifier v0.0.0-20250806110950-aaa4877b631a h1:MXEpOwpEX4M/lVENUIWCBEc5eJtzLfbD0MBdthb0Xkg=
-github.com/vultisig/verifier v0.0.0-20250806110950-aaa4877b631a/go.mod h1:fxehysyf+G7WwZstP3WvtswB+4VK2rt9/b5ccjKhYbY=
+github.com/vultisig/verifier v0.0.0-20250809020937-4535a7459d36 h1:KR/18Qk8aoplMKUAYmWVBM5COruXSKMfh4e0oxcTUq4=
+github.com/vultisig/verifier v0.0.0-20250809020937-4535a7459d36/go.mod h1:SS9b4GBEX7aVVJsN6KyFUqus6Pgjofz1WsnPw0mtiLw=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b h1:Ed2DOWo8fA0KG6e36rzUmGpxcOQjmWTbxWyvUbI5by8=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=

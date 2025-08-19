@@ -9,8 +9,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/verifier/tx_indexer"
-	tx_indexer_storage "github.com/vultisig/verifier/tx_indexer/pkg/storage"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
+	tx_indexer_storage "github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/api"

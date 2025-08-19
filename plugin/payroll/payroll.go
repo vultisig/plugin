@@ -11,11 +11,11 @@ import (
 	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
-	"github.com/vultisig/verifier/tx_indexer"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/vault"
 )
 
-var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.Spec = (*Plugin)(nil)
 
 type Plugin struct {
 	db                    storage.DatabaseStorage
