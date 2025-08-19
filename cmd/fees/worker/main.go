@@ -113,10 +113,16 @@ func main() {
 		panic(fmt.Errorf("storage.NewPostgresTxIndexStore: %w", err))
 	}
 
+	chains, err := tx_indexer.Chains()
+	if err != nil {
+		// Handle the error appropriately - either return it or log it
+		panic(fmt.Errorf("failed to initialize tx indexer chains: %w", err))
+	}
+
 	txIndexerService := tx_indexer.NewService(
 		logger,
 		txIndexerStore,
-		tx_indexer.Chains(),
+		chains,
 	)
 
 	vaultService, err := vault.NewManagementService(

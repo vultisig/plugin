@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
+	"github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -26,6 +27,11 @@ type Plugin struct {
 	client                *asynq.Client
 	vaultStorage          vault.Storage
 	vaultEncryptionSecret string
+}
+
+// Suggest implements plugin.Spec.
+func (p *Plugin) Suggest(configuration map[string]any) (*types.PolicySuggest, error) {
+	panic("unimplemented")
 }
 
 func NewPlugin(

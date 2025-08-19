@@ -23,6 +23,7 @@ import (
 	"github.com/vultisig/plugin/internal/verifierapi"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
+	rtypes "github.com/vultisig/recipes/types"
 )
 
 /*
@@ -48,6 +49,11 @@ type FeePlugin struct {
 	encryptionSecret string
 	transactingMutex sync.Mutex // when actual transactions are happening we cannot load fees
 	ethClient        *ethclient.Client
+}
+
+// Suggest implements plugin.Spec.
+func (fp *FeePlugin) Suggest(configuration map[string]any) (*rtypes.PolicySuggest, error) {
+	panic("unimplemented")
 }
 
 func NewFeePlugin(db storage.DatabaseStorage,
