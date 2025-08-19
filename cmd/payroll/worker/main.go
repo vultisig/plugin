@@ -63,7 +63,6 @@ func main() {
 
 	chains, err := tx_indexer.Chains()
 	if err != nil {
-		// Handle the error appropriately - either return it or log it
 		panic(fmt.Errorf("failed to initialize tx indexer chains: %w", err))
 	}
 
