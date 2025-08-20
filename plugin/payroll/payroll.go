@@ -9,11 +9,11 @@ import (
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/recipes/types"
-	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 var _ plugin.Spec = (*Plugin)(nil)

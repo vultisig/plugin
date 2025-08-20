@@ -15,8 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	vcommon "github.com/vultisig/verifier/common"
 	vtypes "github.com/vultisig/verifier/types"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 
 	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/sigutil"
@@ -233,7 +233,7 @@ func (s *Server) verifyPolicySignature(policy vtypes.PluginPolicy) bool {
 		s.logger.WithError(err).Error("fail to get vault")
 		return false
 	}
-	derivedPublicKey, err := tss.GetDerivedPubKey(vault.PublicKeyEcdsa, vault.HexChainCode, vcommon.Ethereum.GetDerivePath(), false)
+	derivedPublicKey, err := tss.GetDerivedPubKey(vault.PublicKeyEcdsa, vault.HexChainCode, vgcommon.Ethereum.GetDerivePath(), false)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to get derived public key")
 		return false
@@ -251,14 +251,14 @@ func (s *Server) getVault(publicKeyECDSA, pluginId string) (*v1.Vault, error) {
 	if len(s.cfg.EncryptionSecret) == 0 {
 		return nil, fmt.Errorf("no encryption secret")
 	}
-	fileName := vcommon.GetVaultBackupFilename(publicKeyECDSA, pluginId)
+	fileName := vgcommon.GetVaultBackupFilename(publicKeyECDSA, pluginId)
 	vaultContent, err := s.vaultStorage.GetVault(fileName)
 	if err != nil {
 		s.logger.WithError(err).Error("fail to get vault")
 		return nil, fmt.Errorf("failed to get vault, err: %w", err)
 	}
 
-	v, err := vcommon.DecryptVaultFromBackup(s.cfg.EncryptionSecret, vaultContent)
+	v, err := vgcommon.DecryptVaultFromBackup(s.cfg.EncryptionSecret, vaultContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt vault,err: %w", err)
 	}

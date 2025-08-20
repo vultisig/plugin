@@ -9,11 +9,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
-	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
@@ -323,7 +323,7 @@ func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, run types.FeeRun
 	fp.logger.WithFields(logrus.Fields{
 		"publicKey": feePolicy.PublicKey,
 	}).Info("Getting vault")
-	vaultFileName := vcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
+	vaultFileName := vgcommon.GetVaultBackupFilename(feePolicy.PublicKey, vtypes.PluginVultisigFees_feee.String())
 	vaultContent, err := fp.vaultStorage.GetVault(vaultFileName)
 	if err != nil {
 		return fmt.Errorf("failed to get vault: %w", err)
