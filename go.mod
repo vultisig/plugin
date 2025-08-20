@@ -18,8 +18,8 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250805093243-2060ffd4754e
-	github.com/vultisig/verifier v0.0.0-20250806110950-aaa4877b631a
+	github.com/vultisig/recipes v0.0.0-20250811174115-368ae4bab6f6
+	github.com/vultisig/verifier v0.0.0-20250814230939-fd9719226c8f
 	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b
 	github.com/vultisig/vultisig-go v0.0.0-20250815075627-265cef7c643c
 	golang.org/x/sync v0.14.0

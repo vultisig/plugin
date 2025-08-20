@@ -37,7 +37,7 @@ type Server struct {
 	inspector     *asynq.Inspector
 	sdClient      *statsd.Client
 	policyService service.Policy
-	plugin        plugin.Plugin
+	plugin        plugin.Spec
 	logger        *logrus.Logger
 	mode          string
 }
@@ -51,7 +51,7 @@ func NewServer(
 	client *asynq.Client,
 	inspector *asynq.Inspector,
 	sdClient *statsd.Client,
-	p plugin.Plugin,
+	p plugin.Spec,
 	scheduler scheduler.Service,
 ) *Server {
 	logger := logrus.WithField("service", "plugin").Logger

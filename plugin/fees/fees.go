@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
-	"github.com/vultisig/verifier/tx_indexer"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
 	vgcommon "github.com/vultisig/vultisig-go/common"
 	"golang.org/x/sync/errgroup"
@@ -23,6 +23,7 @@ import (
 	"github.com/vultisig/plugin/internal/verifierapi"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
+	rtypes "github.com/vultisig/recipes/types"
 )
 
 /*
@@ -31,7 +32,7 @@ All key logic related to fees will go here, that includes
 - getting fee information
 */
 
-var _ plugin.Plugin = (*FeePlugin)(nil)
+var _ plugin.Spec = (*FeePlugin)(nil)
 
 type FeePlugin struct {
 	vaultService     *vault.ManagementService
@@ -48,6 +49,11 @@ type FeePlugin struct {
 	encryptionSecret string
 	transactingMutex sync.Mutex // when actual transactions are happening we cannot load fees
 	ethClient        *ethclient.Client
+}
+
+// Suggest implements plugin.Spec.
+func (fp *FeePlugin) Suggest(configuration map[string]any) (*rtypes.PolicySuggest, error) {
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func NewFeePlugin(db storage.DatabaseStorage,

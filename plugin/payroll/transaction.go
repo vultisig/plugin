@@ -21,7 +21,7 @@ import (
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/recipes/util"
 	"github.com/vultisig/verifier/plugin"
-	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
+	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"github.com/vultisig/vultisig-go/address"

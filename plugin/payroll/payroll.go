@@ -8,14 +8,16 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/storage"
 	"github.com/vultisig/recipes/sdk/evm"
+	"github.com/vultisig/recipes/types"
+	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
-	"github.com/vultisig/verifier/tx_indexer"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/vultisig-go/common"
 )
 
-var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.Spec = (*Plugin)(nil)
 
 type Plugin struct {
 	db                    storage.DatabaseStorage
@@ -26,6 +28,11 @@ type Plugin struct {
 	client                *asynq.Client
 	vaultStorage          vault.Storage
 	vaultEncryptionSecret string
+}
+
+// Suggest implements plugin.Spec.
+func (p *Plugin) Suggest(configuration map[string]any) (*types.PolicySuggest, error) {
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func NewPlugin(

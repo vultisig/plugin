@@ -9,8 +9,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/verifier/tx_indexer"
-	tx_indexer_storage "github.com/vultisig/verifier/tx_indexer/pkg/storage"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
+	tx_indexer_storage "github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 
 	"github.com/vultisig/plugin/api"
@@ -62,10 +62,15 @@ func main() {
 		panic(fmt.Errorf("tx_indexer_storage.NewPostgresTxIndexStore: %w", err))
 	}
 
+	chains, err := tx_indexer.Chains()
+	if err != nil {
+		panic(fmt.Errorf("failed to initialize tx indexer chains: %w", err))
+	}
+
 	txIndexerService := tx_indexer.NewService(
 		logger,
 		txIndexerStore,
-		tx_indexer.Chains(),
+		chains,
 	)
 
 	db, err := postgres.NewPostgresBackend(cfg.Database.DSN, nil)
