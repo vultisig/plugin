@@ -9,22 +9,21 @@ import (
 	"math/big"
 	"strconv"
 
+	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/recipes/engine"
 	reth "github.com/vultisig/recipes/ethereum"
-	resolver "github.com/vultisig/recipes/resolver"
-
+	"github.com/vultisig/recipes/resolver"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/address"
 	vgcommon "github.com/vultisig/vultisig-go/common"
 
-	gcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	etypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/vultisig/plugin/common"
 	"github.com/vultisig/plugin/internal/types"
 )
 
@@ -138,7 +137,7 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 				PolicyID:         policy.ID,
 				PluginID:         policy.PluginID.String(),
 			},
-			Transaction: txHex,
+			Transaction: base64.StdEncoding.EncodeToString(tx),
 		}
 
 		txs = append(txs, signRequest)
@@ -246,7 +245,7 @@ func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, tx
 			}
 
 			// Evaluate if the transaction is allowed by the policy
-			_, err = eng.Evaluate(recipe, vgcommon.Chain(keysignMessage.Chain), txBytes)
+			_, err = eng.Evaluate(recipe, keysignMessage.Chain, txBytes)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate transaction: %w", err)
 			}

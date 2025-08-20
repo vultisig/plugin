@@ -2,8 +2,6 @@ package payroll
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -11,12 +9,9 @@ import (
 	"time"
 
 	ecommon "github.com/ethereum/go-ethereum/common"
-	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/plugin/internal/scheduler"
-	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/recipes/util"
@@ -29,6 +24,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/vultisig/plugin/common"
+	"github.com/vultisig/plugin/internal/scheduler"
 )
 
 func (p *Plugin) HandleSchedulerTrigger(c context.Context, t *asynq.Task) error {
@@ -126,10 +122,6 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 	}
 
 	chain := vgcommon.Ethereum
-	ethEvmID, err := chain.EvmID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get EVM ID for chain %s: %w", chain, err)
-	}
 	nativeSymbol, err := chain.NativeSymbol()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get native symbol for chain %s: %w", chain, err)
@@ -177,16 +169,10 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 
 			txHex := ecommon.Bytes2Hex(tx)
 
-			txData, e := ethereum.DecodeUnsignedPayload(tx)
-			if e != nil {
-				return fmt.Errorf("ethereum.DecodeUnsignedPayload: %w", e)
-			}
-			txHashToSign := etypes.LatestSignerForChainID(ethEvmID).Hash(etypes.NewTx(txData))
-
 			txToTrack, e := p.txIndexerService.CreateTx(ctx, storage.CreateTxDto{
 				PluginID:      policy.PluginID,
 				PolicyID:      policy.ID,
-				ChainID:       vgcommon.Chain(chain),
+				ChainID:       chain,
 				TokenID:       tokenID,
 				FromPublicKey: policy.PublicKey,
 				ToPublicKey:   recipient,
@@ -196,29 +182,14 @@ func (p *Plugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.Plugi
 				return fmt.Errorf("p.txIndexerService.CreateTx: %w", e)
 			}
 
-			msgHash := sha256.Sum256(txHashToSign.Bytes())
-
-			// Create signing request
-			signRequest := vtypes.PluginKeysignRequest{
-				KeysignRequest: vtypes.KeysignRequest{
-					PublicKey: policy.PublicKey,
-					Messages: []vtypes.KeysignMessage{
-						{
-							TxIndexerID:  txToTrack.ID.String(),
-							Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
-							Chain:        vgcommon.Chain(chain),
-							Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
-							HashFunction: vtypes.HashFunction_SHA256,
-						},
-					},
-					PolicyID: policy.ID,
-					PluginID: policy.PluginID.String(),
-				},
-				Transaction: txHex,
+			signRequest, e := vtypes.NewPluginKeysignRequestEvm(
+				policy, txToTrack.ID.String(), chain, tx)
+			if e != nil {
+				return fmt.Errorf("failed to create unsifned request: %w", e)
 			}
 
 			mu.Lock()
-			txs = append(txs, signRequest)
+			txs = append(txs, *signRequest)
 			mu.Unlock()
 			return nil
 		})
