@@ -11,14 +11,13 @@ import (
 
 // These are properties and parameters specific to the fee plugin config. They should be distinct from system/core config
 type FeeConfig struct {
-	Type          string `mapstructure:"type"`
-	Version       string `mapstructure:"version"`
-	MaxFeeAmount  uint64 `mapstructure:"max_fee_amount"` // Policies that are created/submitted which do not have this amount will be rejected.
-	UsdcAddress   string `mapstructure:"usdc_address"`   // The address of the USDC token on the Ethereum blockchain.
-	VerifierToken string `mapstructure:"verifier_token"` // The token to use for the verifier API.
-	chainId       uint64 `mapstructure:"chain_id"`       // The chain ID of the Ethereum blockchain.
-	ChainId       *big.Int
-	EthProvider   string `mapstructure:"eth_provider"` // The Ethereum provider to use for the fee plugin.
+	Type          string   `mapstructure:"type"`
+	Version       string   `mapstructure:"version"`
+	MaxFeeAmount  uint64   `mapstructure:"max_fee_amount"` // Policies that are created/submitted which do not have this amount will be rejected.
+	UsdcAddress   string   `mapstructure:"usdc_address"`   // The address of the USDC token on the Ethereum blockchain.
+	VerifierToken string   `mapstructure:"verifier_token"` // The token to use for the verifier API.
+	ChainId       *big.Int // The chain ID as a big.Int (initialized from ChainIdRaw).
+	EthProvider   string   `mapstructure:"eth_provider"` // The Ethereum provider to use for the fee plugin.
 	Jobs          struct {
 		Load struct {
 			MaxConcurrentJobs uint64 `mapstructure:"max_concurrent_jobs"` //How many consecutive tasks can take place
@@ -34,6 +33,12 @@ type FeeConfig struct {
 			MaxConcurrentJobs    uint64 `mapstructure:"max_concurrent_jobs"`
 		} `mapstructure:"post"`
 	}
+	DryRun bool `mapstructure:"dry_run"`
+}
+
+type FeeConfigFileWrapper struct {
+	FeeConfig  `mapstructure:",squash"`
+	ChainIdRaw uint64 `mapstructure:"chain_id"`
 }
 
 type ConfigOption func(*FeeConfig) error
@@ -52,6 +57,7 @@ func withDefaults(c *FeeConfig) {
 	c.Jobs.Load.Cronexpr = "@every 2m"
 	c.Jobs.Transact.Cronexpr = "0 12 * * 5"
 	c.Jobs.Post.Cronexpr = "@every 5m"
+	c.DryRun = false
 }
 
 func WithMaxFeeAmount(maxFeeAmount uint64) ConfigOption {
@@ -100,9 +106,16 @@ func WithCronexpr(load, transact, post string) ConfigOption {
 	}
 }
 
-func WithFileConfig(basePath string) ConfigOption {
+func WithDryRun(dryRun bool) ConfigOption {
 	return func(c *FeeConfig) error {
+		c.DryRun = dryRun
+		return nil
+	}
+}
 
+func WithFileConfig(basePath string) ConfigOption {
+
+	return func(c *FeeConfig) error {
 		v := viper.New()
 		v.SetConfigName("fee")
 
@@ -122,11 +135,15 @@ func WithFileConfig(basePath string) ConfigOption {
 			return fmt.Errorf("failed to read config: %w", err)
 		}
 
-		if err := v.Unmarshal(c); err != nil {
+		var wrappedConfig FeeConfigFileWrapper
+		if err := v.Unmarshal(&wrappedConfig); err != nil {
 			return fmt.Errorf("failed to unmarshal config: %w", err)
 		}
 
-		c.ChainId = big.NewInt(0).SetUint64(c.chainId)
+		// Copy all values from the wrapped config to the original config
+		*c = wrappedConfig.FeeConfig
+
+		c.ChainId = big.NewInt(0).SetUint64(wrappedConfig.ChainIdRaw)
 		return nil
 	}
 }
@@ -149,8 +166,8 @@ func NewFeeConfig(fns ...ConfigOption) (*FeeConfig, error) {
 		return c, errors.New("verifier_token is required")
 	}
 
-	if c.ChainId == nil {
-		return c, errors.New("chain_id is required")
+	if c.ChainId == nil || c.ChainId.Uint64() == 0 {
+		return c, errors.New("chain_id is required and must not be 0")
 	}
 
 	if c.EthProvider == "" {
