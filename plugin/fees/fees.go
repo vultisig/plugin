@@ -53,7 +53,7 @@ type FeePlugin struct {
 
 // Suggest implements plugin.Spec.
 func (fp *FeePlugin) Suggest(configuration map[string]any) (*rtypes.PolicySuggest, error) {
-	panic("unimplemented")
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func NewFeePlugin(db storage.DatabaseStorage,

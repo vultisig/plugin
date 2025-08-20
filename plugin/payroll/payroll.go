@@ -31,7 +31,7 @@ type Plugin struct {
 
 // Suggest implements plugin.Spec.
 func (p *Plugin) Suggest(configuration map[string]any) (*types.PolicySuggest, error) {
-	panic("unimplemented")
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func NewPlugin(
