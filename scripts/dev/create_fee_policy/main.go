@@ -16,11 +16,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
-	"github.com/vultisig/plugin/common"
 	rtypes "github.com/vultisig/recipes/types"
 	vtypes "github.com/vultisig/verifier/types"
 	vgcommon "github.com/vultisig/vultisig-go/common"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/vultisig/plugin/common"
 )
 
 /*
