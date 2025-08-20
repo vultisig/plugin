@@ -13,7 +13,7 @@ import (
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/vault"
-	"github.com/vultisig/vultisig-go/common"
+	vgcommon "github.com/vultisig/vultisig-go/common"
 )
 
 var _ plugin.Spec = (*Plugin)(nil)
@@ -49,7 +49,7 @@ func NewPlugin(
 
 	var eth *evm.SDK
 	if ethRpc != nil {
-		ethEvmChainID, err := common.Ethereum.EvmID()
+		ethEvmChainID, err := vgcommon.Ethereum.EvmID()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get Ethereum EVM ID: %w", err)
 		}

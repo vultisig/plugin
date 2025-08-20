@@ -5,7 +5,7 @@ import (
 
 	v1 "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	vtypes "github.com/vultisig/verifier/types"
-	vault "github.com/vultisig/verifier/vault"
+	"github.com/vultisig/verifier/vault"
 	vgcommon "github.com/vultisig/vultisig-go/common"
 )
 

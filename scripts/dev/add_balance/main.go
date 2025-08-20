@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-
 	"github.com/vultisig/vultisig-go/address"
 	vgcommon "github.com/vultisig/vultisig-go/common"
 )
