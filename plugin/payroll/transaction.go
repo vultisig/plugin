@@ -24,7 +24,7 @@ import (
 	"github.com/vultisig/verifier/address"
 	vcommon "github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin"
-	"github.com/vultisig/verifier/tx_indexer/pkg/storage"
+	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"golang.org/x/sync/errgroup"

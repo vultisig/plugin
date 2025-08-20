@@ -18,8 +18,8 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250805093243-2060ffd4754e
-	github.com/vultisig/verifier v0.0.0-20250806110950-aaa4877b631a
+	github.com/vultisig/recipes v0.0.0-20250811174115-368ae4bab6f6
+	github.com/vultisig/verifier v0.0.0-20250814230939-fd9719226c8f
 	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
@@ -177,7 +177,7 @@ require (
 	github.com/otiai10/primes v0.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
