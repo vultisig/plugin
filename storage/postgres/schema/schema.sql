@@ -1,5 +1,13 @@
 
+CREATE TYPE "fee_batch_status" AS ENUM (
+    'draft',
+    'sent',
+    'completed',
+    'failed'
+);
+
 CREATE TYPE "plugin_id" AS ENUM (
+    'vultisig-dca-0000',
     'vultisig-payroll-0000',
     'vultisig-fees-feee',
     'vultisig-copytrader-0000'
@@ -59,35 +67,16 @@ BEGIN
 END;
 $$;
 
-CREATE TABLE "fee" (
-    "id" "uuid" NOT NULL,
-    "fee_run_id" "uuid" NOT NULL,
-    "amount" integer NOT NULL,
-    "created_at" timestamp without time zone DEFAULT "now"()
-);
-
-CREATE TABLE "fee_run" (
+CREATE TABLE "fee_batch" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "status" character varying(50) DEFAULT 'draft'::character varying NOT NULL,
+    "batch_id" "uuid" NOT NULL,
+    "public_key" character varying(66) NOT NULL,
+    "status" "fee_batch_status" DEFAULT 'draft'::"public"."fee_batch_status" NOT NULL,
+    "amount" bigint NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    "tx_hash" character varying(66),
-    "policy_id" "uuid" NOT NULL,
-    CONSTRAINT "fee_run_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['draft'::character varying, 'sent'::character varying, 'completed'::character varying, 'failed'::character varying])::"text"[])))
+    "tx_hash" character varying(66)
 );
-
-CREATE VIEW "fee_run_with_totals" AS
- SELECT "fr"."id",
-    "fr"."status",
-    "fr"."created_at",
-    "fr"."updated_at",
-    "fr"."tx_hash",
-    "fr"."policy_id",
-    COALESCE("sum"("fi"."amount"), (0)::bigint) AS "total_amount",
-    "count"("fi"."id") AS "fee_count"
-   FROM ("fee_run" "fr"
-     LEFT JOIN "fee" "fi" ON (("fr"."id" = "fi"."fee_run_id")))
-  GROUP BY "fr"."id", "fr"."status", "fr"."created_at", "fr"."updated_at", "fr"."tx_hash", "fr"."policy_id";
 
 CREATE TABLE "plugin_policies" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -126,11 +115,8 @@ CREATE TABLE "tx_indexer" (
     "updated_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-ALTER TABLE ONLY "fee"
-    ADD CONSTRAINT "fee_pkey" PRIMARY KEY ("id");
-
-ALTER TABLE ONLY "fee_run"
-    ADD CONSTRAINT "fee_run_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "fee_batch"
+    ADD CONSTRAINT "fee_batch_pkey" PRIMARY KEY ("id");
 
 ALTER TABLE ONLY "plugin_policies"
     ADD CONSTRAINT "plugin_policies_pkey" PRIMARY KEY ("id");
@@ -140,12 +126,6 @@ ALTER TABLE ONLY "scheduler"
 
 ALTER TABLE ONLY "tx_indexer"
     ADD CONSTRAINT "tx_indexer_pkey" PRIMARY KEY ("id");
-
-CREATE INDEX "idx_fee_id_fee_run_id" ON "fee" USING "btree" ("fee_run_id");
-
-CREATE INDEX "idx_fee_run_created_at" ON "fee_run" USING "btree" ("created_at");
-
-CREATE INDEX "idx_fee_run_status" ON "fee_run" USING "btree" ("status");
 
 CREATE INDEX "idx_plugin_policies_active" ON "plugin_policies" USING "btree" ("active");
 
@@ -164,12 +144,4 @@ CREATE TRIGGER "trg_prevent_insert_if_policy_deleted" BEFORE INSERT ON "plugin_p
 CREATE TRIGGER "trg_prevent_update_if_policy_deleted" BEFORE UPDATE ON "plugin_policies" FOR EACH ROW WHEN (("old"."deleted" = true)) EXECUTE FUNCTION "public"."prevent_update_if_policy_deleted"();
 
 CREATE TRIGGER "trg_set_policy_inactive_on_delete" BEFORE INSERT OR UPDATE ON "plugin_policies" FOR EACH ROW WHEN (("new"."deleted" = true)) EXECUTE FUNCTION "public"."set_policy_inactive_on_delete"();
-
-CREATE TRIGGER "update_fee_run_updated_at" BEFORE UPDATE ON "fee_run" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
-
-ALTER TABLE ONLY "fee"
-    ADD CONSTRAINT "fee_fee_run_id_fkey" FOREIGN KEY ("fee_run_id") REFERENCES "fee_run"("id") ON DELETE CASCADE;
-
-ALTER TABLE ONLY "fee_run"
-    ADD CONSTRAINT "fee_run_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "plugin_policies"("id") ON DELETE CASCADE;
 
