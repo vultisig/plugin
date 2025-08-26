@@ -761,10 +761,10 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20250818151719-db3f03c3254c h1:oebbFeSAG8zGjCfhj5D4rhK0LtjlpTRhwQSYa4oVSCU=
 github.com/vultisig/recipes v0.0.0-20250818151719-db3f03c3254c/go.mod h1:f2XBQu8WO5jwTeWCGiuogg6y9y2dBdjLRqHR7z1f5es=
-github.com/vultisig/verifier v0.0.0-20250825065505-96fc04bb8d02 h1:WZL9dIYIMc3mB3ar+p9CGJnqh7g/PnzWs4h1zZ0Xu7Y=
-github.com/vultisig/verifier v0.0.0-20250825065505-96fc04bb8d02/go.mod h1:hNPszjdykqNCcj/pT8BRmotJ8rKKK3PXzYwj35zs+b8=
-github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
-github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
+github.com/vultisig/verifier v0.0.0-20250820091538-a29a985cae1d h1:PT7uf9dKpnFVHzZdLGf4/cTbU1LS669OMaybi1T4Ft4=
+github.com/vultisig/verifier v0.0.0-20250820091538-a29a985cae1d/go.mod h1:3NVvxDlbaIRSAvUF6Kq0lik7xm7UJ/u7JdHKqkrLcNI=
+github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b h1:Ed2DOWo8fA0KG6e36rzUmGpxcOQjmWTbxWyvUbI5by8=
+github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultisig-go v0.0.0-20250818095937-af97443fcbbe h1:wPXoiswP3HP68g9TbI7GN8Xd8I3M/IbzOs2dypDpH6Y=
 github.com/vultisig/vultisig-go v0.0.0-20250818095937-af97443fcbbe/go.mod h1:jOf+2n1Eo/XZjiUbHjTfraPMw4HAZZ0Sw9Z6+vpQrU4=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=

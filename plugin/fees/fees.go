@@ -9,21 +9,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/recipes/sdk/evm"
+	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	vtypes "github.com/vultisig/verifier/types"
+	"github.com/vultisig/verifier/vault"
 	vgcommon "github.com/vultisig/vultisig-go/common"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/vultisig/verifier/vault"
-
 	"github.com/vultisig/plugin/internal/types"
 	"github.com/vultisig/plugin/internal/verifierapi"
 	"github.com/vultisig/plugin/storage"
-	"github.com/vultisig/recipes/sdk/evm"
-	rtypes "github.com/vultisig/recipes/types"
 )
 
 /*
