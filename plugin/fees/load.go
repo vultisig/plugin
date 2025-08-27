@@ -45,7 +45,15 @@ func (fp *FeePlugin) LoadFees(ctx context.Context, task *asynq.Task) error {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
 			defer sem.Release(1)
-			err := fp.executeFeeLoading(ctx, feePolicy)
+
+			// Here we load any existing batches that are in draft state, or that may have been missed along the way.
+			err := fp.loadExistingBatches(ctx, feePolicy)
+			if err != nil {
+				fp.logger.WithError(err).WithField("public_key", feePolicy.PublicKey).Error("Failed to load existing batches")
+			}
+
+			// Here we create a new batch, later these jobs could run separately on different frequencies.
+			err = fp.executeFeeLoading(ctx, feePolicy)
 			if err != nil {
 				fp.logger.WithError(err).WithField("public_key", feePolicy.PublicKey).Error("Failed to execute fee loading")
 			}
@@ -57,6 +65,51 @@ func (fp *FeePlugin) LoadFees(ctx context.Context, task *asynq.Task) error {
 	if err := eg.Wait(); err != nil {
 		return fmt.Errorf("failed to execute fee loading: %w", err)
 	}
+	return nil
+}
+
+func (fp *FeePlugin) loadExistingBatches(ctx context.Context, feePolicy vtypes.PluginPolicy) error {
+	batches, err := fp.verifierApi.GetDraftBatches(feePolicy.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get fee batches: %w", err)
+	}
+
+	for _, batch := range batches {
+		batches, err := fp.db.GetFeeBatch(ctx, batch.BatchID)
+		if err != nil {
+			return err
+		}
+
+		if len(batches) == 0 {
+			tx, err := fp.db.Pool().Begin(ctx)
+			if err != nil {
+				return err
+			}
+			_, err = fp.db.CreateFeeBatch(ctx, tx, types.FeeBatch{
+				ID:        uuid.New(),
+				BatchID:   batch.BatchID,
+				PublicKey: feePolicy.PublicKey,
+				Status:    types.FeeBatchStateDraft,
+				TxHash:    nil,
+				Amount:    batch.Amount,
+			})
+			if err != nil {
+				tx.Rollback(ctx)
+				return err
+			}
+			err = tx.Commit(ctx)
+			if err != nil {
+				return err
+			}
+			fp.logger.WithField("public_key", feePolicy.PublicKey).WithField("batch_id", batch.BatchID).Info("Created draft batch")
+		} else {
+			fp.logger.WithField("public_key", feePolicy.PublicKey).WithField("batch_id", batch.BatchID).Info("Draft batch already exists")
+		}
+	}
+	if len(batches) == 0 {
+		fp.logger.WithField("public_key", feePolicy.PublicKey).Info("No draft batches found")
+	}
+
 	return nil
 }
 
@@ -86,5 +139,10 @@ func (fp *FeePlugin) executeFeeLoading(ctx context.Context, feePolicy vtypes.Plu
 		Amount:    uint64(batch.Amount),
 	})
 
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create fee batch: %w", err)
+	}
+
+	fp.logger.WithField("public_key", feePolicy.PublicKey).WithField("batch_id", batch.BatchID).Info("Created draft batch")
+	return nil
 }

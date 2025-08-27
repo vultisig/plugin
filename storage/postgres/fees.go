@@ -9,25 +9,11 @@ import (
 	"github.com/vultisig/plugin/internal/types"
 )
 
-func (p *PostgresBackend) CreateFeeBatch(ctx context.Context, tx *pgx.Tx, batches ...types.FeeBatch) ([]types.FeeBatch, error) {
-	if tx == nil {
-		_tx, err := p.pool.Begin(ctx)
-		if err != nil {
-			return nil, err
-		}
-		tx = &_tx
-		defer func() {
-			if err != nil {
-				(*tx).Rollback(ctx)
-			}
-			(*tx).Commit(ctx)
-		}()
-	}
-
+func (p *PostgresBackend) CreateFeeBatch(ctx context.Context, tx pgx.Tx, batches ...types.FeeBatch) ([]types.FeeBatch, error) {
 	query := `insert into fee_batch (id, batch_id, public_key, status, amount, tx_hash) values ($1, $2, $3, $4, $5, $6) returning *`
 	feeBatches := make([]types.FeeBatch, 0, len(batches))
 	for _, batch := range batches {
-		rows, err := (*tx).Query(ctx, query, batch.ID, batch.BatchID, batch.PublicKey, batch.Status, batch.Amount, batch.TxHash)
+		rows, err := tx.Query(ctx, query, batch.ID, batch.BatchID, batch.PublicKey, batch.Status, batch.Amount, batch.TxHash)
 		if err != nil {
 			return nil, err
 		}
@@ -45,18 +31,9 @@ func (p *PostgresBackend) CreateFeeBatch(ctx context.Context, tx *pgx.Tx, batche
 	return feeBatches, nil
 }
 
-func (p *PostgresBackend) SetFeeBatchTxHash(ctx context.Context, tx *pgx.Tx, batchId uuid.UUID, txHash string) error {
-	query := `update fee_batch set tx_hash = $1 where batch_id = $2`
-	_, err := (*tx).Exec(ctx, query, txHash, batchId)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *PostgresBackend) SetFeeBatchStatus(ctx context.Context, tx *pgx.Tx, batchId uuid.UUID, status types.FeeBatchState) error {
+func (p *PostgresBackend) SetFeeBatchStatus(ctx context.Context, tx pgx.Tx, batchId uuid.UUID, status types.FeeBatchState) error {
 	query := `update fee_batch set status = $1 where batch_id = $2`
-	_, err := (*tx).Exec(ctx, query, status, batchId)
+	_, err := tx.Exec(ctx, query, status, batchId)
 	if err != nil {
 		return err
 	}
@@ -64,7 +41,8 @@ func (p *PostgresBackend) SetFeeBatchStatus(ctx context.Context, tx *pgx.Tx, bat
 }
 
 func (p *PostgresBackend) GetFeeBatch(ctx context.Context, batchIDs ...uuid.UUID) ([]types.FeeBatch, error) {
-	query := `select * from fee_batch where id = $1`
+
+	query := `select * from fee_batch where batch_id = ANY($1)`
 	rows, err := p.pool.Query(ctx, query, batchIDs)
 	if err != nil {
 		return nil, err

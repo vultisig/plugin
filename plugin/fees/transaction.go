@@ -126,7 +126,7 @@ func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, feeBatch types.F
 		return fmt.Errorf("failed to get vault: %w", err)
 	}
 
-	keySignRequests, err := fp.proposeTransactions(ctx, feePolicy, feeBatch.Amount)
+	keySignRequests, err := fp.proposeTransactions(ctx, feePolicy, feeBatch, feeBatch.Amount)
 	if err != nil {
 		return fmt.Errorf("failed to propose transactions: %w", err)
 	}
@@ -170,20 +170,24 @@ func (fp *FeePlugin) initSign(
 		sig = s
 	}
 
-	txBytes, txErr := hexutilDecode(req.Transaction)
+	decodedHexTx, decodedHexTxErr := base64.StdEncoding.DecodeString(req.Transaction)
+	if decodedHexTxErr != nil {
+		return fmt.Errorf("failed to decode transaction: %w", decodedHexTxErr)
+	}
+
 	r, rErr := hexutilDecode(sig.R)
 	s, sErr := hexutilDecode(sig.S)
 	v, vErr := hexutilDecode(sig.RecoveryID)
-	if txErr != nil || rErr != nil || sErr != nil || vErr != nil {
-		return fmt.Errorf("error decoding tx or sigs: %w", errors.Join(txErr, rErr, sErr, vErr))
+	if rErr != nil || sErr != nil || vErr != nil {
+		return fmt.Errorf("error decoding tx or sigs: %w", errors.Join(rErr, sErr, vErr))
 	}
 
-	txHash, err := getHash(txBytes, r, s, v, fp.config.ChainId)
+	txHash, err := getHash(decodedHexTx, r, s, v, fp.config.ChainId)
 	if err != nil {
 		return fmt.Errorf("failed to get hash: %w", err)
 	}
 
-	erc20tx, err := decodeTx(req.Transaction)
+	erc20tx, err := decodeTx(hexutil.Encode(decodedHexTx))
 	if err != nil {
 		fp.logger.WithError(err).Error("failed to decode tx")
 		return fmt.Errorf("failed to decode tx: %w", err)
@@ -204,7 +208,7 @@ func (fp *FeePlugin) initSign(
 		"batch_id":   feeBatch.BatchID,
 	}).Info("fee collection transaction")
 
-	tx, err := fp.eth.Send(ctx, txBytes, r, s, v)
+	tx, err := fp.eth.Send(ctx, decodedHexTx, r, s, v)
 	if err != nil {
 		fp.logger.WithError(err).WithField("tx_hex", req.Transaction).Error("fp.eth.Send")
 		return fmt.Errorf("failed to send transaction: %w", err)
@@ -222,7 +226,7 @@ func (fp *FeePlugin) initSign(
 
 }
 
-func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.PluginPolicy, amount uint64) ([]vtypes.PluginKeysignRequest, error) {
+func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.PluginPolicy, feeBatch types.FeeBatch, amount uint64) ([]vtypes.PluginKeysignRequest, error) {
 
 	vault, err := common.GetVaultFromPolicy(fp.vaultStorage, policy, fp.encryptionSecret)
 	if err != nil {
@@ -321,6 +325,9 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 					Chain:        vgcommon.Ethereum,
 					Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 					HashFunction: vtypes.HashFunction_SHA256,
+					CustomData: map[string]interface{}{
+						"batch_id": feeBatch.BatchID.String(),
+					},
 				},
 			},
 			PolicyID: policy.ID,
@@ -328,7 +335,6 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 		},
 		Transaction: base64.StdEncoding.EncodeToString(tx),
 	}
-
 	txs = append(txs, signRequest)
 
 	return txs, nil

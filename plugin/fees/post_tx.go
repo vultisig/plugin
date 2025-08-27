@@ -3,7 +3,6 @@ package fees
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/ethereum/go-ethereum"
 	ecommon "github.com/ethereum/go-ethereum/common"
@@ -31,13 +30,10 @@ func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 	}
 
 	sem := semaphore.NewWeighted(int64(fp.config.Jobs.Post.MaxConcurrentJobs))
-	var wg sync.WaitGroup
-	var eg errgroup.Group
+	eg, ctx := errgroup.WithContext(ctx)
 	for _, batch := range batches {
-		wg.Add(1)
 		feeBatch := batch
 		eg.Go(func() error {
-			defer wg.Done()
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
@@ -45,7 +41,6 @@ func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 			return fp.updateStatus(ctx, feeBatch, currentBlock)
 		})
 	}
-	wg.Wait()
 	if err := eg.Wait(); err != nil {
 		return fmt.Errorf("failed to execute fee run status check: %w", err)
 	}
@@ -70,9 +65,32 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, cur
 		if currentBlock > receipt.BlockNumber.Uint64()+fp.config.Jobs.Post.SuccessConfirmations {
 			fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx successful, setting to success")
 
-			// This is semi critical code as it could create a state mismatch between the verifier and the database.
-			if err = fp.db.SetFeeBatchStatus(ctx, nil, batch.BatchID, types.FeeBatchStateSuccess); err != nil {
+			tx, err := fp.db.Pool().Begin(ctx)
+			if err != nil {
+				return err
+			}
+			var rollbackErr error
+			defer func() {
+				if rollbackErr != nil {
+					tx.Rollback(ctx)
+				}
+			}()
+
+			fp.verifierApi.UpdateFeeBatchTxHash(*batch.TxHash, batch.BatchID, *batch.TxHash)
+
+			if err = fp.db.SetFeeBatchStatus(ctx, tx, batch.BatchID, types.FeeBatchStateSuccess); err != nil {
+				rollbackErr = err
+				return fmt.Errorf("failed to update verifier fee batch to success: %w", err)
+			}
+
+			if err = fp.db.SetFeeBatchStatus(ctx, tx, batch.BatchID, types.FeeBatchStateSuccess); err != nil {
+				rollbackErr = err
 				return fmt.Errorf("failed to set fee batch success: %w", err)
+			}
+
+			if err = tx.Commit(ctx); err != nil {
+				rollbackErr = err
+				return fmt.Errorf("failed to commit transaction: %w", err)
 			}
 		} else {
 			fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx successful, but not enough confirmations, waiting for more")
