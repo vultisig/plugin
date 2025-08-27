@@ -9,7 +9,6 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 
 	"github.com/vultisig/plugin/internal/types"
-	"github.com/vultisig/plugin/internal/verifierapi"
 )
 
 type DatabaseStorage interface {
@@ -22,14 +21,12 @@ type DatabaseStorage interface {
 	InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 	UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy vtypes.PluginPolicy) (*vtypes.PluginPolicy, error)
 
-	CreateFeeRun(ctx context.Context, policyId uuid.UUID, state types.FeeRunState, fees ...verifierapi.FeeDto) (*types.FeeRun, error)
-	SetFeeRunSent(ctx context.Context, runId uuid.UUID, txHash string) error
-	SetFeeRunSuccess(ctx context.Context, runId uuid.UUID) error
-	GetAllFeeRuns(ctx context.Context, statuses ...types.FeeRunState) ([]types.FeeRun, error) // If no statuses are provided, all fee runs are returned.
-	GetFees(ctx context.Context, feeIds ...uuid.UUID) ([]types.Fee, error)
-	GetPendingFeeRun(ctx context.Context, policyId uuid.UUID) (*types.FeeRun, error)
-	CreateFee(ctx context.Context, runId uuid.UUID, fee verifierapi.FeeDto) error
-	GetFeeRuns(ctx context.Context, state types.FeeRunState) ([]types.FeeRun, error)
+	CreateFeeBatch(ctx context.Context, tx *pgx.Tx, batches ...types.FeeBatch) ([]types.FeeBatch, error)
+	SetFeeBatchTxHash(ctx context.Context, tx *pgx.Tx, batchId uuid.UUID, txHash string) error
+	SetFeeBatchStatus(ctx context.Context, tx *pgx.Tx, batchId uuid.UUID, status types.FeeBatchState) error
+	GetFeeBatch(ctx context.Context, batchIDs ...uuid.UUID) ([]types.FeeBatch, error)
+	GetFeeBatchByStatus(ctx context.Context, status types.FeeBatchState) ([]types.FeeBatch, error)
+	SetFeeBatchSent(ctx context.Context, txHash string, batchId uuid.UUID) error
 
 	Pool() *pgxpool.Pool
 }

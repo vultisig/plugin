@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	ecommon "github.com/ethereum/go-ethereum/common"
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/internal/types"
@@ -19,7 +18,7 @@ import (
 
 func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 	// Get a list of all fee runs that are in a sent state
-	runs, err := fp.db.GetAllFeeRuns(ctx, types.FeeRunStateSent)
+	batches, err := fp.db.GetFeeBatchByStatus(ctx, types.FeeBatchStateSent)
 	if err != nil {
 		fp.logger.WithError(err).Error("failed to get fee runs")
 		return fmt.Errorf("failed to get fee runs: %w", err)
@@ -34,19 +33,16 @@ func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 	sem := semaphore.NewWeighted(int64(fp.config.Jobs.Post.MaxConcurrentJobs))
 	var wg sync.WaitGroup
 	var eg errgroup.Group
-	for _, run := range runs {
+	for _, batch := range batches {
 		wg.Add(1)
-		run = run
+		feeBatch := batch
 		eg.Go(func() error {
 			defer wg.Done()
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
 			defer sem.Release(1)
-			if run.TxHash == nil || run.Status == types.FeeRunStateDraft {
-				return nil
-			}
-			return fp.updateStatus(ctx, run, currentBlock)
+			return fp.updateStatus(ctx, feeBatch, currentBlock)
 		})
 	}
 	wg.Wait()
@@ -57,43 +53,35 @@ func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 	return nil
 }
 
-func (fp *FeePlugin) updateStatus(ctx context.Context, run types.FeeRun, currentBlock uint64) error {
-	if run.TxHash == nil || run.Status == types.FeeRunStateDraft {
+func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, currentBlock uint64) error {
+	if batch.TxHash == nil || batch.Status == types.FeeBatchStateDraft {
 		return nil
 	}
-	fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("Beginning status check/update")
-	hash := ecommon.HexToHash(*run.TxHash)
+	fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("Beginning status check/update")
+	hash := ecommon.HexToHash(*batch.TxHash)
 
 	receipt, err := fp.ethClient.TransactionReceipt(ctx, hash)
 	if err == ethereum.NotFound {
 		// TODO rebroadcast logic
-		fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx not found on chain, rebroadcasting")
+		fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx not found on chain, rebroadcasting")
 		return nil
 	}
 	if receipt.Status == 1 {
 		if currentBlock > receipt.BlockNumber.Uint64()+fp.config.Jobs.Post.SuccessConfirmations {
-			fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx successful, setting to success")
-
-			ids := []uuid.UUID{}
-			for _, fee := range run.Fees {
-				ids = append(ids, fee.ID)
-			}
-
-			if err = fp.verifierApi.MarkFeeAsCollected(*run.TxHash, run.CreatedAt, ids...); err != nil {
-				return fmt.Errorf("failed to mark fee as collected on verifier: %w", err)
-			}
+			fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx successful, setting to success")
 
 			// This is semi critical code as it could create a state mismatch between the verifier and the database.
-			if err = fp.db.SetFeeRunSuccess(ctx, run.ID); err != nil {
-				return fmt.Errorf("failed to set fee run success: %w", err)
+			if err = fp.db.SetFeeBatchStatus(ctx, nil, batch.BatchID, types.FeeBatchStateSuccess); err != nil {
+				return fmt.Errorf("failed to set fee batch success: %w", err)
 			}
 		} else {
-			fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx successful, but not enough confirmations, waiting for more")
+			fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx successful, but not enough confirmations, waiting for more")
 			return nil
 		}
 	} else {
 		// TODO failed tx logic
-		fp.logger.WithFields(logrus.Fields{"run_id": run.ID}).Info("tx failed, setting to failed")
+		fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx failed, setting to failed")
+		fp.verifierApi.RevertFeeCredit(*batch.TxHash, batch.BatchID)
 		return nil
 	}
 	return nil

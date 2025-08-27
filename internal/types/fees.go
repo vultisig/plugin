@@ -8,32 +8,23 @@ import (
 
 // DB FEE Types
 
-type FeeRunState string
+type FeeBatchState string
 
 const (
-	FeeRunStateDraft   FeeRunState = "draft"
-	FeeRunStateSent    FeeRunState = "sent"
-	FeeRunStateSuccess FeeRunState = "completed"
-	FeeRunStateFailed  FeeRunState = "failed"
+	FeeBatchStateDraft   FeeBatchState = "draft"
+	FeeBatchStateSent    FeeBatchState = "sent"
+	FeeBatchStateSuccess FeeBatchState = "completed"
+	FeeBatchStateFailed  FeeBatchState = "failed"
 )
 
 // individual fee record in the db
-type Fee struct {
-	ID        uuid.UUID `db:"id"`
-	FeeRunID  uuid.UUID `db:"fee_run_id"`
-	Amount    int       `db:"amount"`
-	CreatedAt time.Time `db:"created_at"`
-}
-
-// fee table or fee_run_with_totals
-type FeeRun struct {
-	ID          uuid.UUID   `db:"id"`
-	Status      FeeRunState `db:"status"`
-	CreatedAt   time.Time   `db:"created_at"`
-	UpdatedAt   time.Time   `db:"updated_at"`
-	TxHash      *string     `db:"tx_hash"`
-	PolicyID    uuid.UUID   `db:"policy_id"`
-	TotalAmount int         `db:"total_amount"`
-	FeeCount    int         `db:"fee_count"`
-	Fees        []Fee       `db:"fees"`
+type FeeBatch struct {
+	ID        uuid.UUID     `db:"id"`
+	BatchID   uuid.UUID     `db:"batch_id"`
+	PublicKey string        `db:"public_key"`
+	Status    FeeBatchState `db:"status"`
+	Amount    uint64        `db:"amount"`
+	CreatedAt time.Time     `db:"created_at"`
+	UpdatedAt time.Time     `db:"updated_at"`
+	TxHash    *string       `db:"tx_hash"`
 }

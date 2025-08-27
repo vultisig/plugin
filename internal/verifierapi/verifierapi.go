@@ -53,12 +53,20 @@ func (v *VerifierApi) getAuth(endpoint string) (*http.Response, error) {
 }
 
 func (v *VerifierApi) postAuth(endpoint string, body any) (*http.Response, error) {
+	return v.bodyRequest(endpoint, body, http.MethodPost)
+}
+
+func (v *VerifierApi) putAuth(endpoint string, body any) (*http.Response, error) {
+	return v.bodyRequest(endpoint, body, http.MethodPut)
+}
+
+func (v *VerifierApi) bodyRequest(endpoint string, body any, httpMethod string) (*http.Response, error) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 
-	request, err := http.NewRequest(http.MethodPost, v.url+endpoint, bytes.NewBuffer(jsonBody))
+	request, err := http.NewRequest(httpMethod, v.url+endpoint, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, err
 	}

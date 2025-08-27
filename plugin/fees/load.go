@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
-	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/internal/types"
 	vtypes "github.com/vultisig/verifier/types"
 	"golang.org/x/sync/errgroup"
@@ -46,7 +45,11 @@ func (fp *FeePlugin) LoadFees(ctx context.Context, task *asynq.Task) error {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
 			defer sem.Release(1)
-			return fp.executeFeeLoading(ctx, feePolicy)
+			err := fp.executeFeeLoading(ctx, feePolicy)
+			if err != nil {
+				fp.logger.WithError(err).WithField("public_key", feePolicy.PublicKey).Error("Failed to execute fee loading")
+			}
+			return err
 		})
 	}
 
@@ -60,80 +63,28 @@ func (fp *FeePlugin) LoadFees(ctx context.Context, task *asynq.Task) error {
 func (fp *FeePlugin) executeFeeLoading(ctx context.Context, feePolicy vtypes.PluginPolicy) error {
 
 	// Get list of fees from the verifier connected to the fee policy
-	feesResponse, err := fp.verifierApi.GetPublicKeysFees(feePolicy.PublicKey)
+	batch, err := fp.verifierApi.CreateFeeBatch(feePolicy.PublicKey)
 	if err != nil {
 		return fmt.Errorf("failed to get plugin policy fees: %w", err)
 	}
 
-	// Early return if no fees to collect
-	if feesResponse.FeesPendingCollection <= 0 {
-		fp.logger.WithField("publicKey", feePolicy.PublicKey).Info("No fees pending collection")
+	if err != nil {
+		return fmt.Errorf("failed to create fee batch: %w", err)
+	}
+
+	if batch.Amount == 0 || batch.BatchID == uuid.Nil {
+		fp.logger.WithField("public_key", feePolicy.PublicKey).Info("No fees to load")
 		return nil
 	}
 
-	// If fees are greater than 0, we need to collect them
-	fp.logger.WithFields(logrus.Fields{
-		"publicKey": feePolicy.PublicKey,
-	}).Info("Fees pending collection: ", feesResponse.FeesPendingCollection)
+	_, err = fp.db.CreateFeeBatch(ctx, nil, types.FeeBatch{
+		ID:        uuid.New(),
+		BatchID:   batch.BatchID,
+		PublicKey: feePolicy.PublicKey,
+		Status:    types.FeeBatchStateDraft,
+		TxHash:    nil,
+		Amount:    uint64(batch.Amount),
+	})
 
-	checkAmount := 0
-	for _, fee := range feesResponse.Fees {
-		if !fee.Collected {
-			checkAmount += fee.Amount
-		}
-	}
-	if checkAmount != feesResponse.FeesPendingCollection {
-		return fmt.Errorf("fees pending collection amount does not match the sum of the fees")
-	}
-
-	for _, fee := range feesResponse.Fees {
-		if !fee.Collected {
-
-			// Check if the fee has already been loaded and added to a fee run, if so, skip it
-			existingFee, err := fp.db.GetFees(ctx, fee.ID)
-			if err != nil {
-				return fmt.Errorf("failed to get fee: %w", err)
-			}
-			if len(existingFee) > 0 {
-				fp.logger.WithFields(logrus.Fields{
-					"publicKey": feePolicy.PublicKey,
-					"feeId":     fee.ID,
-					"runId":     existingFee[0].FeeRunID,
-				}).Info("Fee already added to a fee run")
-				continue
-			}
-
-			// If the fee hasn't been loaded, look for a draft run and add it to it
-			run, err := fp.db.GetPendingFeeRun(ctx, feePolicy.ID)
-			if err != nil {
-				return fmt.Errorf("failed to get pending fee run: %w", err)
-			}
-
-			// If no draft run is found, create a new one and add the fee to it
-			if run == nil {
-				run, err = fp.db.CreateFeeRun(ctx, feePolicy.ID, types.FeeRunStateDraft, fee)
-				if err != nil {
-					return fmt.Errorf("failed to create fee run: %w", err)
-				}
-				fp.logger.WithFields(logrus.Fields{
-					"publicKey": feePolicy.PublicKey,
-					"feeIds":    []uuid.UUID{fee.ID},
-					"runId":     run.ID,
-				}).Info("Fee run created")
-
-				// If a draft run is found, add the fee to it
-			} else {
-				if err := fp.db.CreateFee(ctx, run.ID, fee); err != nil {
-					return fmt.Errorf("failed to create fee: %w", err)
-				}
-				fp.logger.WithFields(logrus.Fields{
-					"publicKey": feePolicy.PublicKey,
-					"feeIds":    []uuid.UUID{fee.ID},
-					"runId":     run.ID,
-				}).Info("Fee added to fee run")
-			}
-		}
-	}
-
-	return nil
+	return err
 }
