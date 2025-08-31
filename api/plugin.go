@@ -2,11 +2,8 @@ package api
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	gtypes "github.com/ethereum/go-ethereum/core/types"
