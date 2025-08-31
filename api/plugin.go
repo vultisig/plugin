@@ -185,28 +185,6 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	})
 }
 
-func (s *Server) GetPolicySchema(c echo.Context) error {
-	pluginID := c.Request().Header.Get("plugin_id") // this is a unique identifier; this won't be needed once the DCA and Payroll are separate services
-	if pluginID == "" {
-		return c.JSON(http.StatusBadRequest, NewErrorResponse("missing required header: plugin_id"))
-	}
-
-	// TODO: need to deal with both DCA and Payroll plugins
-	keyPath := filepath.Join("plugin", pluginID, "dcaPluginUiSchema.json")
-	jsonData, err := os.ReadFile(keyPath)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to read plugin schema"))
-	}
-
-	var data map[string]interface{}
-	jsonErr := json.Unmarshal(jsonData, &data)
-	if jsonErr != nil {
-		s.logger.WithError(jsonErr).Error("Failed to parse plugin schema")
-		return c.JSON(http.StatusInternalServerError, NewErrorResponse("failed to parse plugin schema"))
-	}
-	return c.JSON(http.StatusOK, data)
-}
-
 func (s *Server) GetRecipeSpecification(c echo.Context) error {
 	recipeSpec, err := s.plugin.GetRecipeSpecification()
 	if err != nil {

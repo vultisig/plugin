@@ -39,7 +39,6 @@ type Server struct {
 	policyService service.Policy
 	plugin        plugin.Spec
 	logger        *logrus.Logger
-	mode          string
 }
 
 // NewServer returns a new server.
