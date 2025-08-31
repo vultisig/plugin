@@ -6,7 +6,6 @@ server:
   verifier_url: "http://localhost:8081"
   base_config_path: /etc/vultisig
   vaults_file_path: test/vaults
-  mode: plugin
   plugin:
     type: fees
 
