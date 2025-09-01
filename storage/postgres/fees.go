@@ -79,8 +79,8 @@ func (p *PostgresBackend) GetFeeBatchByStatus(ctx context.Context, status types.
 	return feeBatches, nil
 }
 
-func (p *PostgresBackend) SetFeeBatchSent(ctx context.Context, txHash string, batchId uuid.UUID) error {
+func (p *PostgresBackend) SetFeeBatchSent(ctx context.Context, tx pgx.Tx, txHash string, batchId uuid.UUID) error {
 	query := `update fee_batch set status = $1, tx_hash = $2 where batch_id = $3`
-	_, err := p.pool.Exec(ctx, query, types.FeeBatchStateSent, txHash, batchId)
+	_, err := tx.Exec(ctx, query, types.FeeBatchStateSent, txHash, batchId)
 	return err
 }

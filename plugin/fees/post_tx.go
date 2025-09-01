@@ -9,6 +9,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/internal/types"
+	vtypes "github.com/vultisig/verifier/types"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -38,7 +39,12 @@ func (fp *FeePlugin) HandlePostTx(ctx context.Context, task *asynq.Task) error {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
 			defer sem.Release(1)
-			return fp.updateStatus(ctx, feeBatch, currentBlock)
+			if err := fp.updateStatus(ctx, feeBatch, currentBlock); err != nil {
+				fp.logger.WithField("batch_id", feeBatch.BatchID).Error("Failed to update fee batch status", err)
+			} else {
+				fp.logger.WithField("batch_id", feeBatch.BatchID).Info("Fee batch status update run successfully")
+			}
+			return nil
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -61,6 +67,8 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, cur
 		fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx not found on chain, rebroadcasting")
 		return nil
 	}
+
+	// Tx successful
 	if receipt.Status == 1 {
 		if currentBlock > receipt.BlockNumber.Uint64()+fp.config.Jobs.Post.SuccessConfirmations {
 			fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx successful, setting to success")
@@ -69,6 +77,7 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, cur
 			if err != nil {
 				return err
 			}
+
 			var rollbackErr error
 			defer func() {
 				if rollbackErr != nil {
@@ -76,16 +85,24 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, cur
 				}
 			}()
 
-			fp.verifierApi.UpdateFeeBatchTxHash(*batch.TxHash, batch.BatchID, *batch.TxHash)
+			hash := ""
+			if batch.TxHash != nil {
+				hash = *batch.TxHash
+			}
 
-			if err = fp.db.SetFeeBatchStatus(ctx, tx, batch.BatchID, types.FeeBatchStateSuccess); err != nil {
+			resp, err := fp.verifierApi.UpdateFeeBatch(batch.PublicKey, batch.BatchID, hash, types.FeeBatchStateSuccess)
+			if err != nil {
 				rollbackErr = err
 				return fmt.Errorf("failed to update verifier fee batch to success: %w", err)
+			}
+			if resp.Error.Message != "" {
+				rollbackErr = fmt.Errorf("failed to update verifier fee batch to success: %s", resp.Error.Message)
+				return fmt.Errorf("failed to update verifier fee batch to success: %s", resp.Error.Message)
 			}
 
 			if err = fp.db.SetFeeBatchStatus(ctx, tx, batch.BatchID, types.FeeBatchStateSuccess); err != nil {
 				rollbackErr = err
-				return fmt.Errorf("failed to set fee batch success: %w", err)
+				return fmt.Errorf("failed to update verifier fee batch to success: %w", err)
 			}
 
 			if err = tx.Commit(ctx); err != nil {
@@ -97,10 +114,66 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, cur
 			return nil
 		}
 	} else {
-		// TODO failed tx logic
-		fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx failed, setting to failed")
-		fp.verifierApi.RevertFeeCredit(*batch.TxHash, batch.BatchID)
-		return nil
+		// Handle failed tx - in this case, we simply set the batch to failed. And request for the verifier to create a new debit line of "failed tx"
+		return fp.handleFailedTx(ctx, batch)
 	}
 	return nil
+}
+
+// This function sets a batch id to be failed and requests for a new debit line to be created. The failed tx then gets picked up in a new batch.
+func (fp *FeePlugin) handleFailedTx(ctx context.Context, batch types.FeeBatch) error {
+	fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx failed, setting to failed")
+
+	tx, err := fp.db.Pool().Begin(ctx)
+	if err != nil {
+		return err
+	}
+	var rollbackErr error
+	defer func() {
+		if rollbackErr != nil {
+			tx.Rollback(ctx)
+		}
+	}()
+
+	// This api call automatically creates a new debit line for the failed tx, which will get picked up in a new batch.
+	err = fp.db.SetFeeBatchStatus(ctx, tx, batch.BatchID, types.FeeBatchStateFailed)
+	if err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to set fee batch status to failed: %w", err)
+	}
+
+	hash := ""
+	if batch.TxHash != nil {
+		hash = *batch.TxHash
+	}
+	resp, err := fp.verifierApi.UpdateFeeBatch(batch.PublicKey, batch.BatchID, hash, types.FeeBatchStateFailed)
+	if err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to update verifier fee batch to failed: %w", err)
+	}
+	if resp.Error.Message != "" {
+		rollbackErr = fmt.Errorf("failed to update verifier fee batch to failed: %s", resp.Error.Message)
+		return fmt.Errorf("failed to update verifier fee batch to failed: %s", resp.Error.Message)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	feePolicies, err := fp.db.GetPluginPolicies(ctx, batch.PublicKey, vtypes.PluginVultisigFees_feee, true)
+	if err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to get plugin policy: %w", err)
+	}
+
+	if len(feePolicies) < 1 {
+		rollbackErr = err
+		return fmt.Errorf("failed to get plugin policy: %w", err)
+	}
+
+	feePolicy := feePolicies[0]
+
+	// Immediately load a new fee batch
+	return fp.executeFeeLoading(ctx, feePolicy)
 }

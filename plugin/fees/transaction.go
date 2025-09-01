@@ -150,8 +150,6 @@ func (fp *FeePlugin) initSign(
 	feeBatch types.FeeBatch,
 ) error {
 
-	fmt.Printf("Init sign: %+v\n", req)
-
 	sigs, err := fp.signer.Sign(ctx, req)
 	if err != nil {
 		fp.logger.WithError(err).Error("Keysign failed")
@@ -193,11 +191,35 @@ func (fp *FeePlugin) initSign(
 		return fmt.Errorf("failed to decode tx: %w", err)
 	}
 
-	if err := fp.db.SetFeeBatchSent(ctx, txHash.Hash().Hex(), feeBatch.BatchID); err != nil {
+	tx, err := fp.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	var rollbackErr error
+	defer func() {
+		if rollbackErr != nil {
+			tx.Rollback(ctx)
+		}
+	}()
+
+	if err := fp.db.SetFeeBatchSent(ctx, tx, txHash.Hash().Hex(), feeBatch.BatchID); err != nil {
+		rollbackErr = err
 		return fmt.Errorf("failed to set fee batch sent: %w", err)
 	}
+	resp, err := fp.verifierApi.UpdateFeeBatch(pluginPolicy.PublicKey, feeBatch.BatchID, txHash.Hash().Hex(), types.FeeBatchStateSent)
+	if err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to update fee batch: %w", err)
+	}
+	if resp.Error.Message != "" {
+		rollbackErr = err
+		return fmt.Errorf("failed to update fee batch: %s", resp.Error.Message)
+	}
 
-	fp.verifierApi.UpdateFeeBatchTxHash(pluginPolicy.PublicKey, feeBatch.BatchID, txHash.Hash().Hex())
+	if err := tx.Commit(ctx); err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
 	fp.logger.WithFields(logrus.Fields{
 		"tx_hash":    txHash.Hash().Hex(),
@@ -208,14 +230,14 @@ func (fp *FeePlugin) initSign(
 		"batch_id":   feeBatch.BatchID,
 	}).Info("fee collection transaction")
 
-	tx, err := fp.eth.Send(ctx, decodedHexTx, r, s, v)
+	ethTx, err := fp.eth.Send(ctx, decodedHexTx, r, s, v)
 	if err != nil {
 		fp.logger.WithError(err).WithField("tx_hex", req.Transaction).Error("fp.eth.Send")
 		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 
 	fp.logger.WithFields(logrus.Fields{
-		"tx_hash":    tx.Hash().Hex(),
+		"tx_hash":    ethTx.Hash().Hex(),
 		"tx_to":      erc20tx.to.Hex(),
 		"tx_amount":  erc20tx.amount.String(),
 		"tx_token":   erc20tx.token.Hex(),
