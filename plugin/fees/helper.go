@@ -1,7 +1,9 @@
 package fees
 
 import (
+	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -11,8 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	reth "github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
+	vtypes "github.com/vultisig/verifier/types"
 )
 
 func getHash(inTx evm.UnsignedTx, r, s, v []byte, chainID *big.Int) (*etypes.Transaction, error) {
@@ -112,4 +116,14 @@ func hexutilDecode(hexStr string) ([]byte, error) {
 		hexStr = "0x" + hexStr
 	}
 	return hexutil.Decode(hexStr)
+}
+
+// deprecated, use proposeTransactions instead as it relies on a fee run and a context
+func (fp *FeePlugin) ProposeTransactions(policy vtypes.PluginPolicy) ([]vtypes.PluginKeysignRequest, error) {
+	return nil, errors.New("not implemented")
+}
+
+// deprecated, no longer part of the flow. initSign handles the transaction signing, sending and recording of initial state. The process thereafter is handled by the post_tx flow
+func (fp *FeePlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest vtypes.PluginKeysignRequest, policy vtypes.PluginPolicy) error {
+	return fmt.Errorf("not implemented")
 }
