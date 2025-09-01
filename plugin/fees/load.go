@@ -3,7 +3,6 @@ package fees
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -33,14 +32,11 @@ func (fp *FeePlugin) LoadFees(ctx context.Context, task *asynq.Task) error {
 
 	// We limit the number of concurrent fee loading operations to 10
 	sem := semaphore.NewWeighted(int64(fp.config.Jobs.Load.MaxConcurrentJobs))
-	var wg sync.WaitGroup
 	var eg errgroup.Group
 
 	for _, feePolicy := range feePolicies {
-		wg.Add(1)
 		feePolicy = feePolicy
 		eg.Go(func() error {
-			defer wg.Done()
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
@@ -61,7 +57,6 @@ func (fp *FeePlugin) LoadFees(ctx context.Context, task *asynq.Task) error {
 		})
 	}
 
-	wg.Wait()
 	if err := eg.Wait(); err != nil {
 		return fmt.Errorf("failed to execute fee loading: %w", err)
 	}
