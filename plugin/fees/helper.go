@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	etypes "github.com/ethereum/go-ethereum/core/types"
@@ -19,7 +20,7 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 )
 
-func getHash(inTx evm.UnsignedTx, r, s, v []byte, chainID *big.Int) (*etypes.Transaction, error) {
+func getTransaction(inTx evm.UnsignedTx, r, s, v []byte, chainID *big.Int) (*etypes.Transaction, error) {
 	var sig []byte
 	sig = append(sig, r...)
 	sig = append(sig, s...)
@@ -36,6 +37,15 @@ func getHash(inTx evm.UnsignedTx, r, s, v []byte, chainID *big.Int) (*etypes.Tra
 	}
 
 	return outTx, nil
+}
+
+func parseTransaction(rawTx string) (*etypes.Transaction, error) {
+	txBytes := common.FromHex(rawTx)
+	var tx etypes.Transaction
+	if err := rlp.DecodeBytes(txBytes, &tx); err != nil {
+		return nil, fmt.Errorf("rlp.DecodeBytes: %w", err)
+	}
+	return &tx, nil
 }
 
 type erc20tx struct {

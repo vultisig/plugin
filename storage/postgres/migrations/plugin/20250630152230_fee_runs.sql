@@ -15,6 +15,11 @@ CREATE TABLE IF NOT EXISTS fee_batch (
     tx_hash VARCHAR(66)
 );
 
+CREATE TABLE fee_tx (
+    hash VARCHAR(66) PRIMARY KEY,
+    raw_tx TEXT NOT NULL
+);
+
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -32,3 +37,4 @@ DROP FUNCTION IF EXISTS update_updated_at_column();
 DROP TABLE IF EXISTS fee_batch;
 DROP TYPE IF EXISTS fee_batch_status;
 -- +goose StatementEnd
+

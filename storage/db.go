@@ -27,5 +27,8 @@ type DatabaseStorage interface {
 	SetFeeBatchStatus(ctx context.Context, tx pgx.Tx, batchId uuid.UUID, status types.FeeBatchState) error
 	SetFeeBatchSent(ctx context.Context, tx pgx.Tx, txHash string, batchId uuid.UUID) error
 
+	InsertTx(ctx context.Context, tx pgx.Tx, rawTx string) error
+	GetTx(ctx context.Context, txHash string) (string, error)
+
 	Pool() *pgxpool.Pool
 }
