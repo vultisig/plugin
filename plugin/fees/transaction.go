@@ -7,13 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"runtime/debug"
 	"strconv"
-	"sync"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	etypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -46,47 +45,55 @@ func (fp *FeePlugin) HandleTransactions(ctx context.Context, task *asynq.Task) e
 	}()
 
 	fp.logger.Info("Getting all fee runs")
-	runs, err := fp.db.GetAllFeeRuns(ctx)
+	feeBatches, err := fp.db.GetFeeBatchByStatus(ctx, types.FeeBatchStateDraft)
 	if err != nil {
 		fp.logger.WithError(err).Error("Failed to get fee runs")
 		return fmt.Errorf("failed to get fee runs: %w", err)
 	}
 
 	sem := semaphore.NewWeighted(int64(fp.config.Jobs.Transact.MaxConcurrentJobs))
-	var wg sync.WaitGroup
 	var eg errgroup.Group
-	for _, run := range runs {
-		run = run
+
+	for _, batch := range feeBatches {
+		feeBatch := batch
 		eg.Go(func() error {
-			//TODO also check failed runs
-			if run.Status != types.FeeRunStateDraft {
-				return nil
-			}
+			// Add panic recovery for this goroutine
+			defer func() {
+				if r := recover(); r != nil {
+					fp.logger.WithFields(logrus.Fields{
+						"public_key": feeBatch.PublicKey,
+						"panic":      r,
+					}).Error("Recovered from panic in fee transaction processing")
+					debug.PrintStack()
+				}
+			}()
 
-			if run.TxHash != nil {
-				return nil
-			}
+			fp.logger.WithFields(logrus.Fields{"public_key": feeBatch.PublicKey}).Info("Processing fee policy")
 
-			if run.FeeCount == 0 || run.TotalAmount == 0 {
-				return nil
-			}
-
-			fp.logger.WithFields(logrus.Fields{"runId": run.ID}).Info("Processing fee run")
-			feePolicy, err := fp.db.GetPluginPolicy(ctx, run.PolicyID)
-			if err != nil {
-				return fmt.Errorf("failed to get fee policy: %w", err)
-			}
-			wg.Add(1)
-			fp.logger.WithFields(logrus.Fields{"runId": run.ID, "policyId": run.PolicyID}).Info("Retrieved fee policy")
-
-			defer wg.Done()
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return fmt.Errorf("failed to acquire semaphore: %w", err)
 			}
 			defer sem.Release(1)
-			if err := fp.executeFeeTransaction(ctx, run, *feePolicy); err != nil {
+
+			policies, err := fp.db.GetPluginPolicies(ctx, feeBatch.PublicKey, vtypes.PluginVultisigFees_feee, true)
+			if err != nil {
 				fp.logger.WithError(err).WithFields(logrus.Fields{
-					"runId": run.ID,
+					"public_key": feeBatch.PublicKey,
+				}).Error("Failed to get plugin policy")
+				return err
+			}
+			if len(policies) != 1 {
+				fp.logger.WithFields(logrus.Fields{
+					"public_key": feeBatch.PublicKey,
+				}).Error(fmt.Sprintf("Expected 1 plugin policy, got %d", len(policies)))
+				return fmt.Errorf("expected 1 plugin policy, got %d", len(policies))
+			}
+
+			policy := policies[0]
+
+			if err := fp.executeFeeTransaction(ctx, feeBatch, policy); err != nil {
+				fp.logger.WithError(err).WithFields(logrus.Fields{
+					"public_key": feeBatch.PublicKey,
 				}).Error("Failed to execute fee transaction")
 				return err
 			}
@@ -94,7 +101,6 @@ func (fp *FeePlugin) HandleTransactions(ctx context.Context, task *asynq.Task) e
 		})
 	}
 
-	wg.Wait()
 	if err := eg.Wait(); err != nil {
 		return fmt.Errorf("failed to execute fee transaction: %w", err)
 	}
@@ -102,15 +108,14 @@ func (fp *FeePlugin) HandleTransactions(ctx context.Context, task *asynq.Task) e
 	return nil
 }
 
-func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, run types.FeeRun, feePolicy vtypes.PluginPolicy) error {
+func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, feeBatch types.FeeBatch, feePolicy vtypes.PluginPolicy) error {
 
 	fp.logger.WithFields(logrus.Fields{
-		"runId":    run.ID,
-		"policyId": feePolicy.ID,
-	}).Info("Checking if fee run policy id matches fee policy id")
-	if run.PolicyID != feePolicy.ID {
-		return fmt.Errorf("fee run policy id does not match fee policy id")
-	}
+		"amount":    feeBatch.Amount,
+		"publicKey": feePolicy.PublicKey,
+		"policyId":  feePolicy.ID,
+		"batchId":   feeBatch.BatchID,
+	}).Info("Executing fee transaction")
 
 	// Get a vault and sign the transactions
 	fp.logger.WithFields(logrus.Fields{
@@ -121,11 +126,7 @@ func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, run types.FeeRun
 		return fmt.Errorf("failed to get vault: %w", err)
 	}
 
-	// Propose the transactions
-	fp.logger.WithFields(logrus.Fields{
-		"publicKey": feePolicy.PublicKey,
-	}).Info("Proposing transactions")
-	keySignRequests, err := fp.proposeTransactions(ctx, feePolicy, run)
+	keySignRequests, err := fp.proposeTransactions(ctx, feePolicy, feeBatch.Amount)
 	if err != nil {
 		return fmt.Errorf("failed to propose transactions: %w", err)
 	}
@@ -134,7 +135,7 @@ func (fp *FeePlugin) executeFeeTransaction(ctx context.Context, run types.FeeRun
 	}).Info("Key sign requests proposed")
 	for _, keySignRequest := range keySignRequests {
 		req := keySignRequest
-		if err := fp.initSign(ctx, req, feePolicy, run.ID); err != nil {
+		if err := fp.initSign(ctx, req, feePolicy, feeBatch); err != nil {
 			return fmt.Errorf("failed to init sign: %w", err)
 		}
 	}
@@ -146,8 +147,10 @@ func (fp *FeePlugin) initSign(
 	ctx context.Context,
 	req vtypes.PluginKeysignRequest,
 	pluginPolicy vtypes.PluginPolicy,
-	runId uuid.UUID,
+	feeBatch types.FeeBatch,
 ) error {
+
+	fmt.Printf("Init sign: %+v\n", req)
 
 	sigs, err := fp.signer.Sign(ctx, req)
 	if err != nil {
@@ -186,12 +189,19 @@ func (fp *FeePlugin) initSign(
 		return fmt.Errorf("failed to decode tx: %w", err)
 	}
 
+	if err := fp.db.SetFeeBatchSent(ctx, txHash.Hash().Hex(), feeBatch.BatchID); err != nil {
+		return fmt.Errorf("failed to set fee batch sent: %w", err)
+	}
+
+	fp.verifierApi.UpdateFeeBatchTxHash(pluginPolicy.PublicKey, feeBatch.BatchID, txHash.Hash().Hex())
+
 	fp.logger.WithFields(logrus.Fields{
 		"tx_hash":    txHash.Hash().Hex(),
 		"tx_to":      erc20tx.to.Hex(),
 		"tx_amount":  erc20tx.amount.String(),
 		"tx_token":   erc20tx.token.Hex(),
 		"public_key": pluginPolicy.PublicKey,
+		"batch_id":   feeBatch.BatchID,
 	}).Info("fee collection transaction")
 
 	tx, err := fp.eth.Send(ctx, txBytes, r, s, v)
@@ -200,22 +210,19 @@ func (fp *FeePlugin) initSign(
 		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 
-	// This is exceptionally important, as if it errors, the transaction will internally be recorded as draft, even after it's been broadcasted
-	if err := fp.db.SetFeeRunSent(ctx, runId, tx.Hash().Hex()); err != nil { //TODO pass the real tx id
-		return fmt.Errorf("failed to set fee run sent: %w", err)
-	}
-
-	// Log successful transaction broadcast
-	fp.logger.WithField("hash", tx.Hash().Hex()).Info("fee collection transaction successfully broadcasted")
+	fp.logger.WithFields(logrus.Fields{
+		"tx_hash":    tx.Hash().Hex(),
+		"tx_to":      erc20tx.to.Hex(),
+		"tx_amount":  erc20tx.amount.String(),
+		"tx_token":   erc20tx.token.Hex(),
+		"public_key": pluginPolicy.PublicKey,
+		"batch_id":   feeBatch.BatchID,
+	}).Info("fee collection transaction successfully broadcasted")
 	return nil
 
 }
 
-func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.PluginPolicy, run types.FeeRun) ([]vtypes.PluginKeysignRequest, error) {
-
-	if policy.ID != run.PolicyID {
-		return nil, fmt.Errorf("policy id does not match run policy id")
-	}
+func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.PluginPolicy, amount uint64) ([]vtypes.PluginKeysignRequest, error) {
 
 	vault, err := common.GetVaultFromPolicy(fp.vaultStorage, policy, fp.encryptionSecret)
 	if err != nil {
@@ -286,8 +293,6 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 		return nil, fmt.Errorf("token address does not match usdc address")
 	}
 
-	amount := run.TotalAmount
-
 	tx, err := fp.eth.MakeAnyTransfer(ctx,
 		gcommon.HexToAddress(ethAddress),
 		gcommon.HexToAddress(recipient),
@@ -318,12 +323,10 @@ func (fp *FeePlugin) proposeTransactions(ctx context.Context, policy vtypes.Plug
 					HashFunction: vtypes.HashFunction_SHA256,
 				},
 			},
-			SessionID:        "",
-			HexEncryptionKey: "",
-			PolicyID:         policy.ID,
-			PluginID:         policy.PluginID.String(),
+			PolicyID: policy.ID,
+			PluginID: policy.PluginID.String(),
 		},
-		Transaction: txHex,
+		Transaction: base64.StdEncoding.EncodeToString(tx),
 	}
 
 	txs = append(txs, signRequest)

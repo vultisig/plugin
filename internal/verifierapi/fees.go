@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/vultisig/plugin/internal/types"
 )
 
 type FeeDto struct {
@@ -27,16 +27,47 @@ type FeeHistoryDto struct {
 	FeesPendingCollection int       `json:"fees_pending_collection" validate:"required"` // Total fees pending collection in the smallest unit, e.g., "1000000" for 0.01 VULTI
 }
 
-func (v *VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, error) {
-	response, err := v.getAuth(fmt.Sprintf("/fees/publickey/%s", ecdsaPublicKey))
+type FeeBalanceDto struct {
+	Balance   int64  `json:"balance" validate:"required"`
+	PublicKey string `json:"public_key" validate:"required"`
+}
+
+type FeeBatchCreateResponseDto struct {
+	PublicKey string    `json:"public_key" validate:"required"`
+	Amount    uint64    `json:"amount" validate:"required"`
+	BatchID   uuid.UUID `json:"batch_id" validate:"required"`
+}
+
+type FeeBatchUpdateRequestResponseDto struct {
+	PublicKey string              `json:"public_key" validate:"required"`
+	BatchID   uuid.UUID           `json:"batch_id" validate:"required"`
+	TxHash    string              `json:"tx_hash" validate:"required"`
+	Status    types.FeeBatchState `json:"status" validate:"required"`
+}
+
+func (v *VerifierApi) CreateFeeBatch(publicKey string) (*FeeBatchCreateResponseDto, error) {
+	response, err := v.postAuth("/fees/batch", map[string]interface{}{
+		"public_key": publicKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fee batch: %w", err)
+	}
+	defer response.Body.Close()
+
+	var feeBatchResponse APIResponse[FeeBatchCreateResponseDto]
+	if err := json.NewDecoder(response.Body).Decode(&feeBatchResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode fee batch response: %w", err)
+	}
+
+	return &feeBatchResponse.Data, nil
+}
+
+func (v *VerifierApi) GetFeeHistory(ecdsaPublicKey string) (*FeeHistoryDto, error) {
+	response, err := v.getAuth(fmt.Sprintf("/fees/history/%s", ecdsaPublicKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key fees: %w", err)
 	}
-	defer func() {
-		if err := response.Body.Close(); err != nil {
-			v.logger.WithError(err).Error("Failed to close response body")
-		}
-	}()
+	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("public key not found")
 	}
@@ -57,28 +88,64 @@ func (v *VerifierApi) GetPublicKeysFees(ecdsaPublicKey string) (*FeeHistoryDto, 
 	return &feeHistory.Data, nil
 }
 
-func (v *VerifierApi) MarkFeeAsCollected(txHash string, collectedAt time.Time, feeIds ...uuid.UUID) error {
-
-	var body = struct {
-		IDs         []uuid.UUID `json:"ids"`
-		TxHash      string      `json:"tx_hash"`
-		CollectedAt time.Time   `json:"collected_at"`
-	}{
-		IDs:         feeIds,
-		TxHash:      txHash,
-		CollectedAt: collectedAt,
-	}
-
-	url := "/fees/collected"
-	response, err := v.postAuth(url, body)
+func (v *VerifierApi) GetFeeBalance(ecdsaPublicKey string) (*FeeBalanceDto, error) {
+	response, err := v.getAuth(fmt.Sprintf("/fees/balance/%s", ecdsaPublicKey))
 	if err != nil {
-		return fmt.Errorf("failed to mark fee as collected: %w", err)
+		return nil, fmt.Errorf("failed to get public key fees: %w", err)
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to mark fee as collected, status code: %d", response.StatusCode)
+	if response.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("public key not found")
 	}
 
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get public key fees, status code: %d", response.StatusCode)
+	}
+
+	var feeBalance APIResponse[FeeBalanceDto]
+	if err := json.NewDecoder(response.Body).Decode(&feeBalance); err != nil {
+		return nil, fmt.Errorf("failed to decode public key fees response: %w", err)
+	}
+
+	return &feeBalance.Data, nil
+}
+
+func (v *VerifierApi) CreateFeeCredit(id uuid.UUID, amount int64, publicKey string) error {
+	response, err := v.postAuth("/fees/credit", map[string]interface{}{
+		"id":         id,
+		"amount":     amount,
+		"public_key": publicKey,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create fee credit: %w", err)
+	}
+	defer response.Body.Close()
+
 	return nil
+}
+
+func (v *VerifierApi) RevertFeeCredit(txHash string, batchId uuid.UUID) error {
+	response, err := v.postAuth(fmt.Sprintf("/fees/revert/%s", batchId), struct{}{})
+	if err != nil {
+		return fmt.Errorf("failed to revert fee credit: %w", err)
+	}
+	defer response.Body.Close()
+
+	return nil
+}
+
+func (v *VerifierApi) UpdateFeeBatchTxHash(publickey string, batchId uuid.UUID, hash string) (*FeeBatchCreateResponseDto, error) {
+	response, err := v.putAuth("/fees/batch", FeeBatchUpdateRequestResponseDto{
+		PublicKey: publickey,
+		BatchID:   batchId,
+		TxHash:    hash,
+		Status:    types.FeeBatchStateSent,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fee batch: %w", err)
+	}
+	defer response.Body.Close()
+
+	return nil, nil
 }
