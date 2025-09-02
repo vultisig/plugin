@@ -180,7 +180,7 @@ func (fp *FeePlugin) initSign(
 		return fmt.Errorf("error decoding tx or sigs: %w", errors.Join(rErr, sErr, vErr))
 	}
 
-	txHash, err := getHash(decodedHexTx, r, s, v, fp.config.ChainId)
+	transaction, err := getTransaction(decodedHexTx, r, s, v, fp.config.ChainId)
 	if err != nil {
 		return fmt.Errorf("failed to get hash: %w", err)
 	}
@@ -202,11 +202,22 @@ func (fp *FeePlugin) initSign(
 		}
 	}()
 
-	if err := fp.db.SetFeeBatchSent(ctx, tx, txHash.Hash().Hex(), feeBatch.BatchID); err != nil {
+	if err := fp.db.SetFeeBatchSent(ctx, tx, transaction.Hash().Hex(), feeBatch.BatchID); err != nil {
 		rollbackErr = err
 		return fmt.Errorf("failed to set fee batch sent: %w", err)
 	}
-	resp, err := fp.verifierApi.UpdateFeeBatch(pluginPolicy.PublicKey, feeBatch.BatchID, txHash.Hash().Hex(), types.FeeBatchStateSent)
+
+	txRawBytes, err := transaction.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to encode transaction: %w", err)
+	}
+
+	if err := fp.db.InsertTx(ctx, tx, hexutil.Encode(txRawBytes)); err != nil {
+		rollbackErr = err
+		return fmt.Errorf("failed to insert tx: %w", err)
+	}
+
+	resp, err := fp.verifierApi.UpdateFeeBatch(pluginPolicy.PublicKey, feeBatch.BatchID, transaction.Hash().Hex(), types.FeeBatchStateSent)
 	if err != nil {
 		rollbackErr = err
 		return fmt.Errorf("failed to update fee batch: %w", err)
@@ -222,7 +233,7 @@ func (fp *FeePlugin) initSign(
 	}
 
 	fp.logger.WithFields(logrus.Fields{
-		"tx_hash":    txHash.Hash().Hex(),
+		"tx_hash":    transaction.Hash().Hex(),
 		"tx_to":      erc20tx.to.Hex(),
 		"tx_amount":  erc20tx.amount.String(),
 		"tx_token":   erc20tx.token.Hex(),
