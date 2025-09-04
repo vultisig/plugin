@@ -140,27 +140,24 @@ func (v *VerifierApi) CreateFeeCredit(id uuid.UUID, amount int64, publicKey stri
 	return nil
 }
 
-func (v *VerifierApi) RevertFeeCredit(txHash string, batchId uuid.UUID) error {
-	response, err := v.postAuth(fmt.Sprintf("/fees/revert/%s", batchId), struct{}{})
-	if err != nil {
-		return fmt.Errorf("failed to revert fee credit: %w", err)
-	}
-	defer response.Body.Close()
-
-	return nil
-}
-
-func (v *VerifierApi) UpdateFeeBatchTxHash(publickey string, batchId uuid.UUID, hash string) (*FeeBatchCreateResponseDto, error) {
+func (v *VerifierApi) UpdateFeeBatch(publickey string, batchId uuid.UUID, hash string, status types.FeeBatchState) (*APIResponse[FeeBatchCreateResponseDto], error) {
 	response, err := v.putAuth("/fees/batch", FeeBatchUpdateRequestResponseDto{
 		PublicKey: publickey,
 		BatchID:   batchId,
 		TxHash:    hash,
-		Status:    types.FeeBatchStateSent,
+		Status:    status,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fee batch: %w", err)
 	}
 	defer response.Body.Close()
+	var feeBatchResponse APIResponse[FeeBatchCreateResponseDto]
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to update fee batch, status code: %d", response.StatusCode)
+	}
+	if err := json.NewDecoder(response.Body).Decode(&feeBatchResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode fee batch response: %w", err)
+	}
 
-	return nil, nil
+	return &feeBatchResponse, nil
 }
