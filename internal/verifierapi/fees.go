@@ -62,6 +62,21 @@ func (v *VerifierApi) CreateFeeBatch(publicKey string) (*FeeBatchCreateResponseD
 	return &feeBatchResponse.Data, nil
 }
 
+func (v *VerifierApi) GetDraftBatches(publicKey string) ([]FeeBatchCreateResponseDto, error) {
+	response, err := v.getAuth(fmt.Sprintf("/fees/batch/draft/%s", publicKey))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get draft batches: %w", err)
+	}
+	defer response.Body.Close()
+
+	var feeBatches APIResponse[[]FeeBatchCreateResponseDto]
+	if err := json.NewDecoder(response.Body).Decode(&feeBatches); err != nil {
+		return nil, fmt.Errorf("failed to decode fee batches response: %w", err)
+	}
+
+	return feeBatches.Data, nil
+}
+
 func (v *VerifierApi) GetFeeHistory(ecdsaPublicKey string) (*FeeHistoryDto, error) {
 	response, err := v.getAuth(fmt.Sprintf("/fees/history/%s", ecdsaPublicKey))
 	if err != nil {
