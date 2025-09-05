@@ -65,7 +65,15 @@ func (fp *FeePlugin) updateStatus(ctx context.Context, batch types.FeeBatch, cur
 	if err == ethereum.NotFound {
 		// TODO rebroadcast logic
 		fp.logger.WithFields(logrus.Fields{"batch_id": batch.BatchID}).Info("tx not found on chain, rebroadcasting")
-		return nil
+		rawTx, err := fp.db.GetTx(ctx, *batch.TxHash)
+		if err != nil {
+			return fmt.Errorf("failed to get tx: %w", err)
+		}
+		tx, err := parseTransaction(rawTx)
+		if err != nil {
+			return fmt.Errorf("failed to parse tx: %w", err)
+		}
+		return fp.ethClient.SendTransaction(ctx, tx)
 	}
 
 	// Tx successful
