@@ -2,7 +2,7 @@ services:
   fee-worker:
     build:
       context: .
-      dockerfile: Dockerfile.Fee.worker.dev
+      dockerfile: dockerfiles/Dockerfile.Fee.worker.dev
     volumes:
       - ./cmd:/app/cmd
       - ./plugin:/app/plugin
@@ -18,7 +18,7 @@ services:
   fee-server:
     build:
       context: .
-      dockerfile: Dockerfile.Fee.server.dev
+      dockerfile: dockerfiles/Dockerfile.Fee.server.dev
     volumes:
       - ./cmd:/app/cmd
       - ./plugin:/app/plugin
@@ -30,6 +30,38 @@ services:
       - ./service:/app/service
       - ./fee.server.example.json:/app/config.json
       - ./etc/vultisig/fee.yml:/etc/vultisig/fee.yml
+
+  treasury-worker:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.Treasury.worker.dev
+    volumes:
+      - ./cmd:/app/cmd
+      - ./plugin:/app/plugin
+      - ./internal:/app/internal
+      - ./api:/app/api
+      - ./storage:/app/storage
+      - ./common:/app/common
+      - ./pkg:/app/pkg
+      - ./service:/app/service
+      - ./treasury.worker.example.json:/app/config.json
+      - ./etc/vultisig/treasury.yml:/etc/vultisig/treasury.yml
+
+  treasury-server:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.Treasury.server.dev
+    volumes:
+      - ./cmd:/app/cmd
+      - ./plugin:/app/plugin
+      - ./internal:/app/internal
+      - ./api:/app/api
+      - ./storage:/app/storage
+      - ./common:/app/common
+      - ./pkg:/app/pkg
+      - ./service:/app/service
+      - ./treasury.server.example.json:/app/config.json
+      - ./etc/vultisig/treasury.yml:/etc/vultisig/treasury.yml
 
 volumes:
   db_data:

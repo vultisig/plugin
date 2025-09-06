@@ -31,7 +31,6 @@ All key logic related to fees will go here, that includes
 var _ plugin.Spec = (*FeePlugin)(nil)
 
 type FeePlugin struct {
-	vaultService     *vault.ManagementService
 	vaultStorage     *vault.BlockStorageImp
 	signer           *keysign.Signer
 	db               storage.DatabaseStorage
