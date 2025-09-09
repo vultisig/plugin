@@ -1,0 +1,41 @@
+# Use the official Go image as the base image
+FROM golang:1.24
+
+# Install air for hot reloading
+RUN go install github.com/air-verse/air@latest
+
+# Set the working directory
+WORKDIR /app
+
+# Copy go.mod and go.sum to install dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Download and install DKLS wrappers
+RUN wget https://github.com/vultisig/go-wrappers/archive/refs/heads/master.tar.gz
+RUN tar -xzf master.tar.gz && \
+    cd go-wrappers-master && \
+    mkdir -p /usr/local/lib/dkls && \
+    cp --recursive includes /usr/local/lib/dkls
+
+ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux/:${LD_LIBRARY_PATH:-}
+
+# Create tmp directory for air
+RUN mkdir -p /app/tmp
+
+# Create air configuration
+RUN echo 'root = "."' > .air.toml && \
+    echo '' >> .air.toml && \
+    echo '[build]' >> .air.toml && \
+    echo '  bin = "./tmp/main"' >> .air.toml && \
+    echo '  cmd = "go build -o ./tmp/main ./cmd/treasury/server"' >> .air.toml && \
+    echo '  delay = 1000' >> .air.toml && \
+    echo '  exclude_dir = ["assets", "tmp", "vendor", "testdata"]' >> .air.toml && \
+    echo '  exclude_regex = ["_test.go"]' >> .air.toml 
+
+# Copy configuration files
+COPY treasury.server.example.json config.json
+COPY ./etc/vultisig/treasury.yml /etc/vultisig/treasury.yml
+
+# Run air for hot reloading
+CMD ["air"] 

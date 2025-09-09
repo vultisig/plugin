@@ -1,0 +1,30 @@
+{
+    "verifier": {
+        "url": "verifier:8080"
+    },
+    "server": {
+        "host": "localhost",
+        "port": 8080,
+        "encryption_secret": "test123"
+    },
+    "database": {
+        "dsn": "postgres://myuser:mypassword@plugin-db:5432/vultisig-treasury?sslmode=disable"
+    },
+    "base_config_path": "../../../etc/vultisig",
+    "redis": {
+        "host": "redis-treasury",
+        "port": "6379",
+        "password": "password"
+    },
+    "block_storage": {
+        "host": "http://minio-plugin:9000",
+        "region": "us-east-1",
+        "access_key": "minioadmin",
+        "secret": "minioadmin",
+        "bucket": "vultisig-treasury"
+    },
+    "datadog": {
+        "host": "localhost",
+        "port": 8125
+    }
+}

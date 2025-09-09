@@ -1,0 +1,11 @@
+chain_id: 1
+eth_provider: https://eth-mainnet.g.alchemy.com/v2/HAtIwB5y82TNVwaHkwcMj
+usdc_address: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+verifier_token: localhost-treasury-apikey
+jobs:
+    load:
+        cronexpr: "@every 10s"
+    transact:
+        cronexpr: "@every 10s"
+    post:
+        cronexpr: "@every 10s"

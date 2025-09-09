@@ -46,6 +46,20 @@ services:
     volumes:
       - redis_fees:/data
 
+  redis-treasury:
+    image: redis:latest
+    ports:
+      - "6376:6379"
+    networks:
+      - shared_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 1s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - redis_treasury:/data
+
   asynqmon:
     platform: linux/amd64
     image: hibiken/asynqmon:latest
@@ -57,7 +71,7 @@ services:
   minio-plugin:
     build:
       context: .
-      dockerfile: Dockerfile.minio
+      dockerfile: dockerfiles/Dockerfile.minio
       platforms:
         - linux/amd64
     ports:
@@ -74,7 +88,7 @@ services:
   payroll-server:
     build:
       context: .
-      dockerfile: Dockerfile.Payroll.server
+      dockerfile: dockerfiles/Dockerfile.Payroll.server
       platforms:
         - linux/amd64
     environment:
@@ -97,7 +111,7 @@ services:
   payroll-worker:
     build:
       context: .
-      dockerfile: Dockerfile.Payroll.worker
+      dockerfile: dockerfiles/Dockerfile.Payroll.worker
       platforms:
         - linux/amd64
     environment:
@@ -118,7 +132,7 @@ services:
   payroll-scheduler:
     build:
       context: .
-      dockerfile: Dockerfile.Payroll.scheduler
+      dockerfile: dockerfiles/Dockerfile.Payroll.scheduler
       platforms:
         - linux/amd64
     environment:
@@ -139,7 +153,7 @@ services:
   fee-server:
     build:
       context: .
-      dockerfile: Dockerfile.Fee.server
+      dockerfile: dockerfiles/Dockerfile.Fee.server
       platforms:
         - linux/amd64
     environment:
@@ -162,7 +176,7 @@ services:
   fee-worker:
     build:
       context: .
-      dockerfile: Dockerfile.Fee.worker
+      dockerfile: dockerfiles/Dockerfile.Fee.worker
       platforms:
         - linux/amd64
     environment:
@@ -180,11 +194,58 @@ services:
     networks:
       - shared_network
 
+  treasury-server:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.Treasury.server
+      platforms:
+        - linux/amd64
+    environment:
+      REDIS_HOST: redis-treasury
+      REDIS_PORT: 6379
+      BLOCK_STORAGE_HOST: http://minio-plugin:9000
+      DATABASE_DSN: postgres://myuser:mypassword@plugin-db:5432/vultisig-treasury?sslmode=disable
+    ports:
+      - "8083:8080"
+    depends_on:
+      plugin-db:
+        condition: service_healthy
+      redis-treasury:
+        condition: service_healthy
+      minio-plugin:
+        condition: service_started
+    networks:
+      - shared_network
+
+  treasury-worker:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.Treasury.worker
+      platforms:
+        - linux/amd64
+    environment:
+      REDIS_HOST: redis-treasury
+      REDIS_PORT: 6379
+      BLOCK_STORAGE_HOST: http://minio-plugin:9000
+      DATABASE_DSN: postgres://myuser:mypassword@plugin-db:5432/vultisig-treasury?sslmode=disable
+    depends_on:
+      plugin-db:
+        condition: service_healthy
+      redis-treasury:
+        condition: service_healthy
+      minio-plugin:
+        condition: service_started
+    networks:
+      - shared_network
+
+
+
 volumes:
   db_data:
   minio_data:
   redis_payroll:
   redis_fees:
+  redis_treasury:
 networks:
   shared_network:
     external: true
