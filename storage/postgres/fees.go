@@ -3,9 +3,11 @@ package postgres
 import (
 	"context"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/vultisig/plugin/internal/types"
 )
 
@@ -83,4 +85,36 @@ func (p *PostgresBackend) SetFeeBatchSent(ctx context.Context, tx pgx.Tx, txHash
 	query := `update fee_batch set status = $1, tx_hash = $2 where batch_id = $3`
 	_, err := tx.Exec(ctx, query, types.FeeBatchStateSent, txHash, batchId)
 	return err
+}
+
+func (p *PostgresBackend) InsertTx(ctx context.Context, tx pgx.Tx, rawTx string) error {
+	txBytes, err := hexutil.Decode(rawTx)
+	if err != nil {
+		return err
+	}
+
+	var transaction etypes.Transaction
+	if err := transaction.UnmarshalBinary(txBytes); err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `insert into fee_tx (hash, raw_tx) values ($1, $2)`, transaction.Hash().Hex(), rawTx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *PostgresBackend) GetTx(ctx context.Context, txHash string) (string, error) {
+	query := `select raw_tx from fee_tx where hash = $1`
+	rows, err := p.pool.Query(ctx, query, txHash)
+	if err != nil {
+		return "", err
+	}
+	var rawTx string
+	defer rows.Close()
+	if err := rows.Scan(&rawTx); err != nil {
+		return "", err
+	}
+	return rawTx, nil
 }
