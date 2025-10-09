@@ -20,7 +20,10 @@ func (p *Plugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, txs []
 		return fmt.Errorf("failed to get recipe from policy: %v", err)
 	}
 
-	eng := engine.NewEngine()
+	eng, err := engine.NewEngine()
+	if err != nil {
+		return fmt.Errorf("failed to get engine: %v", err)
+	}
 
 	for _, tx := range txs {
 		for _, keysignMessage := range tx.Messages {

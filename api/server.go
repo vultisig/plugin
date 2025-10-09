@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/go-playground/validator/v10"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
@@ -35,7 +34,6 @@ type Server struct {
 	vaultStorage  vault.Storage
 	client        *asynq.Client
 	inspector     *asynq.Inspector
-	sdClient      *statsd.Client
 	policyService service.Policy
 	plugin        plugin.Spec
 	logger        *logrus.Logger
@@ -49,7 +47,6 @@ func NewServer(
 	vaultStorage vault.Storage,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
-	sdClient *statsd.Client,
 	p plugin.Spec,
 	scheduler scheduler.Service,
 ) *Server {
@@ -65,7 +62,6 @@ func NewServer(
 		redis:         redis,
 		client:        client,
 		inspector:     inspector,
-		sdClient:      sdClient,
 		vaultStorage:  vaultStorage,
 		plugin:        p,
 		db:            db,
@@ -80,7 +76,6 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
-	e.Use(s.statsdMiddleware)
 	e.Use(middleware.CORS())
 	limiterStore := middleware.NewRateLimiterMemoryStoreWithConfig(
 		middleware.RateLimiterMemoryStoreConfig{Rate: 5, Burst: 30, ExpiresIn: 5 * time.Minute},

@@ -17,11 +17,7 @@ type PayrollWorkerConfig struct {
 	Verifier           verifier                  `mapstructure:"verifier" json:"verifier,omitempty"`
 	BlockStorage       vault_config.BlockStorage `mapstructure:"block_storage" json:"block_storage,omitempty"`
 	VaultServiceConfig vault_config.Config       `mapstructure:"vault_service" json:"vault_service,omitempty"`
-	Datadog            struct {
-		Host string `mapstructure:"host" json:"host,omitempty"`
-		Port string `mapstructure:"port" json:"port,omitempty"`
-	} `mapstructure:"datadog" json:"datadog"`
-	Database struct {
+	Database           struct {
 		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 	} `mapstructure:"database" json:"database,omitempty"`
 }

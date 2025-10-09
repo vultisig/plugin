@@ -234,7 +234,10 @@ func (fp *FeePlugin) ValidateProposedTransactions(policy vtypes.PluginPolicy, tx
 	}
 
 	// Create a recipe engine for evaluating transactions
-	eng := engine.NewEngine()
+	eng, err := engine.NewEngine()
+	if err != nil {
+		return fmt.Errorf("failed to get engine: %v", err)
+	}
 
 	// Validate each proposed transaction
 	for _, tx := range txs {
