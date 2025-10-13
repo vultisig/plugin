@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/plugin/internal/scheduler"
@@ -28,10 +27,6 @@ func main() {
 	}
 	logger := logrus.New()
 
-	sdClient, err := statsd.New(net.JoinHostPort(cfg.Datadog.Host, cfg.Datadog.Port))
-	if err != nil {
-		panic(err)
-	}
 	redisStorage, err := storage.NewRedisStorage(cfg.Redis)
 	if err != nil {
 		panic(err)
@@ -97,7 +92,6 @@ func main() {
 		vaultStorage,
 		client,
 		inspector,
-		sdClient,
 		p,
 		payroll.NewSchedulerService(scheduler.NewPostgresStorage(db.Pool())),
 	)

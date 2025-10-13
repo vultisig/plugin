@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -28,10 +27,6 @@ type FeesServerConfig struct {
 	BaseConfigPath string                    `mapstructure:"base_config_path" json:"base_config_path,omitempty"`
 	Redis          storage.RedisConfig       `mapstructure:"redis" json:"redis,omitempty"`
 	BlockStorage   vault_config.BlockStorage `mapstructure:"block_storage" json:"block_storage,omitempty"`
-	Datadog        struct {
-		Host string `mapstructure:"host" json:"host,omitempty"`
-		Port string `mapstructure:"port" json:"port,omitempty"`
-	} `mapstructure:"datadog" json:"datadog"`
 }
 
 func GetConfigure() (*FeesServerConfig, error) {
@@ -69,10 +64,6 @@ func createDummyServer() (*api.Server, vault.Storage, *fees.FeePlugin) {
 		panic(err)
 	}
 	logger := logrus.New()
-	sdClient, err := statsd.New(net.JoinHostPort(cfg.Datadog.Host, cfg.Datadog.Port))
-	if err != nil {
-		panic(err)
-	}
 
 	redisStorage, err := storage.NewRedisStorage(cfg.Redis)
 	if err != nil {
@@ -119,7 +110,6 @@ func createDummyServer() (*api.Server, vault.Storage, *fees.FeePlugin) {
 		vaultStorage,
 		client,
 		inspector,
-		sdClient,
 		nil,
 		scheduler.NewNilService(),
 	)

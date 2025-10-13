@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
@@ -13,7 +12,7 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
-	"github.com/vultisig/vultiserver/relay"
+	"github.com/vultisig/vultisig-go/relay"
 
 	"github.com/vultisig/plugin/plugin/payroll"
 	"github.com/vultisig/plugin/storage/postgres"
@@ -27,10 +26,6 @@ func main() {
 		panic(err)
 	}
 
-	sdClient, err := statsd.New(cfg.Datadog.Host + ":" + cfg.Datadog.Port)
-	if err != nil {
-		panic(err)
-	}
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize vault storage: %v", err))
@@ -75,7 +70,6 @@ func main() {
 	vaultService, err := vault.NewManagementService(
 		cfg.VaultServiceConfig,
 		client,
-		sdClient,
 		vaultStorage,
 		txIndexerService,
 	)
